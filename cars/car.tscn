@@ -1,8 +1,9 @@
-[gd_scene load_steps=21 format=3]
+[gd_scene load_steps=22 format=3]
 
 [ext_resource type="Script" path="res://cars/car.gd" id="1"]
 [ext_resource type="Resource" path="res://cars/data/sora_gt.tres" id="2"]
 [ext_resource type="PackedScene" path="res://vfx/dust.tscn" id="3"]
+[ext_resource type="Script" path="res://cars/car_damage.gd" id="4"]
 
 [sub_resource type="PhysicsMaterial" id="chassis_physics"]
 friction = 0.2
@@ -82,6 +83,9 @@ dust_scene = ExtResource("3")
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 0)
 shape = SubResource("chassis_shape")
+
+[node name="Damage" type="Node" parent="."]
+script = ExtResource("4")
 
 [node name="Visual" type="Node3D" parent="."]
 

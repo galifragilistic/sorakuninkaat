@@ -12,6 +12,8 @@ const PLAYER_COLORS: Array[Color] = [
 ]
 
 var player_count: int = 1
+## Laps per race; chosen in the lobby in a later phase.
+var lap_count: int = 3
 
 
 func get_player_color(player_index: int) -> Color:

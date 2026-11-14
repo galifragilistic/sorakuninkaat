@@ -47,6 +47,19 @@ const CHECKER_SHADER: Shader = preload("res://tracks/shaders/checker.gdshader")
 
 @export_group("Start")
 @export var start_height: float = 0.6
+## Distance from the start line back to the first grid row (m).
+@export var grid_first_row_distance: float = 6.0
+@export var grid_row_spacing: float = 7.0
+## Sideways offset of the two grid columns as a share of the road width.
+@export_range(0.0, 0.5, 0.01) var grid_column_offset: float = 0.2
+
+@export_group("Checkpoints")
+## Evenly spaced gates around the lap; the first one is the start/finish line.
+@export var checkpoint_count: int = 6
+## Gate width as a multiple of the road width, so wide lines still count.
+@export var checkpoint_width_scale: float = 2.2
+@export var checkpoint_height: float = 6.0
+@export var checkpoint_depth: float = 1.5
 ## Length of the chequered start line along the road (m).
 @export var start_line_length: float = 2.4
 @export var start_line_cells: Vector2 = Vector2(10.0, 2.0)
@@ -54,6 +67,7 @@ const CHECKER_SHADER: Shader = preload("res://tracks/shaders/checker.gdshader")
 
 var curve: Curve3D
 var path: Path3D
+var checkpoints: Array[Checkpoint] = []
 
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
@@ -65,6 +79,7 @@ func _ready() -> void:
 	_build_walls()
 	_build_road()
 	_build_start_line()
+	_build_checkpoints()
 	for child: Node in get_children():
 		var scenery: TrackScenery = child as TrackScenery
 		if scenery != null:
@@ -104,10 +119,20 @@ func get_distance_to_centerline(global_point: Vector3) -> float:
 	return Vector2(local_point.x - closest.x, local_point.z - closest.z).length()
 
 
-## Transform for a car on the start line, facing the driving direction (-Z forward).
-func get_start_transform() -> Transform3D:
-	var origin: Vector3 = get_position_at(0.0) + Vector3.UP * start_height
-	return Transform3D(Basis.looking_at(get_direction_at(0.0), Vector3.UP), origin)
+## Lap offset (0..length) of the point on the centre line closest to a global position.
+func get_offset_at(global_point: Vector3) -> float:
+	return curve.get_closest_offset(to_local(global_point))
+
+
+## Transform for the car in grid slot 0, 1, 2... behind the start line (-Z forward).
+func get_grid_transform(slot: int) -> Transform3D:
+	@warning_ignore("integer_division")
+	var row: int = slot / 2
+	var side: float = -1.0 if slot % 2 == 0 else 1.0
+	var offset: float = -(grid_first_row_distance + float(row) * grid_row_spacing)
+	var origin: Vector3 = get_position_at(offset) + Vector3.UP * start_height
+	origin += get_right_at(offset) * side * road_width * grid_column_offset
+	return Transform3D(Basis.looking_at(get_direction_at(offset), Vector3.UP), origin)
 
 
 func _build_curve() -> void:
@@ -221,6 +246,25 @@ func _build_start_line() -> void:
 	mesh_instance.material_override = material
 	mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mesh_instance)
+
+
+func _build_checkpoints() -> void:
+	var shape: BoxShape3D = BoxShape3D.new()
+	shape.size = Vector3(road_width * checkpoint_width_scale, checkpoint_height, checkpoint_depth)
+	for i: int in checkpoint_count:
+		var offset: float = get_length() * float(i) / float(checkpoint_count)
+		var checkpoint: Checkpoint = Checkpoint.new()
+		checkpoint.name = "Checkpoint_%d" % i
+		checkpoint.index = i
+		add_child(checkpoint)
+		var origin: Vector3 = get_position_at(offset) + Vector3.UP * checkpoint_height * 0.5
+		checkpoint.global_transform = Transform3D(
+			Basis.looking_at(get_direction_at(offset), Vector3.UP), origin
+		)
+		var collision: CollisionShape3D = CollisionShape3D.new()
+		collision.shape = shape
+		checkpoint.add_child(collision)
+		checkpoints.append(checkpoint)
 
 
 func _build_ground() -> void:

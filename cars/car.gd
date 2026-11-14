@@ -11,6 +11,8 @@ const FRONT_WHEEL_COUNT: int = 2
 
 @export var stats: CarStats
 @export var player_index: int = 0
+## While false the car ignores its player and holds the handbrake (countdown, after the finish).
+@export var controls_enabled: bool = true
 
 @export_group("Stat ranges (stat 1 .. stat 10)")
 ## Top speed in m/s.
@@ -68,6 +70,10 @@ const FRONT_WHEEL_COUNT: int = 2
 @export_range(0.0, 1.0, 0.01) var reverse_speed_share: float = 0.3
 @export_range(0.0, 1.0, 0.01) var reverse_force_share: float = 0.6
 
+@export_group("Gearbox (cosmetic)")
+## Number of forward gears shown on the HUD.
+@export var gear_count: int = 5
+
 @export_group("Lights")
 @export var headlights_enabled: bool = true:
 	set(value):
@@ -95,12 +101,15 @@ var _current_surface: SurfaceData
 var _mount_points: Array[Vector3] = []
 var _wheel_surfaces: Array[SurfaceData] = []
 var _dust_emitters: Array[Dust] = []
+var _previous_velocity: Vector3 = Vector3.ZERO
+var _idle_input: PlayerInput = PlayerInput.new()
 
 @onready var _wheel_nodes: Array[Node3D] = [
 	$Wheels/FrontLeft, $Wheels/FrontRight, $Wheels/RearLeft, $Wheels/RearRight,
 ]
 @onready var _body_meshes: Array[MeshInstance3D] = [$Visual/Body, $Visual/Roof]
 @onready var _headlights: Node3D = $Headlights
+@onready var damage: CarDamage = $Damage
 
 
 func _ready() -> void:
@@ -115,13 +124,31 @@ func _ready() -> void:
 	for i: int in WHEEL_COUNT:
 		_wheel_nodes[i].position = _mount_points[i] + Vector3.DOWN * suspension_rest_length
 		_wheel_surfaces.append(null)
+	_idle_input.handbrake = true
 	_apply_player_color()
 	_update_headlights()
 	_create_dust_emitters()
 
 
+## Top speed in m/s, including damage.
 func get_top_speed() -> float:
+	return get_base_top_speed() * damage.get_top_speed_multiplier()
+
+
+## Top speed in m/s of an undamaged car.
+func get_base_top_speed() -> float:
 	return CarStats.stat_to_value(stats.top_speed, top_speed_range)
+
+
+## 1..gear_count going forwards, 0 at standstill, -1 in reverse.
+func get_gear() -> int:
+	var forward_speed: float = get_forward_speed()
+	if forward_speed < -reverse_threshold:
+		return -1
+	if absf(forward_speed) < reverse_threshold:
+		return 0
+	var ratio: float = clampf(forward_speed / get_base_top_speed(), 0.0, 1.0)
+	return clampi(1 + floori(ratio * float(gear_count)), 1, gear_count)
 
 
 func get_forward_speed() -> float:
@@ -155,13 +182,17 @@ func reset_upright() -> void:
 	global_transform = Transform3D(Basis.looking_at(forward.normalized(), Vector3.UP), origin)
 	linear_velocity = Vector3.ZERO
 	angular_velocity = Vector3.ZERO
+	_previous_velocity = Vector3.ZERO
 	reset_physics_interpolation()
 
 
 func _physics_process(delta: float) -> void:
-	var input: PlayerInput = InputManager.get_input(player_index)
+	var input: PlayerInput = _idle_input
+	if controls_enabled:
+		input = InputManager.get_input(player_index)
 	if input.reset_pressed:
 		reset_upright()
+	_detect_impact()
 
 	var top_speed: float = get_top_speed()
 	var forward_speed: float = get_forward_speed()
@@ -170,6 +201,7 @@ func _physics_process(delta: float) -> void:
 	var max_angle: float = lerpf(steer_angle_low_speed, steer_angle_high_speed, speed_ratio)
 	# Sliding unlocks extra steering lock so a drift can always be caught.
 	max_angle = minf(steer_angle_low_speed, max_angle + _get_slip_angle() * countersteer_gain)
+	max_angle *= damage.get_steering_multiplier()
 	# Positive rotation around +Y turns -Z towards -X, so steering right is negative.
 	var steer_angle: float = -_steer * deg_to_rad(max_angle)
 
@@ -194,6 +226,15 @@ func _physics_process(delta: float) -> void:
 	if surface != _current_surface and surface != null:
 		_current_surface = surface
 		surface_changed.emit(surface)
+
+
+## A sudden change of velocity between two ticks is a crash (or a hard landing).
+func _detect_impact() -> void:
+	var change: Vector3 = linear_velocity - _previous_velocity
+	_previous_velocity = linear_velocity
+	var speed_change: float = change.length()
+	if speed_change >= damage.impact_threshold:
+		damage.apply_impact(global_basis.inverse() * change, speed_change, stats.durability)
 
 
 func _get_slip_angle() -> float:
@@ -286,6 +327,7 @@ func _simulate_wheel(
 	var lat_speed: float = point_velocity.dot(right)
 	var axle_grip: float = front_grip_scale if is_front else rear_grip_scale
 	var max_friction: float = tire_friction * surface_grip * grip_multiplier * axle_grip * load_force
+	max_friction *= damage.get_grip_multiplier()
 
 	# Longitudinal: engine, brakes, rolling drag.
 	var long_force: float = 0.0
@@ -328,7 +370,8 @@ func _create_dust_emitters() -> void:
 
 
 func _update_dust() -> void:
-	var speed: float = linear_velocity.length()
+	# Horizontal speed only, so settling on the suspension raises no dust.
+	var speed: float = Vector2(linear_velocity.x, linear_velocity.z).length()
 	var rolling: float = clampf(speed / dust_full_speed, 0.0, 1.0) * dust_rolling_share
 	var sliding: float = clampf(_get_slip_angle() / dust_full_slip, 0.0, 1.0) * (1.0 - dust_rolling_share)
 	for i: int in _dust_emitters.size():

@@ -1,19 +1,21 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://race/race.gd" id="1"]
 [ext_resource type="PackedScene" path="res://tracks/soramonttu/soramonttu.tscn" id="2"]
 [ext_resource type="PackedScene" path="res://cars/car.tscn" id="3"]
 [ext_resource type="Script" path="res://race/camera_rig.gd" id="4"]
 [ext_resource type="Resource" path="res://env/presets/evening_clear.tres" id="5"]
-[ext_resource type="Script" path="res://race/debug_hud.gd" id="6"]
+[ext_resource type="PackedScene" path="res://ui/hud/race_hud.tscn" id="6"]
 [ext_resource type="Script" path="res://env/environment_controller.gd" id="7"]
 [ext_resource type="Shader" path="res://env/shaders/vignette.gdshader" id="8"]
+[ext_resource type="Script" path="res://race/race_manager.gd" id="9"]
 
 [sub_resource type="ShaderMaterial" id="vignette_material"]
 shader = ExtResource("8")
 
 [node name="Race" type="Node3D"]
 script = ExtResource("1")
+car_scene = ExtResource("3")
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 
@@ -22,7 +24,8 @@ shadow_enabled = true
 
 [node name="Track" parent="." instance=ExtResource("2")]
 
-[node name="Car" parent="." instance=ExtResource("3")]
+[node name="RaceManager" type="Node" parent="."]
+script = ExtResource("9")
 
 [node name="CameraRig" type="Node3D" parent="."]
 physics_interpolation_mode = 2
@@ -49,17 +52,7 @@ mouse_filter = 2
 
 [node name="HudLayer" type="CanvasLayer" parent="."]
 
-[node name="DebugHud" type="Label" parent="HudLayer"]
-anchors_preset = 2
-anchor_top = 1.0
-anchor_bottom = 1.0
-offset_left = 24.0
-offset_top = -56.0
-offset_right = 424.0
-offset_bottom = -20.0
-grow_vertical = 0
-theme_override_font_sizes/font_size = 22
-script = ExtResource("6")
+[node name="RaceHud" parent="HudLayer" instance=ExtResource("6")]
 
 [node name="EnvironmentController" type="Node" parent="." node_paths=PackedStringArray("world_environment", "sun", "vignette")]
 script = ExtResource("7")

@@ -57,7 +57,8 @@ func _build() -> void:
 			)
 			grid.add_child(cell)
 	controls_column.add_child(UiStyle.make_label(
-		tr("Ohjain liittyy pelaajaksi 2 painamalla A-painiketta."), UiStyle.FONT_MEDIUM, 14, UiStyle.TEXT_SECONDARY
+		tr("Yksin ajaessa käyvät näppäimistö ja ohjain. Kaksinpelissä ohjain on pelaaja 2."),
+		UiStyle.FONT_MEDIUM, 14, UiStyle.TEXT_SECONDARY
 	))
 	MenuKit.add_hints(self, [["◀ ▶", tr("Muuta")], ["B", tr("Takaisin")]])
 

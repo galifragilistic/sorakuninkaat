@@ -25,6 +25,7 @@ func _ready() -> void:
 	add_child(_track)
 
 	_race_manager.setup(_track, GameState.lap_count)
+	InputManager.solo_mode = GameState.get_race_players().size() == 1
 	var slot: int = 0
 	for player: int in GameState.get_race_players():
 		var car: Car = car_scene.instantiate() as Car

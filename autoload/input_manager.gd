@@ -40,6 +40,12 @@ const JOY_STEER_DEADZONE: float = 0.15
 const ACTION_SECONDARY: StringName = &"menu_secondary"
 const ACTION_START: StringName = &"menu_start"
 const ACTION_PAUSE: StringName = &"pause"
+## Matches a button on every connected gamepad.
+const ALL_DEVICES: int = -1
+
+## With a single driver there is nobody to tell apart, so player 1 may use
+## the keyboard and any connected gamepad at the same time.
+var solo_mode: bool = false
 
 var _devices: Array[Device] = []
 var _joy_ids: Array[int] = []
@@ -90,6 +96,9 @@ func _register_actions() -> void:
 	_add_action(ACTION_SECONDARY, [KEY_X], [JOY_BUTTON_X])
 	_add_action(ACTION_START, [], [JOY_BUTTON_START])
 	_add_action(ACTION_PAUSE, [KEY_ESCAPE], [JOY_BUTTON_START])
+	# Godot 4 binds ui_accept and ui_cancel to the keyboard only.
+	_add_action(&"ui_accept", [], [JOY_BUTTON_A])
+	_add_action(&"ui_cancel", [], [JOY_BUTTON_B])
 	# P1 drives with WASD, so let the same keys move the menu cursor.
 	var wasd: Dictionary = {&"ui_up": KEY_W, &"ui_down": KEY_S, &"ui_left": KEY_A, &"ui_right": KEY_D}
 	for action: StringName in wasd:
@@ -104,6 +113,7 @@ func _add_action(action: StringName, keys: Array[Key], buttons: Array[JoyButton]
 		InputMap.action_add_event(action, _make_key_event(key))
 	for button: JoyButton in buttons:
 		var event: InputEventJoypadButton = InputEventJoypadButton.new()
+		event.device = ALL_DEVICES
 		event.button_index = button
 		InputMap.action_add_event(action, event)
 
@@ -147,11 +157,33 @@ func _on_joy_connection_changed(joy_id: int, connected: bool) -> void:
 
 func _physics_process(_delta: float) -> void:
 	for i: int in GameState.MAX_PLAYERS:
+		if solo_mode and i == 0:
+			_read_solo(_inputs[i])
+			continue
 		match _devices[i]:
 			Device.KEYBOARD_WASD, Device.KEYBOARD_ARROWS:
 				_read_keyboard(_inputs[i], KEYBOARD_LAYOUTS[_devices[i]])
 			Device.JOYPAD:
 				_read_joypad(_inputs[i], _joy_ids[i])
+
+
+## Player 1's keyboard combined with every connected gamepad.
+func _read_solo(input: PlayerInput) -> void:
+	var layout: Dictionary = KEYBOARD_LAYOUTS[Device.KEYBOARD_WASD]
+	input.throttle = _key_strength(layout[Action.THROTTLE])
+	input.brake = _key_strength(layout[Action.BRAKE])
+	input.steer = _key_strength(layout[Action.RIGHT]) - _key_strength(layout[Action.LEFT])
+	input.handbrake = Input.is_physical_key_pressed(layout[Action.HANDBRAKE])
+	var reset_held: bool = Input.is_physical_key_pressed(layout[Action.RESET])
+	for joy_id: int in Input.get_connected_joypads():
+		input.throttle = maxf(input.throttle, Input.get_joy_axis(joy_id, JOY_AXIS_TRIGGER_RIGHT))
+		input.brake = maxf(input.brake, Input.get_joy_axis(joy_id, JOY_AXIS_TRIGGER_LEFT))
+		var steer: float = Input.get_joy_axis(joy_id, JOY_AXIS_LEFT_X)
+		if absf(steer) >= JOY_STEER_DEADZONE and absf(steer) > absf(input.steer):
+			input.steer = steer
+		input.handbrake = input.handbrake or Input.is_joy_button_pressed(joy_id, JOY_HANDBRAKE_BUTTON)
+		reset_held = reset_held or Input.is_joy_button_pressed(joy_id, JOY_RESET_BUTTON)
+	input.update_reset(reset_held)
 
 
 func _read_keyboard(input: PlayerInput, layout: Dictionary) -> void:

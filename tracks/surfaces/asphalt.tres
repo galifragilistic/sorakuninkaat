@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="SurfaceData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://tracks/surface_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+kind = 0
+display_name = "Asfaltti"
+grip = 1.0
+rolling_drag = 0.02
+color_a = Color(0.3, 0.31, 0.34, 1)
+color_b = Color(0.26, 0.27, 0.3, 1)

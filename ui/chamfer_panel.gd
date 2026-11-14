@@ -71,6 +71,8 @@ func _notification(what: int) -> void:
 
 
 func _draw() -> void:
+	# Resize notifications are not sent outside the tree, so sync the size here too.
+	_material.set_shader_parameter("rect_size", size)
 	draw_rect(Rect2(Vector2.ZERO, size), Color.WHITE)
 
 

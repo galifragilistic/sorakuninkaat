@@ -74,6 +74,9 @@ const FRONT_WHEEL_COUNT: int = 2
 ## Number of forward gears shown on the HUD.
 @export var gear_count: int = 5
 
+@export_group("Paint")
+@export_range(0.0, 1.0, 0.01) var body_roughness: float = 0.6
+
 @export_group("Lights")
 @export var headlights_enabled: bool = true:
 	set(value):
@@ -108,6 +111,7 @@ var _idle_input: PlayerInput = PlayerInput.new()
 	$Wheels/FrontLeft, $Wheels/FrontRight, $Wheels/RearLeft, $Wheels/RearRight,
 ]
 @onready var _body_meshes: Array[MeshInstance3D] = [$Visual/Body, $Visual/Roof]
+@onready var _stripe: MeshInstance3D = $Visual/Stripe
 @onready var _headlights: Node3D = $Headlights
 @onready var damage: CarDamage = $Damage
 
@@ -383,8 +387,23 @@ func _update_dust() -> void:
 
 
 func _apply_player_color() -> void:
+	set_body_color(GameState.get_player_color(player_index))
+
+
+## Applies the car, paint and pattern a player picked in the menus.
+func apply_setup(setup: PlayerSetup) -> void:
+	stats = setup.stats
+	set_body_color(setup.color)
+	set_stripe_visible(setup.pattern == PlayerSetup.Pattern.STRIPE)
+
+
+func set_body_color(color: Color) -> void:
 	var material: StandardMaterial3D = StandardMaterial3D.new()
-	material.albedo_color = GameState.get_player_color(player_index)
-	material.roughness = 0.6
+	material.albedo_color = color
+	material.roughness = body_roughness
 	for mesh: MeshInstance3D in _body_meshes:
 		mesh.material_override = material
+
+
+func set_stripe_visible(stripe_visible: bool) -> void:
+	_stripe.visible = stripe_visible

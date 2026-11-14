@@ -1,7 +1,6 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://race/race.gd" id="1"]
-[ext_resource type="PackedScene" path="res://tracks/soramonttu/soramonttu.tscn" id="2"]
 [ext_resource type="PackedScene" path="res://cars/car.tscn" id="3"]
 [ext_resource type="PackedScene" path="res://race/split_screen.tscn" id="4"]
 [ext_resource type="Resource" path="res://env/presets/evening_clear.tres" id="5"]
@@ -16,8 +15,6 @@ car_scene = ExtResource("3")
 
 [node name="Sun" type="DirectionalLight3D" parent="."]
 shadow_enabled = true
-
-[node name="Track" parent="." instance=ExtResource("2")]
 
 [node name="RaceManager" type="Node" parent="."]
 script = ExtResource("9")

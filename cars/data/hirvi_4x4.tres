@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="CarStats" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://cars/car_stats.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Hirvi 4x4"
+car_class = "B"
+description = "Neliveto · 2,5 L diesel"
+top_speed = 5
+acceleration = 5
+grip_gravel = 9
+grip_asphalt = 4
+durability = 9
+drivetrain = 2

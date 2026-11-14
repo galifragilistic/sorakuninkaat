@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="CarStats" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://cars/car_stats.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Lumikko"
+car_class = "A"
+description = "Neliveto · 2,0 L turbo"
+top_speed = 8
+acceleration = 8
+grip_gravel = 7
+grip_asphalt = 7
+durability = 4
+drivetrain = 2

@@ -522,17 +522,18 @@ func _on_countdown_tick(seconds_left: int) -> void:
 		_banner_time_left = go_display_seconds
 
 
-## Once everybody has finished, tell the players how to go again.
+## The results screen takes over once everybody has finished.
 func _on_state_changed(state: RaceManager.State) -> void:
 	if state == RaceManager.State.FINISHED:
-		_banner_hint_label.text = tr("%s · Enter: uusi kisa") % RaceFormat.lap_time(_racer.finish_time)
+		_banner_label.visible = false
+		_banner_hint_label.visible = false
 
 
 func _on_racer_finished(racer: RacerState) -> void:
 	if racer != _racer:
 		return
-	_banner_label.text = tr("MAALI")
+	_banner_label.text = tr("AIKA LOPPUI") if racer.did_not_finish else tr("MAALI")
 	_banner_label.visible = true
 	_banner_time_left = 0.0
-	_banner_hint_label.text = RaceFormat.lap_time(racer.finish_time)
+	_banner_hint_label.text = "" if racer.did_not_finish else RaceFormat.lap_time(racer.finish_time)
 	_banner_hint_label.visible = true

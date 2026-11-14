@@ -36,6 +36,11 @@ const JOY_HANDBRAKE_BUTTON: JoyButton = JOY_BUTTON_X
 const JOY_RESET_BUTTON: JoyButton = JOY_BUTTON_BACK
 const JOY_STEER_DEADZONE: float = 0.15
 
+## Extra menu and race actions on top of Godot's built-in ui_* actions.
+const ACTION_SECONDARY: StringName = &"menu_secondary"
+const ACTION_START: StringName = &"menu_start"
+const ACTION_PAUSE: StringName = &"pause"
+
 var _devices: Array[Device] = []
 var _joy_ids: Array[int] = []
 var _inputs: Array[PlayerInput] = []
@@ -48,6 +53,7 @@ func _ready() -> void:
 		_devices.append(Device.NONE)
 		_joy_ids.append(-1)
 		_inputs.append(PlayerInput.new())
+	_register_actions()
 	assign_device(0, Device.KEYBOARD_WASD)
 	assign_device(1, Device.KEYBOARD_ARROWS)
 	Input.joy_connection_changed.connect(_on_joy_connection_changed)
@@ -66,6 +72,46 @@ func get_device(player_index: int) -> Device:
 
 func get_joy_id(player_index: int) -> int:
 	return _joy_ids[player_index]
+
+
+## Human-readable device name for menus.
+func get_device_name(player_index: int) -> String:
+	match _devices[player_index]:
+		Device.KEYBOARD_WASD:
+			return tr("Näppäimistö (WASD)")
+		Device.KEYBOARD_ARROWS:
+			return tr("Näppäimistö (nuolet)")
+		Device.JOYPAD:
+			return tr("Ohjain %d") % (_joy_ids[player_index] + 1)
+	return tr("Ei laitetta")
+
+
+func _register_actions() -> void:
+	_add_action(ACTION_SECONDARY, [KEY_X], [JOY_BUTTON_X])
+	_add_action(ACTION_START, [], [JOY_BUTTON_START])
+	_add_action(ACTION_PAUSE, [KEY_ESCAPE], [JOY_BUTTON_START])
+	# P1 drives with WASD, so let the same keys move the menu cursor.
+	var wasd: Dictionary = {&"ui_up": KEY_W, &"ui_down": KEY_S, &"ui_left": KEY_A, &"ui_right": KEY_D}
+	for action: StringName in wasd:
+		var key: Key = wasd[action]
+		InputMap.action_add_event(action, _make_key_event(key))
+
+
+func _add_action(action: StringName, keys: Array[Key], buttons: Array[JoyButton]) -> void:
+	if not InputMap.has_action(action):
+		InputMap.add_action(action)
+	for key: Key in keys:
+		InputMap.action_add_event(action, _make_key_event(key))
+	for button: JoyButton in buttons:
+		var event: InputEventJoypadButton = InputEventJoypadButton.new()
+		event.button_index = button
+		InputMap.action_add_event(action, event)
+
+
+func _make_key_event(key: Key) -> InputEventKey:
+	var event: InputEventKey = InputEventKey.new()
+	event.physical_keycode = key
+	return event
 
 
 func get_input(player_index: int) -> PlayerInput:

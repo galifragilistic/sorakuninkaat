@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="CarStats" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://cars/car_stats.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Vanha Valtias"
+car_class = "A"
+description = "Takaveto · 3,0 L V6"
+top_speed = 9
+acceleration = 7
+grip_gravel = 5
+grip_asphalt = 8
+durability = 6
+drivetrain = 1

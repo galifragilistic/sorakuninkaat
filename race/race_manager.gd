@@ -23,6 +23,8 @@ enum State { WAITING, COUNTDOWN, RACING, FINISHED }
 @export var overtake_cooldown: float = 1.0
 ## A pass only counts once the passing car is this far ahead (m).
 @export var overtake_margin: float = 1.0
+## Once the winner is in, the others have this long to finish (s).
+@export var finish_timeout: float = 30.0
 
 var track: Track
 var lap_count: int = 3
@@ -33,6 +35,7 @@ var racers: Array[RacerState] = []
 
 var _countdown_left: float = 0.0
 var _last_overtake_time: float = 0.0
+var _first_finish_time: float = RacerState.NO_TIME
 var _standings: Array[RacerState] = []
 
 
@@ -93,6 +96,8 @@ func _physics_process(delta: float) -> void:
 		State.RACING:
 			race_time += delta
 			_update_standings()
+			if _first_finish_time >= 0.0 and race_time - _first_finish_time >= finish_timeout:
+				_end_race_for_stragglers()
 
 
 func _start_race() -> void:
@@ -156,10 +161,21 @@ func _complete_lap(racer: RacerState) -> void:
 		_finish_racer(racer)
 
 
+## Classifies everyone still driving by distance covered and ends the race.
+func _end_race_for_stragglers() -> void:
+	_update_standings()
+	for racer: RacerState in _standings.duplicate():
+		if not racer.finished:
+			racer.did_not_finish = true
+			_finish_racer(racer)
+
+
 func _finish_racer(racer: RacerState) -> void:
 	racer.finished = true
 	racer.finish_time = race_time
 	racer.car.controls_enabled = false
+	if _first_finish_time < 0.0:
+		_first_finish_time = race_time
 	_update_standings()
 	racer_finished.emit(racer)
 	for other: RacerState in racers:
@@ -214,7 +230,9 @@ func _report_overtakes(previous: Array[RacerState]) -> void:
 func _is_ahead(a: RacerState, b: RacerState) -> bool:
 	if a.finished != b.finished:
 		return a.finished
-	if a.finished:
+	if a.finished and a.did_not_finish != b.did_not_finish:
+		return b.did_not_finish
+	if a.finished and not a.did_not_finish:
 		return a.finish_time < b.finish_time
 	if is_equal_approx(a.progress, b.progress):
 		return a.player_index < b.player_index

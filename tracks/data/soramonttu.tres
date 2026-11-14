@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="TrackInfo" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://tracks/track_info.gd" id="1"]
+[ext_resource type="PackedScene" path="res://tracks/soramonttu/soramonttu.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Soramonttu"
+description = "Sorakuoppa järven ympärillä: nopea alkuosuus, asfalttipätkä ja tiukka loppukaarre."
+surface = 1
+surface_label = "SORA"
+summary = "Sora · 11 mutkaa · järvi"
+scene = ExtResource("2")

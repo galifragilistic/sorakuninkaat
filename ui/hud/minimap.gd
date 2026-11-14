@@ -78,13 +78,18 @@ func _draw_dot(racer: RacerState, radius: float) -> void:
 	draw_circle(center, radius, GameState.get_player_color(racer.player_index))
 
 
-## World position to unscaled view-plane coordinates (x right, y down).
-func _project(world: Vector3) -> Vector2:
-	var yaw: float = deg_to_rad(view_yaw_degrees)
+## World position to unscaled view-plane coordinates (x right, y down) for a
+## camera with the given yaw and downward pitch.
+static func project(world: Vector3, yaw_degrees: float, pitch_degrees: float) -> Vector2:
+	var yaw: float = deg_to_rad(yaw_degrees)
 	var right: Vector2 = Vector2(cos(yaw), -sin(yaw))
 	var down: Vector2 = Vector2(sin(yaw), cos(yaw))
 	var flat: Vector2 = Vector2(world.x, world.z)
-	return Vector2(flat.dot(right), flat.dot(down) * sin(deg_to_rad(view_pitch_degrees)))
+	return Vector2(flat.dot(right), flat.dot(down) * sin(deg_to_rad(pitch_degrees)))
+
+
+func _project(world: Vector3) -> Vector2:
+	return project(world, view_yaw_degrees, view_pitch_degrees)
 
 
 func _to_map(projected: Vector2) -> Vector2:

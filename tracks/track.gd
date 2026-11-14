@@ -135,17 +135,24 @@ func get_grid_transform(slot: int) -> Transform3D:
 	return Transform3D(Basis.looking_at(get_direction_at(offset), Vector3.UP), origin)
 
 
-func _build_curve() -> void:
-	curve = Curve3D.new()
-	curve.bake_interval = sample_spacing * 0.25
-	var count: int = control_points.size()
+## Closed centre-line curve through the control points. Static so menus can
+## draw a track outline without building the whole track.
+static func make_curve(points: PackedVector3Array, handle_scale: float, bake_interval: float) -> Curve3D:
+	var result: Curve3D = Curve3D.new()
+	result.bake_interval = bake_interval
+	var count: int = points.size()
 	# The first point is repeated at the end to close the loop.
 	for i: int in count + 1:
-		var point: Vector3 = control_points[i % count]
-		var previous: Vector3 = control_points[(i - 1 + count) % count]
-		var next: Vector3 = control_points[(i + 1) % count]
-		var handle: Vector3 = (next - previous) * tangent_scale
-		curve.add_point(point, -handle, handle)
+		var point: Vector3 = points[i % count]
+		var previous: Vector3 = points[(i - 1 + count) % count]
+		var next: Vector3 = points[(i + 1) % count]
+		var handle: Vector3 = (next - previous) * handle_scale
+		result.add_point(point, -handle, handle)
+	return result
+
+
+func _build_curve() -> void:
+	curve = make_curve(control_points, tangent_scale, sample_spacing * 0.25)
 	path = Path3D.new()
 	path.name = "Path"
 	path.curve = curve

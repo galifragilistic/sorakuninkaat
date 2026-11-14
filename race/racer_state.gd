@@ -29,6 +29,8 @@ var position: int = 1
 var gap_to_leader: float = 0.0
 var finished: bool = false
 var finish_time: float = 0.0
+## True when the race ended before this racer completed all laps.
+var did_not_finish: bool = false
 
 
 func has_best_lap() -> bool:

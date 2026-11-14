@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="CarStats" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://cars/car_stats.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Pikku-Turbo"
+car_class = "C"
+description = "Etuveto · 1,0 L turbo"
+top_speed = 4
+acceleration = 6
+grip_gravel = 5
+grip_asphalt = 6
+durability = 4
+drivetrain = 0

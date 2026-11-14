@@ -9,6 +9,8 @@ const STAT_MAX: int = 10
 
 @export var display_name: String = ""
 @export var car_class: String = "C"
+## Short technical blurb for the car select screen, e.g. "Neliveto · 1,8 L turbo".
+@export var description: String = ""
 @export_range(1, 10) var top_speed: int = 5
 @export_range(1, 10) var acceleration: int = 5
 @export_range(1, 10) var grip_gravel: int = 5

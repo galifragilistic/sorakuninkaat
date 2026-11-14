@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="CarStats" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://cars/car_stats.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Kuplakone"
+car_class = "C"
+description = "Takaveto · 1,2 L"
+top_speed = 3
+acceleration = 4
+grip_gravel = 6
+grip_asphalt = 5
+durability = 8
+drivetrain = 1

@@ -3,6 +3,11 @@ extends Control
 ## One player's race HUD (mockups/05_Peli.png): position, lap, standings,
 ## lap time and split badge, minimap, damage, speedometer and player tags.
 ## Laid out for the 1280x720 design resolution; anchors keep it on the edges.
+## In compact mode (split screen, mockups/06_Jaettu.png) only position, lap,
+## time and speedometer are shown; the minimap is shared by SplitScreen.
+
+## Set before the HUD enters the tree.
+@export var compact: bool = false
 
 @export_group("Layout")
 @export var edge_margin: Vector2 = Vector2(32.0, 28.0)
@@ -16,6 +21,14 @@ extends Control
 @export var time_label_width: float = 170.0
 ## How far above the screen centre the countdown / finish banner sits.
 @export var banner_lift: float = 120.0
+@export var banner_font_size: int = 110
+
+@export_group("Compact layout")
+@export var compact_edge_margin: Vector2 = Vector2(24.0, 24.0)
+@export var compact_speedometer_size: float = 136.0
+@export var compact_speedometer_margin: Vector2 = Vector2(20.0, 16.0)
+@export var compact_time_label_width: float = 118.0
+@export var compact_banner_font_size: int = 76
 
 @export_group("Behaviour")
 ## How long a split badge stays on screen (s).
@@ -53,6 +66,12 @@ var _banner_hint_label: Label
 var _tags_layer: Control
 var _tags: Array[PlayerTag] = []
 
+## SubViewport pixels per HUD unit; set by PlayerView so tags line up with the 3D view.
+var view_scale: Vector2 = Vector2.ONE
+
+var _top_left_row: HBoxContainer
+var _player_chip: ChamferPanel
+var _player_chip_label: Label
 var _split_time_left: float = 0.0
 var _banner_time_left: float = 0.0
 
@@ -61,11 +80,15 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build_tags_layer()
-	_build_position_and_lap()
-	_build_standings()
-	_build_time()
-	_build_minimap()
-	_build_damage()
+	if compact:
+		_build_compact_position_and_lap()
+		_build_compact_time()
+	else:
+		_build_position_and_lap()
+		_build_standings()
+		_build_time()
+		_build_minimap()
+		_build_damage()
 	_build_speedometer()
 	_build_banner()
 
@@ -76,14 +99,17 @@ func setup(manager: RaceManager, racer: RacerState, track: Track, camera: Camera
 	_camera = camera
 	var accent: Color = GameState.get_player_color(racer.player_index)
 
-	_minimap.setup(track, manager.racers, racer.player_index)
-	_track_name_label.text = tr(track.track_name).to_upper()
-	_track_length_label.text = tr("%d m") % roundi(track.get_length())
-	_damage_icon.damage = racer.car.damage
 	_speedometer.accent_color = accent
 	_speedometer.max_speed = racer.car.get_base_top_speed() * 3.6
-
-	_rebuild_standings()
+	if compact:
+		_player_chip.fill_color = accent
+		_player_chip_label.text = "P%d" % (racer.player_index + 1)
+	else:
+		_minimap.setup(track, manager.racers, racer.player_index)
+		_track_name_label.text = tr(track.track_name).to_upper()
+		_track_length_label.text = tr("%d m") % roundi(track.get_length())
+		_damage_icon.damage = racer.car.damage
+		_rebuild_standings()
 	for other: RacerState in manager.racers:
 		if other == racer:
 			continue
@@ -95,6 +121,12 @@ func setup(manager: RaceManager, racer: RacerState, track: Track, camera: Camera
 	manager.split_recorded.connect(_on_split_recorded)
 	manager.countdown_tick.connect(_on_countdown_tick)
 	manager.racer_finished.connect(_on_racer_finished)
+	manager.state_changed.connect(_on_state_changed)
+
+
+## Moves the top-left panels sideways, e.g. to clear the shared minimap in split screen.
+func set_top_left_x(x: float) -> void:
+	_top_left_row.position.x = x
 
 
 func _process(delta: float) -> void:
@@ -105,19 +137,24 @@ func _process(delta: float) -> void:
 	_lap_label.text = str(_manager.get_display_lap(_racer))
 	_lap_total_label.text = "/%d" % _manager.lap_count
 	_time_label.text = RaceFormat.lap_time(_manager.get_display_time(_racer))
-	_best_label.text = tr("PARAS %s") % RaceFormat.lap_time(_racer.best_lap_time)
 
 	var car: Car = _racer.car
 	_speedometer.speed = car.get_speed_kmh()
 	_speedometer.gear_text = _get_gear_text(car.get_gear())
-	_update_damage(car.damage)
-	_update_standings()
 	for tag: PlayerTag in _tags:
-		tag.update_position(_camera)
+		tag.update_position(_camera, view_scale)
 
-	if _split_time_left > 0.0:
-		_split_time_left -= delta
-		_split_badge.visible = _split_time_left > 0.0
+	if compact:
+		# The delta line replaces this text once there is a reference lap.
+		if not _racer.has_best_lap():
+			_best_label.text = tr("Paras %s") % RaceFormat.lap_time(_racer.best_lap_time)
+	else:
+		_best_label.text = tr("PARAS %s") % RaceFormat.lap_time(_racer.best_lap_time)
+		_update_damage(car.damage)
+		_update_standings()
+		if _split_time_left > 0.0:
+			_split_time_left -= delta
+			_split_badge.visible = _split_time_left > 0.0
 	if _banner_time_left > 0.0:
 		_banner_time_left -= delta
 		if _banner_time_left <= 0.0:
@@ -138,6 +175,7 @@ func _build_position_and_lap() -> void:
 	row.add_theme_constant_override("separation", 2)
 	row.position = edge_margin
 	add_child(row)
+	_top_left_row = row
 
 	var position_panel: ChamferPanel = ChamferPanel.create_panel(Vector4(20.0, 10.0, 20.0, 8.0))
 	row.add_child(position_panel)
@@ -152,12 +190,61 @@ func _build_position_and_lap() -> void:
 	_lap_total_label = lap_parts[1]
 
 
-## Caption with a large number and a smaller "/total" after it. Returns [number, total].
-func _add_big_number(panel: ChamferPanel, caption: String, number_size: int, total_size: int) -> Array[Label]:
+## Compact: [P chip + position] and [lap] panels (mockups/06_Jaettu.png).
+func _build_compact_position_and_lap() -> void:
+	var row: HBoxContainer = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 2)
+	row.position = compact_edge_margin
+	add_child(row)
+	_top_left_row = row
+
+	var position_panel: ChamferPanel = ChamferPanel.create_panel(Vector4(16.0, 4.0, 16.0, 4.0))
+	row.add_child(position_panel)
+	var position_row: HBoxContainer = HBoxContainer.new()
+	position_row.add_theme_constant_override("separation", 12)
+	position_panel.add_child(position_row)
+	_player_chip = ChamferPanel.create_chip(UiStyle.ACCENT, 5.0, Vector4(8.0, 2.0, 8.0, 2.0))
+	_player_chip.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	position_row.add_child(_player_chip)
+	_player_chip_label = UiStyle.make_label("P1", UiStyle.FONT_DISPLAY, 16, UiStyle.TEXT_ON_ACCENT)
+	_player_chip.add_child(_player_chip_label)
+	var position_parts: Array[Label] = _add_big_number(position_row, "", 46, 20)
+	_position_label = position_parts[0]
+	_position_total_label = position_parts[1]
+
+	var lap_panel: ChamferPanel = ChamferPanel.create_panel(Vector4(16.0, 8.0, 16.0, 4.0))
+	row.add_child(lap_panel)
+	var lap_parts: Array[Label] = _add_big_number(lap_panel, tr("KIERROS"), 28, 16)
+	_lap_label = lap_parts[0]
+	_lap_total_label = lap_parts[1]
+
+
+## Compact: lap time with the delta to the best lap underneath, bottom left.
+func _build_compact_time() -> void:
+	var panel: ChamferPanel = ChamferPanel.create_panel(Vector4(16.0, 6.0, 16.0, 8.0))
+	panel.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
+	panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	panel.offset_left = compact_edge_margin.x
+	panel.offset_bottom = -compact_edge_margin.y
+	panel.offset_top = -compact_edge_margin.y
+	add_child(panel)
+	var texts: VBoxContainer = VBoxContainer.new()
+	texts.add_theme_constant_override("separation", -2)
+	panel.add_child(texts)
+	_time_label = UiStyle.make_label(RaceFormat.lap_time(0.0), UiStyle.FONT_DISPLAY, 26)
+	_time_label.custom_minimum_size.x = compact_time_label_width
+	texts.add_child(_time_label)
+	_best_label = UiStyle.make_label("", UiStyle.FONT_BOLD, 14, UiStyle.TEXT_SECONDARY)
+	texts.add_child(_best_label)
+
+
+## Optional caption with a large number and a smaller "/total" after it. Returns [number, total].
+func _add_big_number(parent: Control, caption: String, number_size: int, total_size: int) -> Array[Label]:
 	var column: VBoxContainer = VBoxContainer.new()
 	column.add_theme_constant_override("separation", -4)
-	panel.add_child(column)
-	column.add_child(UiStyle.make_caption(caption))
+	parent.add_child(column)
+	if not caption.is_empty():
+		column.add_child(UiStyle.make_caption(caption))
 
 	var numbers: HBoxContainer = HBoxContainer.new()
 	numbers.add_theme_constant_override("separation", 0)
@@ -337,13 +424,16 @@ func _build_speedometer() -> void:
 	panel.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
 	panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	panel.offset_right = -speedometer_margin.x
-	panel.offset_left = -speedometer_margin.x
-	panel.offset_bottom = -speedometer_margin.y
-	panel.offset_top = -speedometer_margin.y
+	var margin: Vector2 = compact_speedometer_margin if compact else speedometer_margin
+	panel.offset_right = -margin.x
+	panel.offset_left = -margin.x
+	panel.offset_bottom = -margin.y
+	panel.offset_top = -margin.y
+	if compact:
+		panel.set_padding(Vector4(4.0, 4.0, 4.0, 4.0))
 	add_child(panel)
 	_speedometer = Speedometer.new()
-	_speedometer.custom_minimum_size = Vector2.ONE * speedometer_size
+	_speedometer.custom_minimum_size = Vector2.ONE * (compact_speedometer_size if compact else speedometer_size)
 	_speedometer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	panel.add_child(_speedometer)
 
@@ -358,7 +448,8 @@ func _build_banner() -> void:
 	column.offset_bottom -= banner_lift
 	add_child(column)
 
-	_banner_label = UiStyle.make_label("", UiStyle.FONT_DISPLAY, 110)
+	var banner_size: int = compact_banner_font_size if compact else banner_font_size
+	_banner_label = UiStyle.make_label("", UiStyle.FONT_DISPLAY, banner_size)
 	_banner_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_banner_label.add_theme_color_override("font_outline_color", UiStyle.BASE)
 	_banner_label.add_theme_constant_override("outline_size", 14)
@@ -410,6 +501,10 @@ func _update_damage(damage: CarDamage) -> void:
 func _on_split_recorded(racer: RacerState, delta: float) -> void:
 	if racer != _racer:
 		return
+	if compact:
+		_best_label.text = tr("%s paras kierros") % RaceFormat.delta(delta)
+		_best_label.add_theme_color_override("font_color", UiStyle.INFO if delta <= 0.0 else UiStyle.WARNING)
+		return
 	_split_label.text = RaceFormat.delta(delta)
 	# Cyan when faster than the best lap, orange when slower.
 	_split_badge.fill_color = UiStyle.INFO if delta <= 0.0 else UiStyle.ACCENT
@@ -427,11 +522,17 @@ func _on_countdown_tick(seconds_left: int) -> void:
 		_banner_time_left = go_display_seconds
 
 
+## Once everybody has finished, tell the players how to go again.
+func _on_state_changed(state: RaceManager.State) -> void:
+	if state == RaceManager.State.FINISHED:
+		_banner_hint_label.text = tr("%s · Enter: uusi kisa") % RaceFormat.lap_time(_racer.finish_time)
+
+
 func _on_racer_finished(racer: RacerState) -> void:
 	if racer != _racer:
 		return
 	_banner_label.text = tr("MAALI")
 	_banner_label.visible = true
 	_banner_time_left = 0.0
-	_banner_hint_label.text = tr("Enter: uusi kisa")
+	_banner_hint_label.text = RaceFormat.lap_time(racer.finish_time)
 	_banner_hint_label.visible = true

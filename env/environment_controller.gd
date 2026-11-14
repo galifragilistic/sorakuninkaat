@@ -1,14 +1,14 @@
 class_name EnvironmentController
 extends Node
-## Applies an EnvPreset to the scene's WorldEnvironment, sun and vignette,
-## scaled by the quality setting (SPEC.md section 2).
+## Applies an EnvPreset to the scene's WorldEnvironment and sun, scaled by the
+## quality setting (SPEC.md section 2). Listeners of preset_applied handle
+## their own parts (headlights, track lights, per-view vignette).
 
 signal preset_applied(preset: EnvPreset)
 
 @export var preset: EnvPreset
 @export var world_environment: WorldEnvironment
 @export var sun: DirectionalLight3D
-@export var vignette: ColorRect
 
 
 func _ready() -> void:
@@ -42,8 +42,4 @@ func apply() -> void:
 	sun.directional_shadow_max_distance = preset.sun_shadow_max_distance
 	sun.shadow_enabled = true
 
-	var material: ShaderMaterial = vignette.material as ShaderMaterial
-	if material != null:
-		material.set_shader_parameter("strength", preset.vignette_strength)
-		material.set_shader_parameter("tint", preset.vignette_color)
 	preset_applied.emit(preset)

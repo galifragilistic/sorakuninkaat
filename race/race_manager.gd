@@ -10,12 +10,19 @@ signal countdown_tick(seconds_left: int)
 signal split_recorded(racer: RacerState, delta: float)
 signal lap_completed(racer: RacerState, lap_time: float, is_best: bool)
 signal racer_finished(racer: RacerState)
+signal overtake(overtaker: RacerState, overtaken: RacerState)
 
 enum State { WAITING, COUNTDOWN, RACING, FINISHED }
 
 @export var countdown_seconds: int = 3
 ## Gaps are distance divided by the leader's speed; this floor keeps them sane at low speed.
 @export var gap_min_speed: float = 10.0
+## No overtake messages during the start scramble (s).
+@export var overtake_grace_time: float = 3.0
+## Minimum time between overtake messages (s).
+@export var overtake_cooldown: float = 1.0
+## A pass only counts once the passing car is this far ahead (m).
+@export var overtake_margin: float = 1.0
 
 var track: Track
 var lap_count: int = 3
@@ -25,6 +32,7 @@ var race_time: float = 0.0
 var racers: Array[RacerState] = []
 
 var _countdown_left: float = 0.0
+var _last_overtake_time: float = 0.0
 var _standings: Array[RacerState] = []
 
 
@@ -174,7 +182,9 @@ func _update_standings() -> void:
 			offset += length
 		racer.progress = float(racer.laps_completed) * length + offset
 
+	var previous: Array[RacerState] = _standings.duplicate()
 	_standings.sort_custom(_is_ahead)
+	_report_overtakes(previous)
 	var leader: RacerState = _standings[0]
 	var leader_speed: float = maxf(leader.car.linear_velocity.length(), gap_min_speed)
 	for i: int in _standings.size():
@@ -186,9 +196,26 @@ func _update_standings() -> void:
 			racer.gap_to_leader = maxf(0.0, leader.progress - racer.progress) / leader_speed
 
 
+func _report_overtakes(previous: Array[RacerState]) -> void:
+	if race_time < overtake_grace_time or race_time - _last_overtake_time < overtake_cooldown:
+		return
+	for i: int in _standings.size():
+		var racer: RacerState = _standings[i]
+		var overtaken: RacerState = previous[i]
+		if previous.find(racer) <= i or racer.finished or overtaken.finished:
+			continue
+		if racer.progress - overtaken.progress < overtake_margin:
+			continue
+		_last_overtake_time = race_time
+		overtake.emit(racer, overtaken)
+		return
+
+
 func _is_ahead(a: RacerState, b: RacerState) -> bool:
 	if a.finished != b.finished:
 		return a.finished
 	if a.finished:
 		return a.finish_time < b.finish_time
+	if is_equal_approx(a.progress, b.progress):
+		return a.player_index < b.player_index
 	return a.progress > b.progress

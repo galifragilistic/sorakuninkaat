@@ -18,10 +18,12 @@ func _ready() -> void:
 
 
 ## Places the tag so its pointer touches the car's projected position.
-func update_position(camera: Camera3D) -> void:
+## view_scale is the camera viewport's pixels per HUD unit.
+func update_position(camera: Camera3D, view_scale: Vector2) -> void:
 	var anchor: Vector3 = racer.car.get_global_transform_interpolated().origin + Vector3.UP * world_height
 	visible = not camera.is_position_behind(anchor)
-	position = camera.unproject_position(anchor) - Vector2(chip_size.x * 0.5, size.y)
+	var screen_point: Vector2 = camera.unproject_position(anchor) / view_scale
+	position = screen_point - Vector2(chip_size.x * 0.5, size.y)
 
 
 func _draw() -> void:

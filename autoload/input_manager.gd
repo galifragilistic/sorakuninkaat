@@ -1,6 +1,10 @@
 extends Node
 ## Routes raw device input to per-player PlayerInput objects.
 ## Player control code reads only InputManager.get_input(player_index).
+## Defaults: P1 keyboard (WASD), P2 keyboard (arrows). A gamepad that presses
+## A takes over the first free or arrow-key player slot.
+
+signal device_changed(player_index: int)
 
 enum Device { NONE, KEYBOARD_WASD, KEYBOARD_ARROWS, JOYPAD }
 
@@ -25,6 +29,9 @@ const KEYBOARD_LAYOUTS: Dictionary = {
 	},
 }
 
+const JOY_JOIN_BUTTON: JoyButton = JOY_BUTTON_A
+## First player slot a gamepad may claim (P1 keeps the keyboard).
+const FIRST_JOYPAD_SLOT: int = 1
 const JOY_HANDBRAKE_BUTTON: JoyButton = JOY_BUTTON_X
 const JOY_RESET_BUTTON: JoyButton = JOY_BUTTON_BACK
 const JOY_STEER_DEADZONE: float = 0.15
@@ -42,20 +49,54 @@ func _ready() -> void:
 		_joy_ids.append(-1)
 		_inputs.append(PlayerInput.new())
 	assign_device(0, Device.KEYBOARD_WASD)
+	assign_device(1, Device.KEYBOARD_ARROWS)
+	Input.joy_connection_changed.connect(_on_joy_connection_changed)
 
 
 func assign_device(player_index: int, device: Device, joy_id: int = -1) -> void:
 	_devices[player_index] = device
 	_joy_ids[player_index] = joy_id
 	_inputs[player_index].clear()
+	device_changed.emit(player_index)
 
 
 func get_device(player_index: int) -> Device:
 	return _devices[player_index]
 
 
+func get_joy_id(player_index: int) -> int:
+	return _joy_ids[player_index]
+
+
 func get_input(player_index: int) -> PlayerInput:
 	return _inputs[player_index]
+
+
+func _input(event: InputEvent) -> void:
+	var button: InputEventJoypadButton = event as InputEventJoypadButton
+	if button != null and button.pressed and button.button_index == JOY_JOIN_BUTTON:
+		_join_joypad(button.device)
+
+
+## Gives an unassigned gamepad to the first slot that has no device or uses the arrow keys.
+func _join_joypad(joy_id: int) -> void:
+	if _joy_ids.has(joy_id):
+		return
+	for i: int in range(FIRST_JOYPAD_SLOT, GameState.MAX_PLAYERS):
+		if _devices[i] == Device.NONE or _devices[i] == Device.KEYBOARD_ARROWS:
+			assign_device(i, Device.JOYPAD, joy_id)
+			return
+
+
+## A player whose gamepad is unplugged falls back to the arrow keys if they are free.
+func _on_joy_connection_changed(joy_id: int, connected: bool) -> void:
+	if connected:
+		return
+	var slot: int = _joy_ids.find(joy_id)
+	if slot < 0:
+		return
+	var arrows_free: bool = not _devices.has(Device.KEYBOARD_ARROWS)
+	assign_device(slot, Device.KEYBOARD_ARROWS if arrows_free else Device.NONE)
 
 
 func _physics_process(_delta: float) -> void:

@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="SurfaceData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://tracks/surface_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+kind = 6
+display_name = "Vesi"
+grip = 0.5
+rolling_drag = 1.5
+color_a = Color(0.2, 0.42, 0.55, 1)
+color_b = Color(0.27, 0.56, 0.68, 1)
+edge_color = Color(0.82, 0.71, 0.47, 1)
+dust_amount = 0.0

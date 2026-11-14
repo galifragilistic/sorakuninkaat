@@ -1,12 +1,15 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://tracks/track.gd" id="1"]
 [ext_resource type="Resource" path="res://tracks/surfaces/gravel.tres" id="2"]
 [ext_resource type="Resource" path="res://tracks/surfaces/asphalt.tres" id="3"]
 [ext_resource type="Resource" path="res://tracks/surfaces/grass.tres" id="4"]
+[ext_resource type="Script" path="res://tracks/track_scenery.gd" id="5"]
+[ext_resource type="Resource" path="res://tracks/surfaces/water.tres" id="6"]
 
-[sub_resource type="StandardMaterial3D" id="graybox"]
-albedo_color = Color(0.55, 0.56, 0.62, 1)
+[sub_resource type="StandardMaterial3D" id="container"]
+albedo_color = Color(0.62, 0.62, 0.72, 1)
+roughness = 0.8
 
 [node name="Soramonttu" type="Node3D"]
 script = ExtResource("1")
@@ -17,26 +20,16 @@ alt_surface = ExtResource("3")
 alt_surface_range = Vector2(0.4, 0.6)
 ground_surface = ExtResource("4")
 
-[node name="Building" type="CSGBox3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 2, 4)
-use_collision = true
-size = Vector3(16, 4, 6)
-material = SubResource("graybox")
+[node name="Scenery" type="Node3D" parent="."]
+script = ExtResource("5")
+lake_center = Vector3(8, 0, 10)
+lake_surface = ExtResource("6")
+lamps = PackedVector2Array(0.03, 1, 0.2, -1, 0.34, 1, 0.5, -1, 0.66, 1, 0.82, -1, 0.93, 1)
+bale_rows = PackedVector2Array(0.3, -1, 0.44, -1, 0.72, -1)
+tree_exclusions = PackedVector3Array(-34, 9, -8)
 
-[node name="BlockWest" type="CSGBox3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -28, 1.5, -6)
+[node name="Container" type="CSGBox3D" parent="."]
+transform = Transform3D(0.866, 0, 0.5, 0, 1, 0, -0.5, 0, 0.866, -34, 1.6, -8)
 use_collision = true
-size = Vector3(5, 3, 5)
-material = SubResource("graybox")
-
-[node name="BlockEast" type="CSGBox3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 52, 1.5, -12)
-use_collision = true
-size = Vector3(4, 3, 9)
-material = SubResource("graybox")
-
-[node name="BlockSouth" type="CSGBox3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 1, 78)
-use_collision = true
-size = Vector3(12, 2, 3)
-material = SubResource("graybox")
+size = Vector3(12, 3.2, 4.2)
+material = SubResource("container")

@@ -1,7 +1,8 @@
-[gd_scene load_steps=13 format=3]
+[gd_scene load_steps=21 format=3]
 
 [ext_resource type="Script" path="res://cars/car.gd" id="1"]
 [ext_resource type="Resource" path="res://cars/data/sora_gt.tres" id="2"]
+[ext_resource type="PackedScene" path="res://vfx/dust.tscn" id="3"]
 
 [sub_resource type="PhysicsMaterial" id="chassis_physics"]
 friction = 0.2
@@ -22,13 +23,40 @@ roughness = 0.3
 [sub_resource type="BoxMesh" id="roof_mesh"]
 size = Vector3(1.56, 0.08, 1.5)
 
+[sub_resource type="BoxMesh" id="stripe_mesh"]
+size = Vector3(0.42, 0.03, 3.62)
+
+[sub_resource type="StandardMaterial3D" id="stripe_material"]
+albedo_color = Color(0.95, 0.95, 0.92, 1)
+roughness = 0.6
+
+[sub_resource type="BoxMesh" id="spoiler_mesh"]
+size = Vector3(1.7, 0.08, 0.4)
+
+[sub_resource type="StandardMaterial3D" id="trim_material"]
+albedo_color = Color(0.1, 0.11, 0.15, 1)
+roughness = 0.7
+
 [sub_resource type="BoxMesh" id="light_mesh"]
 size = Vector3(0.34, 0.16, 0.06)
 
 [sub_resource type="StandardMaterial3D" id="light_material"]
 albedo_color = Color(1, 0.95, 0.75, 1)
 emission_enabled = true
-emission = Color(1, 0.93, 0.7, 1)
+emission = Color(1, 0.9, 0.62, 1)
+emission_energy_multiplier = 4.0
+
+[sub_resource type="BoxMesh" id="aux_light_mesh"]
+size = Vector3(0.16, 0.16, 0.06)
+
+[sub_resource type="BoxMesh" id="tail_light_mesh"]
+size = Vector3(0.36, 0.14, 0.06)
+
+[sub_resource type="StandardMaterial3D" id="tail_light_material"]
+albedo_color = Color(0.9, 0.12, 0.1, 1)
+emission_enabled = true
+emission = Color(1, 0.15, 0.1, 1)
+emission_energy_multiplier = 2.5
 
 [sub_resource type="CylinderMesh" id="wheel_mesh"]
 top_radius = 0.33
@@ -49,6 +77,7 @@ center_of_mass = Vector3(0, 0.25, 0)
 angular_damp = 1.0
 script = ExtResource("1")
 stats = ExtResource("2")
+dust_scene = ExtResource("3")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 0)
@@ -69,15 +98,65 @@ surface_material_override/0 = SubResource("glass_material")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.33, 0.3)
 mesh = SubResource("roof_mesh")
 
+[node name="Stripe" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.855, 0)
+mesh = SubResource("stripe_mesh")
+surface_material_override/0 = SubResource("stripe_material")
+
+[node name="Spoiler" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.08, 1.62)
+mesh = SubResource("spoiler_mesh")
+surface_material_override/0 = SubResource("trim_material")
+
 [node name="HeadlightLeft" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.55, 0.66, -1.81)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.6, 0.68, -1.81)
 mesh = SubResource("light_mesh")
 surface_material_override/0 = SubResource("light_material")
 
 [node name="HeadlightRight" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.55, 0.66, -1.81)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.6, 0.68, -1.81)
 mesh = SubResource("light_mesh")
 surface_material_override/0 = SubResource("light_material")
+
+[node name="AuxLightLeft" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2, 0.5, -1.81)
+mesh = SubResource("aux_light_mesh")
+surface_material_override/0 = SubResource("light_material")
+
+[node name="AuxLightRight" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 0.5, -1.81)
+mesh = SubResource("aux_light_mesh")
+surface_material_override/0 = SubResource("light_material")
+
+[node name="TailLightLeft" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.6, 0.7, 1.81)
+mesh = SubResource("tail_light_mesh")
+surface_material_override/0 = SubResource("tail_light_material")
+
+[node name="TailLightRight" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.6, 0.7, 1.81)
+mesh = SubResource("tail_light_mesh")
+surface_material_override/0 = SubResource("tail_light_material")
+
+[node name="Headlights" type="Node3D" parent="."]
+
+[node name="Left" type="SpotLight3D" parent="Headlights"]
+position = Vector3(-0.6, 0.75, -1.9)
+rotation_degrees = Vector3(-9, 0, 0)
+light_color = Color(1, 0.93, 0.74, 1)
+light_energy = 8.0
+spot_range = 20.0
+spot_angle = 26.0
+spot_angle_attenuation = 0.8
+
+[node name="Right" type="SpotLight3D" parent="Headlights"]
+position = Vector3(0.6, 0.75, -1.9)
+rotation_degrees = Vector3(-9, 0, 0)
+light_color = Color(1, 0.93, 0.74, 1)
+light_energy = 8.0
+spot_range = 20.0
+spot_angle = 26.0
+spot_angle_attenuation = 0.8
 
 [node name="Wheels" type="Node3D" parent="."]
 

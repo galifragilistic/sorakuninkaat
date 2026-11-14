@@ -68,6 +68,22 @@ const FRONT_WHEEL_COUNT: int = 2
 @export_range(0.0, 1.0, 0.01) var reverse_speed_share: float = 0.3
 @export_range(0.0, 1.0, 0.01) var reverse_force_share: float = 0.6
 
+@export_group("Lights")
+@export var headlights_enabled: bool = true:
+	set(value):
+		headlights_enabled = value
+		_update_headlights()
+
+@export_group("Dust")
+@export var dust_scene: PackedScene
+## Speed (m/s) at which rolling dust reaches full strength.
+@export var dust_full_speed: float = 22.0
+## Share of the dust that appears just from rolling; the rest comes from sliding.
+@export_range(0.0, 1.0, 0.01) var dust_rolling_share: float = 0.35
+## Slip angle (degrees) at which sliding dust reaches full strength.
+@export var dust_full_slip: float = 25.0
+@export var dust_min_speed: float = 3.0
+
 @export_group("Air")
 ## Yaw torque available from steering while no wheel touches the ground.
 @export var air_control_torque: float = 900.0
@@ -77,11 +93,14 @@ var _steer: float = 0.0
 var _grounded_wheels: int = 0
 var _current_surface: SurfaceData
 var _mount_points: Array[Vector3] = []
+var _wheel_surfaces: Array[SurfaceData] = []
+var _dust_emitters: Array[Dust] = []
 
 @onready var _wheel_nodes: Array[Node3D] = [
 	$Wheels/FrontLeft, $Wheels/FrontRight, $Wheels/RearLeft, $Wheels/RearRight,
 ]
 @onready var _body_meshes: Array[MeshInstance3D] = [$Visual/Body, $Visual/Roof]
+@onready var _headlights: Node3D = $Headlights
 
 
 func _ready() -> void:
@@ -95,7 +114,10 @@ func _ready() -> void:
 	]
 	for i: int in WHEEL_COUNT:
 		_wheel_nodes[i].position = _mount_points[i] + Vector3.DOWN * suspension_rest_length
+		_wheel_surfaces.append(null)
 	_apply_player_color()
+	_update_headlights()
+	_create_dust_emitters()
 
 
 func get_top_speed() -> float:
@@ -161,8 +183,10 @@ func _physics_process(delta: float) -> void:
 		var hit_surface: SurfaceData = _simulate_wheel(
 			i, space, steer_angle, drive_force, braking, input.handbrake
 		)
+		_wheel_surfaces[i] = hit_surface
 		if hit_surface != null:
 			surface = hit_surface
+	_update_dust()
 
 	if _grounded_wheels == 0:
 		apply_torque(global_basis.y * -_steer * air_control_torque)
@@ -285,6 +309,34 @@ func _simulate_wheel(
 	var force_point: Vector3 = contact + up * tire_force_height
 	apply_force(forward * long_force + right * lat_force, force_point - global_position)
 	return surface
+
+
+func _update_headlights() -> void:
+	if _headlights != null:
+		_headlights.visible = headlights_enabled
+
+
+## One emitter per rear wheel, parented to the wheel node so it follows the suspension.
+func _create_dust_emitters() -> void:
+	if dust_scene == null:
+		return
+	for i: int in range(FRONT_WHEEL_COUNT, WHEEL_COUNT):
+		var dust: Dust = dust_scene.instantiate() as Dust
+		_wheel_nodes[i].add_child(dust)
+		dust.position = Vector3.DOWN * wheel_radius
+		_dust_emitters.append(dust)
+
+
+func _update_dust() -> void:
+	var speed: float = linear_velocity.length()
+	var rolling: float = clampf(speed / dust_full_speed, 0.0, 1.0) * dust_rolling_share
+	var sliding: float = clampf(_get_slip_angle() / dust_full_slip, 0.0, 1.0) * (1.0 - dust_rolling_share)
+	for i: int in _dust_emitters.size():
+		var surface: SurfaceData = _wheel_surfaces[FRONT_WHEEL_COUNT + i]
+		if surface == null or speed < dust_min_speed:
+			_dust_emitters[i].set_intensity(0.0, Color.WHITE)
+			continue
+		_dust_emitters[i].set_intensity((rolling + sliding) * surface.dust_amount, surface.dust_color)
 
 
 func _apply_player_color() -> void:

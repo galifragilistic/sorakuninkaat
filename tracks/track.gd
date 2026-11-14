@@ -1,9 +1,10 @@
 class_name Track
 extends Node3D
-## Builds a closed graybox circuit from control points: road ribbon(s) with
-## per-surface colliders, a ground plane and boundary walls.
+## Builds a closed circuit from control points: low-poly road ribbon(s) with
+## per-surface colliders, a patchwork terrain and boundary walls.
+## A TrackScenery child, if present, is built afterwards.
 
-const GRID_SHADER: Shader = preload("res://tracks/shaders/graybox_grid.gdshader")
+const CHECKER_SHADER: Shader = preload("res://tracks/shaders/checker.gdshader")
 
 @export var track_name: String = ""
 
@@ -17,6 +18,8 @@ const GRID_SHADER: Shader = preload("res://tracks/shaders/graybox_grid.gdshader"
 @export_range(0.05, 0.4, 0.005) var tangent_scale: float = 0.167
 ## Height of the road above the ground so wheel rays hit the road first.
 @export var road_lift: float = 0.03
+## Width of the darker shoulder strip on both road edges (m).
+@export var shoulder_width: float = 0.9
 
 @export_group("Surfaces")
 @export var road_surface: SurfaceData
@@ -25,28 +28,47 @@ const GRID_SHADER: Shader = preload("res://tracks/shaders/graybox_grid.gdshader"
 ## Start and end of the alt surface as fractions of lap length (0..1).
 @export var alt_surface_range: Vector2 = Vector2.ZERO
 @export var ground_surface: SurfaceData
-@export var road_cell_size: float = 2.5
-@export var ground_cell_size: float = 5.0
 
-@export_group("World bounds")
+@export_group("Terrain")
 @export var ground_size: Vector2 = Vector2(280.0, 220.0)
 @export var ground_thickness: float = 2.0
+## Edge length of the terrain triangles (m).
+@export var terrain_cell_size: float = 9.0
+## Lower = larger light and dark areas.
+@export var terrain_noise_frequency: float = 0.018
+## Random per-triangle tint on top of the noise (0..1).
+@export_range(0.0, 1.0, 0.01) var terrain_color_jitter: float = 0.22
+@export var look_seed: int = 7
+
+@export_group("World bounds")
 @export var wall_height: float = 3.0
 @export var wall_thickness: float = 2.0
-@export var wall_color: Color = Color(0.3, 0.32, 0.38)
+@export var wall_color: Color = Color(0.16, 0.2, 0.16)
 
 @export_group("Start")
 @export var start_height: float = 0.6
+## Length of the chequered start line along the road (m).
+@export var start_line_length: float = 2.4
+@export var start_line_cells: Vector2 = Vector2(10.0, 2.0)
+@export var start_line_lift: float = 0.02
 
 var curve: Curve3D
 var path: Path3D
 
+var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
+
 
 func _ready() -> void:
+	_rng.seed = look_seed
 	_build_curve()
 	_build_ground()
 	_build_walls()
 	_build_road()
+	_build_start_line()
+	for child: Node in get_children():
+		var scenery: TrackScenery = child as TrackScenery
+		if scenery != null:
+			scenery.build(self)
 
 
 func get_length() -> float:
@@ -62,6 +84,24 @@ func get_direction_at(offset: float) -> Vector3:
 	var ahead: Vector3 = get_position_at(offset + half_step)
 	var behind: Vector3 = get_position_at(offset - half_step)
 	return (ahead - behind).normalized()
+
+
+## Unit vector pointing to the right of the driving direction.
+func get_right_at(offset: float) -> Vector3:
+	return get_direction_at(offset).cross(Vector3.UP).normalized()
+
+
+## Point beside the road: side is -1 (left) or 1 (right), margin is metres past the road edge.
+func get_roadside_position(offset: float, side: float, margin: float) -> Vector3:
+	var distance: float = road_width * 0.5 + margin
+	return get_position_at(offset) + get_right_at(offset) * side * distance
+
+
+## Horizontal distance from a global position to the road centre line.
+func get_distance_to_centerline(global_point: Vector3) -> float:
+	var local_point: Vector3 = to_local(global_point)
+	var closest: Vector3 = curve.get_closest_point(local_point)
+	return Vector2(local_point.x - closest.x, local_point.z - closest.z).length()
 
 
 ## Transform for a car on the start line, facing the driving direction (-Z forward).
@@ -99,34 +139,42 @@ func _build_road() -> void:
 		_build_ribbon(alt_surface_range.y, 1.0, road_surface)
 
 
+## Cross-section points (left to right) at a lap offset, in local space.
+func _get_cross_section(offset: float, lateral_offsets: PackedFloat32Array) -> PackedVector3Array:
+	var center: Vector3 = to_local(get_position_at(offset)) + Vector3.UP * road_lift
+	var right: Vector3 = global_basis.inverse() * get_right_at(offset)
+	var points: PackedVector3Array = PackedVector3Array()
+	for lateral: float in lateral_offsets:
+		points.append(center + right * lateral)
+	return points
+
+
 func _build_ribbon(from_fraction: float, to_fraction: float, surface: SurfaceData) -> void:
 	var length: float = get_length()
 	var from_offset: float = from_fraction * length
 	var to_offset: float = to_fraction * length
 	var steps: int = maxi(1, ceili((to_offset - from_offset) / sample_spacing))
 	var half_width: float = road_width * 0.5
-	var lift: Vector3 = Vector3.UP * road_lift
+	var inner: float = half_width - shoulder_width
+	# Shoulder, two driving lanes, shoulder.
+	var laterals: PackedFloat32Array = PackedFloat32Array([-half_width, -inner, 0.0, inner, half_width])
+	var strip_count: int = laterals.size() - 1
 
-	var lefts: PackedVector3Array = PackedVector3Array()
-	var rights: PackedVector3Array = PackedVector3Array()
-	for i: int in steps + 1:
-		var offset: float = lerpf(from_offset, to_offset, float(i) / float(steps))
-		var center: Vector3 = to_local(get_position_at(offset)) + lift
-		var forward: Vector3 = global_basis.inverse() * get_direction_at(offset)
-		var right: Vector3 = forward.cross(Vector3.UP).normalized()
-		lefts.append(center - right * half_width)
-		rights.append(center + right * half_width)
-
-	var tool: SurfaceTool = SurfaceTool.new()
-	tool.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var tool: SurfaceTool = LowPoly.begin()
+	var previous: PackedVector3Array = _get_cross_section(from_offset, laterals)
 	for i: int in steps:
-		# Clockwise seen from above = front face up.
-		for vertex: Vector3 in [
-			lefts[i], lefts[i + 1], rights[i],
-			rights[i], lefts[i + 1], rights[i + 1],
-		]:
-			tool.set_normal(Vector3.UP)
-			tool.add_vertex(vertex)
+		var offset: float = lerpf(from_offset, to_offset, float(i + 1) / float(steps))
+		var current: PackedVector3Array = _get_cross_section(offset, laterals)
+		for strip: int in strip_count:
+			var is_shoulder: bool = strip == 0 or strip == strip_count - 1
+			var color: Color = surface.edge_color
+			if not is_shoulder:
+				color = surface.color_a.lerp(surface.color_b, _rng.randf())
+			LowPoly.add_quad(
+				tool, previous[strip], current[strip], current[strip + 1], previous[strip + 1],
+				color, Vector3.UP
+			)
+		previous = current
 	var mesh: ArrayMesh = tool.commit()
 
 	var body: SurfaceBody = SurfaceBody.new()
@@ -136,7 +184,7 @@ func _build_ribbon(from_fraction: float, to_fraction: float, surface: SurfaceDat
 
 	var mesh_instance: MeshInstance3D = MeshInstance3D.new()
 	mesh_instance.mesh = mesh
-	mesh_instance.material_override = _make_grid_material(surface, road_cell_size)
+	mesh_instance.material_override = LowPoly.vertex_color_material()
 	mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	body.add_child(mesh_instance)
 
@@ -147,17 +195,43 @@ func _build_ribbon(from_fraction: float, to_fraction: float, surface: SurfaceDat
 	body.add_child(collision)
 
 
+func _build_start_line() -> void:
+	var half_length: float = start_line_length * 0.5
+	var half_width: float = road_width * 0.5 - shoulder_width
+	var laterals: PackedFloat32Array = PackedFloat32Array([-half_width, half_width])
+	var lift: Vector3 = Vector3.UP * start_line_lift
+	var back: PackedVector3Array = _get_cross_section(-half_length, laterals)
+	var front: PackedVector3Array = _get_cross_section(half_length, laterals)
+	var corners: Array[Vector3] = [back[0] + lift, front[0] + lift, front[1] + lift, back[1] + lift]
+	var uvs: Array[Vector2] = [Vector2(0.0, 0.0), Vector2(0.0, 1.0), Vector2(1.0, 1.0), Vector2(1.0, 0.0)]
+
+	var tool: SurfaceTool = SurfaceTool.new()
+	tool.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for index: int in [0, 1, 2, 0, 2, 3]:
+		tool.set_normal(Vector3.UP)
+		tool.set_uv(uvs[index])
+		tool.add_vertex(corners[index])
+
+	var material: ShaderMaterial = ShaderMaterial.new()
+	material.shader = CHECKER_SHADER
+	material.set_shader_parameter("cells", start_line_cells)
+	var mesh_instance: MeshInstance3D = MeshInstance3D.new()
+	mesh_instance.name = "StartLine"
+	mesh_instance.mesh = tool.commit()
+	mesh_instance.material_override = material
+	mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mesh_instance)
+
+
 func _build_ground() -> void:
 	var body: SurfaceBody = SurfaceBody.new()
 	body.name = "Ground"
 	body.surface = ground_surface
 	add_child(body)
 
-	var plane: PlaneMesh = PlaneMesh.new()
-	plane.size = ground_size
 	var mesh_instance: MeshInstance3D = MeshInstance3D.new()
-	mesh_instance.mesh = plane
-	mesh_instance.material_override = _make_grid_material(ground_surface, ground_cell_size)
+	mesh_instance.mesh = _build_terrain_mesh()
+	mesh_instance.material_override = LowPoly.vertex_color_material()
 	mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	body.add_child(mesh_instance)
 
@@ -167,6 +241,41 @@ func _build_ground() -> void:
 	collision.shape = box
 	collision.position = Vector3.DOWN * ground_thickness * 0.5
 	body.add_child(collision)
+
+
+## Flat triangle patchwork. Each triangle gets its own shade of the ground colours.
+func _build_terrain_mesh() -> ArrayMesh:
+	var noise: FastNoiseLite = FastNoiseLite.new()
+	noise.seed = look_seed
+	noise.frequency = terrain_noise_frequency
+	var columns: int = ceili(ground_size.x / terrain_cell_size)
+	var rows: int = ceili(ground_size.y / terrain_cell_size)
+	var cell: Vector2 = Vector2(ground_size.x / float(columns), ground_size.y / float(rows))
+	var origin: Vector3 = Vector3(-ground_size.x * 0.5, 0.0, -ground_size.y * 0.5)
+
+	var tool: SurfaceTool = LowPoly.begin()
+	for column: int in columns:
+		for row: int in rows:
+			var a: Vector3 = origin + Vector3(column * cell.x, 0.0, row * cell.y)
+			var b: Vector3 = a + Vector3(cell.x, 0.0, 0.0)
+			var c: Vector3 = a + Vector3(cell.x, 0.0, cell.y)
+			var d: Vector3 = a + Vector3(0.0, 0.0, cell.y)
+			# Alternate the diagonal so the triangles form diamonds instead of stripes.
+			var triangles: Array = [[a, b, c], [a, c, d]]
+			if (column + row) % 2 == 1:
+				triangles = [[a, b, d], [b, c, d]]
+			for triangle: Array in triangles:
+				var p0: Vector3 = triangle[0]
+				var p1: Vector3 = triangle[1]
+				var p2: Vector3 = triangle[2]
+				LowPoly.add_triangle(tool, p0, p1, p2, _get_terrain_color(noise, (p0 + p1 + p2) / 3.0), Vector3.UP)
+	return tool.commit()
+
+
+func _get_terrain_color(noise: FastNoiseLite, point: Vector3) -> Color:
+	var shade: float = noise.get_noise_2d(point.x, point.z) * 0.5 + 0.5
+	shade += _rng.randf_range(-terrain_color_jitter, terrain_color_jitter)
+	return ground_surface.color_a.lerp(ground_surface.color_b, clampf(shade, 0.0, 1.0))
 
 
 func _build_walls() -> void:
@@ -201,12 +310,3 @@ func _add_wall(size: Vector3, wall_position: Vector3) -> void:
 	var collision: CollisionShape3D = CollisionShape3D.new()
 	collision.shape = box
 	body.add_child(collision)
-
-
-func _make_grid_material(surface: SurfaceData, cell_size: float) -> ShaderMaterial:
-	var material: ShaderMaterial = ShaderMaterial.new()
-	material.shader = GRID_SHADER
-	material.set_shader_parameter("color_a", surface.color_a)
-	material.set_shader_parameter("color_b", surface.color_b)
-	material.set_shader_parameter("cell_size", cell_size)
-	return material

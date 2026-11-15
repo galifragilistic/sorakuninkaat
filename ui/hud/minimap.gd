@@ -9,6 +9,10 @@ extends Control
 @export var road_width: float = 5.0
 @export var start_marker_length: float = 12.0
 @export var start_marker_width: float = 3.0
+## Small ticks across the road at the checkpoints.
+@export var checkpoint_marker_length: float = 8.0
+@export var checkpoint_marker_width: float = 2.0
+@export var checkpoint_marker_color: Color = UiStyle.INFO
 @export var dot_radius: float = 4.5
 @export var own_dot_radius: float = 6.5
 @export var own_ring_radius: float = 11.0
@@ -53,6 +57,14 @@ func _draw() -> void:
 		line.append(_to_map(point))
 	draw_polyline(line, UiStyle.MAP_OUTLINE, outline_width, true)
 	draw_polyline(line, UiStyle.MAP_ROAD, road_width, true)
+
+	# Checkpoints: short ticks across the road.
+	for i: int in range(1, track.checkpoint_count):
+		var offset: float = track.get_checkpoint_offset(i)
+		var point: Vector2 = _to_map(_project(track.get_position_at(offset)))
+		var ahead: Vector2 = _to_map(_project(track.get_position_at(offset + sample_spacing)))
+		var tick: Vector2 = (ahead - point).normalized().orthogonal() * checkpoint_marker_length * 0.5
+		draw_line(point - tick, point + tick, checkpoint_marker_color, checkpoint_marker_width, true)
 
 	# Start line: a short accent stroke across the road.
 	var across: Vector2 = (line[1] - line[0]).normalized().orthogonal() * start_marker_length * 0.5

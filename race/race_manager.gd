@@ -15,8 +15,6 @@ signal overtake(overtaker: RacerState, overtaken: RacerState)
 enum State { WAITING, COUNTDOWN, RACING, FINISHED }
 
 @export var countdown_seconds: int = 3
-## Gaps are distance divided by the leader's speed; this floor keeps them sane at low speed.
-@export var gap_min_speed: float = 10.0
 ## No overtake messages during the start scramble (s).
 @export var overtake_grace_time: float = 3.0
 ## Minimum time between overtake messages (s).
@@ -27,7 +25,7 @@ enum State { WAITING, COUNTDOWN, RACING, FINISHED }
 @export var finish_timeout: float = 30.0
 
 ## Values per racer in get_racer_data() / apply_remote_racers().
-const FLOATS_PER_RACER: int = 13
+const FLOATS_PER_RACER: int = 14
 
 var track: Track
 var lap_count: int = 3
@@ -42,6 +40,8 @@ var _countdown_left: float = 0.0
 var _last_overtake_time: float = 0.0
 var _first_finish_time: float = RacerState.NO_TIME
 var _standings: Array[RacerState] = []
+## Race time when the first car made each checkpoint passage (passage number -> time).
+var _passage_times: Dictionary = {}
 
 
 func setup(race_track: Track, laps: int, authority: bool = true) -> void:
@@ -93,6 +93,16 @@ func get_display_lap(racer: RacerState) -> int:
 	return mini(racer.laps_completed + 1, lap_count)
 
 
+## Whole laps a racer is behind the leader, counted in checkpoint passages,
+## so it too only changes when someone passes a checkpoint.
+func get_laps_down(racer: RacerState) -> int:
+	if _standings.is_empty() or racer.finished:
+		return 0
+	var behind: int = _standings[0].checkpoints_passed - racer.checkpoints_passed
+	@warning_ignore("integer_division")
+	return maxi(0, behind / maxi(track.checkpoint_count, 1))
+
+
 func find_racer_by_slot(slot: int) -> RacerState:
 	for racer: RacerState in racers:
 		if racer.player_index == slot:
@@ -108,6 +118,7 @@ func get_racer_data() -> PackedFloat32Array:
 			racer.laps_completed, racer.next_checkpoint, float(racer.crossed_start), racer.lap_start_time,
 			racer.last_lap_time, racer.best_lap_time, racer.progress, racer.position, racer.gap_to_leader,
 			float(racer.finished), racer.finish_time, float(racer.did_not_finish), racer.track_offset,
+			racer.checkpoints_passed,
 		])
 	return data
 
@@ -131,6 +142,7 @@ func apply_remote_racers(remote_time: float, data: PackedFloat32Array) -> void:
 		racer.finish_time = data[base + 10]
 		racer.did_not_finish = data[base + 11] > 0.5
 		racer.track_offset = data[base + 12]
+		racer.checkpoints_passed = int(data[base + 13])
 	_standings.sort_custom(func(a: RacerState, b: RacerState) -> bool: return a.position < b.position)
 
 
@@ -191,6 +203,7 @@ func _on_checkpoint_passed(checkpoint: Checkpoint, car: Car) -> void:
 	if racer == null or racer.finished or checkpoint.index != racer.next_checkpoint:
 		return
 	racer.next_checkpoint = (checkpoint.index + 1) % track.checkpoints.size()
+	_record_passage(racer)
 
 	if checkpoint.index == 0:
 		if racer.crossed_start:
@@ -204,6 +217,19 @@ func _on_checkpoint_passed(checkpoint: Checkpoint, car: Car) -> void:
 	var split_index: int = racer.current_splits.size() - 1
 	if split_index < racer.best_splits.size():
 		split_recorded.emit(racer, elapsed - racer.best_splits[split_index])
+
+
+## Gap to the leader, as at a timing point: the time since the first car
+## passed this same checkpoint on the same lap. It then stays as it is until
+## the racer's next checkpoint.
+func _record_passage(racer: RacerState) -> void:
+	racer.checkpoints_passed += 1
+	var passage: int = racer.checkpoints_passed
+	if _passage_times.has(passage):
+		racer.gap_to_leader = race_time - _passage_times[passage]
+	else:
+		_passage_times[passage] = race_time
+		racer.gap_to_leader = 0.0
 
 
 func _complete_lap(racer: RacerState) -> void:
@@ -267,14 +293,12 @@ func _update_standings() -> void:
 	_standings.sort_custom(_is_ahead)
 	_report_overtakes(previous)
 	var leader: RacerState = _standings[0]
-	var leader_speed: float = maxf(leader.car.get_velocity().length(), gap_min_speed)
 	for i: int in _standings.size():
 		var racer: RacerState = _standings[i]
 		racer.position = i + 1
-		if racer.finished and leader.finished:
+		# Gaps of racers still driving change only at checkpoints (_record_passage).
+		if racer.finished and leader.finished and not racer.did_not_finish:
 			racer.gap_to_leader = racer.finish_time - leader.finish_time
-		elif not racer.finished:
-			racer.gap_to_leader = maxf(0.0, leader.progress - racer.progress) / leader_speed
 
 
 func _report_overtakes(previous: Array[RacerState]) -> void:

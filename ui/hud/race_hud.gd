@@ -354,7 +354,13 @@ func _update_standings() -> void:
 		name_label.text = entry.display_name
 		name_label.add_theme_font_override("font", UiStyle.FONT_BOLD if is_own else UiStyle.FONT_MEDIUM)
 		var gap: Label = row["gap"]
-		gap.text = tr("Kärki") if i == 0 else RaceFormat.delta(entry.gap_to_leader, 1)
+		var laps_down: int = _manager.get_laps_down(entry)
+		if i == 0:
+			gap.text = tr("Kärki")
+		elif laps_down > 0:
+			gap.text = tr("+%d kierros") % laps_down
+		else:
+			gap.text = RaceFormat.delta(entry.gap_to_leader, 1)
 
 
 func _build_time() -> void:

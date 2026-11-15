@@ -29,8 +29,11 @@ var best_splits: Array[float] = []
 var progress: float = 0.0
 ## 1 = leader.
 var position: int = 1
-## Estimated seconds behind the leader.
+## Seconds behind the first car at the last checkpoint this racer passed.
+## Only changes when the racer passes a checkpoint.
 var gap_to_leader: float = 0.0
+## Checkpoints passed in order since the start, the start line included.
+var checkpoints_passed: int = 0
 var finished: bool = false
 var finish_time: float = 0.0
 ## True when the race ended before this racer completed all laps.

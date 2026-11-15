@@ -68,6 +68,23 @@ const CHECKER_SHADER: Shader = preload("res://tracks/shaders/checker.gdshader")
 @export var start_line_cells: Vector2 = Vector2(10.0, 2.0)
 @export var start_line_lift: float = 0.02
 
+@export_group("Checkpoint gates")
+## Glow colour of the gates and the dashed line across the road.
+@export var checkpoint_marker_color: Color = Color("#3fd8ff")
+@export var checkpoint_post_color: Color = Color(0.12, 0.13, 0.19)
+@export var checkpoint_post_height: float = 2.6
+@export var checkpoint_post_width: float = 0.28
+## Distance of the posts from the road edge (m).
+@export var checkpoint_post_margin: float = 0.7
+@export var checkpoint_light_size: Vector3 = Vector3(0.5, 0.36, 0.5)
+@export var checkpoint_light_energy: float = 3.0
+@export var checkpoint_dash_length: float = 0.9
+@export var checkpoint_dash_gap: float = 0.6
+@export var checkpoint_dash_depth: float = 0.4
+@export var checkpoint_dash_energy: float = 0.6
+## Above the road, below nothing else.
+@export var checkpoint_dash_lift: float = 0.025
+
 var curve: Curve3D
 var path: Path3D
 var checkpoints: Array[Checkpoint] = []
@@ -312,6 +329,60 @@ func _build_checkpoints() -> void:
 		collision.shape = shape
 		checkpoint.add_child(collision)
 		checkpoints.append(checkpoint)
+		# The start line already has its chequered stripe.
+		if i > 0:
+			_build_checkpoint_gate(offset, i)
+
+
+## Lap offset of checkpoint i (0 = the start line).
+func get_checkpoint_offset(index: int) -> float:
+	return get_length() * float(index) / float(checkpoint_count)
+
+
+## A gate the driver can see: two posts with glowing lamps beside the road
+## and a glowing dashed line across it. Visual only; nothing to crash into.
+func _build_checkpoint_gate(offset: float, index: int) -> void:
+	var gate: Node3D = Node3D.new()
+	gate.name = "CheckpointGate_%d" % index
+	add_child(gate)
+
+	var posts: SurfaceTool = LowPoly.begin()
+	var post_size: Vector3 = Vector3(checkpoint_post_width, checkpoint_post_height, checkpoint_post_width)
+	var lights: SurfaceTool = LowPoly.begin()
+	for side: float in [-1.0, 1.0]:
+		var base: Vector3 = to_local(get_roadside_position(offset, side, checkpoint_post_margin))
+		LowPoly.add_box(posts, base + Vector3.UP * checkpoint_post_height * 0.5, post_size, checkpoint_post_color)
+		var lamp: Vector3 = base + Vector3.UP * (checkpoint_post_height + checkpoint_light_size.y * 0.5)
+		LowPoly.add_box(lights, lamp, checkpoint_light_size, checkpoint_marker_color)
+	_add_gate_mesh(gate, posts.commit(), LowPoly.vertex_color_material())
+	_add_gate_mesh(gate, lights.commit(), LowPoly.emissive_material(checkpoint_marker_color, checkpoint_light_energy))
+
+	# Dashes across the driving lanes.
+	var half_width: float = road_width * 0.5 - shoulder_width
+	var laterals: PackedFloat32Array = PackedFloat32Array()
+	var position_on_line: float = -half_width
+	while position_on_line + checkpoint_dash_length <= half_width + 0.01:
+		laterals.append(position_on_line)
+		laterals.append(position_on_line + checkpoint_dash_length)
+		position_on_line += checkpoint_dash_length + checkpoint_dash_gap
+	var half_depth: float = checkpoint_dash_depth * 0.5
+	var back: PackedVector3Array = _get_cross_section(offset - half_depth, laterals)
+	var front: PackedVector3Array = _get_cross_section(offset + half_depth, laterals)
+	var lift: Vector3 = Vector3.UP * checkpoint_dash_lift
+	var dashes: SurfaceTool = LowPoly.begin()
+	for i: int in range(0, laterals.size(), 2):
+		LowPoly.add_quad(
+			dashes, back[i] + lift, front[i] + lift, front[i + 1] + lift, back[i + 1] + lift,
+			checkpoint_marker_color, Vector3.UP
+		)
+	_add_gate_mesh(gate, dashes.commit(), LowPoly.emissive_material(checkpoint_marker_color, checkpoint_dash_energy))
+
+
+func _add_gate_mesh(gate: Node3D, mesh: ArrayMesh, material: Material) -> void:
+	var mesh_instance: MeshInstance3D = MeshInstance3D.new()
+	mesh_instance.mesh = mesh
+	mesh_instance.material_override = material
+	gate.add_child(mesh_instance)
 
 
 func _build_ground() -> void:

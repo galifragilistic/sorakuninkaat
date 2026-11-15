@@ -76,7 +76,7 @@ func _process(delta: float) -> void:
 	if _car == null:
 		return
 	var presence_db: float = _get_presence_db()
-	var speed: float = _car.linear_velocity.length()
+	var speed: float = _car.get_velocity().length()
 	var throttle: float = _car.get_throttle()
 
 	var target_revs: float = clampf(absf(_car.get_forward_speed()) / _car.get_base_top_speed(), 0.0, 1.0)

@@ -164,13 +164,19 @@ func _build_buttons() -> void:
 	row.offset_top = -MenuKit.HINTS_BOTTOM
 	add_child(row)
 
-	var is_multi: bool = GameState.mode == GameState.Mode.MULTI
-	var leave: ChamferButton = _add_button(row, tr("AULAAN") if is_multi else tr("VALIKKOON"), false)
+	var is_single: bool = GameState.mode == GameState.Mode.SINGLE
+	var is_net: bool = GameState.mode == GameState.Mode.NET
+	# In a network game only the host picks what happens next; the track is chosen in the lobby.
+	var can_restart: bool = not is_net or Network.is_host()
+	var leave: ChamferButton = _add_button(row, tr("VALIKKOON") if is_single else tr("AULAAN"), not can_restart)
 	leave.pressed.connect(func() -> void: leave_requested.emit())
-	var change: ChamferButton = _add_button(row, tr("VAIHDA RATA"), false)
-	change.pressed.connect(func() -> void: change_track_requested.emit())
-	_first_button = _add_button(row, tr("UUSINTAKISA"), true)
-	_first_button.pressed.connect(func() -> void: rematch_requested.emit())
+	_first_button = leave
+	if not is_net:
+		var change: ChamferButton = _add_button(row, tr("VAIHDA RATA"), false)
+		change.pressed.connect(func() -> void: change_track_requested.emit())
+	if can_restart:
+		_first_button = _add_button(row, tr("UUSINTAKISA"), true)
+		_first_button.pressed.connect(func() -> void: rematch_requested.emit())
 
 
 func _add_button(row: HBoxContainer, text: String, is_primary: bool) -> ChamferButton:

@@ -1,7 +1,9 @@
 extends Node3D
-## Race scene: builds the selected track, spawns one car per player on the
-## grid, runs the race through RaceManager and shows each player their own
-## view via SplitScreen. Also owns the pause menu and the results screen.
+## Race scene: builds the selected track, spawns one car per grid slot, runs
+## the race through RaceManager and shows each local player their own view
+## via SplitScreen. Also owns the pause menu and the results screen.
+## In a network game the host simulates everything; clients mirror it through
+## NetSync and only show their own player's view.
 
 @export var car_scene: PackedScene
 ## Seconds between the last finisher and the results screen.
@@ -14,6 +16,10 @@ var _cars: Array[Car] = []
 var _track: Track
 var _overlay: CanvasLayer
 var _pause_menu: PauseMenu
+var _net_sync: NetSync
+var _is_net: bool = false
+## False on network clients: the host decides everything.
+var _is_server: bool = true
 
 @onready var _split_screen: SplitScreen = $ViewLayer/SplitScreen
 @onready var _environment: EnvironmentController = $EnvironmentController
@@ -21,11 +27,38 @@ var _pause_menu: PauseMenu
 
 
 func _ready() -> void:
+	_is_net = GameState.mode == GameState.Mode.NET and Network.is_online()
+	_is_server = not _is_net or Network.is_host()
 	_track = GameState.selected_track.scene.instantiate() as Track
 	_track.name = "Track"
 	add_child(_track)
 
-	_race_manager.setup(_track, GameState.lap_count)
+	_race_manager.setup(_track, GameState.lap_count, _is_server)
+	var humans: Array[RacerState] = _spawn_cars()
+	InputManager.solo_mode = humans.size() == 1
+	_add_car_audio(humans)
+
+	_overlay = CanvasLayer.new()
+	_overlay.layer = overlay_layer
+	_overlay.process_mode = Node.PROCESS_MODE_ALWAYS
+	add_child(_overlay)
+
+	_split_screen.setup(_race_manager, _track, humans, GameState.split_layout)
+	_environment.preset_applied.connect(_on_preset_applied)
+	_environment.set_preset(GameState.get_time_preset(), GameState.get_weather())
+	_setup_weather(humans)
+	_race_manager.lap_completed.connect(_on_lap_completed)
+	_race_manager.countdown_tick.connect(_on_countdown_tick)
+	_race_manager.state_changed.connect(_on_state_changed)
+
+	if _is_net:
+		_start_network()
+	else:
+		_race_manager.start_countdown()
+
+
+## Creates the cars on the grid. Returns the racers whose view is shown on this machine.
+func _spawn_cars() -> Array[RacerState]:
 	var grid: Dictionary = GameState.build_grid()
 	var humans: Array[RacerState] = []
 	var ai_number: int = 0
@@ -46,14 +79,31 @@ func _ready() -> void:
 		if setup.is_ai:
 			ai_number += 1
 			racer_name = tr("Tekoäly %d") % ai_number
-			var driver: AiDriver = AiDriver.new()
-			driver.name = "AiDriver"
-			car.add_child(driver)
-			driver.setup(car, _track)
+			if _is_server:
+				_add_ai_driver(car)
 		var racer: RacerState = _race_manager.add_racer(car, player, racer_name, setup)
-		if not setup.is_ai:
+		if _is_local_player(player, setup):
 			humans.append(racer)
-	InputManager.solo_mode = humans.size() == 1
+			if _is_net:
+				# Online, this machine's player uses P1's devices whatever their slot.
+				car.input_source = InputManager.get_input(0)
+	return humans
+
+
+func _is_local_player(slot: int, setup: PlayerSetup) -> bool:
+	if setup.is_ai:
+		return false
+	return slot == Network.local_slot if _is_net else true
+
+
+func _add_ai_driver(car: Car) -> void:
+	var driver: AiDriver = AiDriver.new()
+	driver.name = "AiDriver"
+	car.add_child(driver)
+	driver.setup(car, _track)
+
+
+func _add_car_audio(humans: Array[RacerState]) -> void:
 	var listeners: Array[Car] = []
 	for racer: RacerState in humans:
 		listeners.append(racer.car)
@@ -63,22 +113,34 @@ func _ready() -> void:
 		car.add_child(audio)
 		audio.setup(car, listeners)
 
-	_overlay = CanvasLayer.new()
-	_overlay.layer = overlay_layer
-	_overlay.process_mode = Node.PROCESS_MODE_ALWAYS
-	add_child(_overlay)
 
-	_split_screen.setup(_race_manager, _track, humans, GameState.split_layout)
-	_environment.preset_applied.connect(_on_preset_applied)
-	_environment.set_preset(GameState.get_time_preset(), GameState.get_weather())
-	_setup_weather(humans)
-	_race_manager.lap_completed.connect(_on_lap_completed)
-	_race_manager.countdown_tick.connect(_on_countdown_tick)
-	_race_manager.state_changed.connect(_on_state_changed)
-	_race_manager.start_countdown()
+func _start_network() -> void:
+	_net_sync = NetSync.new()
+	_net_sync.name = "NetSync"
+	add_child(_net_sync)
+	var slots: Array[int] = []
+	for car: Car in _cars:
+		slots.append(car.player_index)
+	_net_sync.setup(_race_manager, _cars, slots)
+	_net_sync.remote_player_left.connect(_on_remote_player_left)
+	Network.session_changed.connect(_on_session_changed)
 
 
-## Slippery roads for everyone, and rain or snow around each player's car.
+## Host: a player dropped out or went back to the lobby; the computer drives on.
+func _on_remote_player_left(slot: int) -> void:
+	for car: Car in _cars:
+		if car.player_index == slot and not car.has_node("AiDriver"):
+			_add_ai_driver(car)
+			car.controls_enabled = _race_manager.state == RaceManager.State.RACING
+
+
+## Client: the connection is gone; Network takes us back to the lobby.
+func _on_session_changed() -> void:
+	if not Network.is_online():
+		set_process_unhandled_input(false)
+
+
+## Slippery roads for everyone, and rain or snow around each local player's car.
 func _setup_weather(humans: Array[RacerState]) -> void:
 	var weather: WeatherData = GameState.get_weather()
 	for car: Car in _cars:
@@ -104,11 +166,15 @@ func _can_pause() -> bool:
 
 
 func _set_paused(paused: bool) -> void:
-	get_tree().paused = paused
+	# A network race cannot stop for one player; the menu opens over the running race.
+	get_tree().paused = paused and not _is_net
 	if paused:
 		_pause_menu = PauseMenu.new()
+		if _is_net:
+			_pause_menu.show_restart = _is_server
+			_pause_menu.note = tr("Verkkokisa jatkuu taustalla.")
 		_pause_menu.resume_requested.connect(_set_paused.bind(false))
-		_pause_menu.restart_requested.connect(GameState.start_race)
+		_pause_menu.restart_requested.connect(_restart)
 		_pause_menu.quit_requested.connect(_leave_race)
 		_overlay.add_child(_pause_menu)
 	elif _pause_menu != null:
@@ -132,6 +198,8 @@ func _on_state_changed(state: RaceManager.State) -> void:
 	for i: int in standings.size():
 		GameState.points[standings[i].player_index] += Catalog.get_points(i + 1)
 	await get_tree().create_timer(results_delay).timeout
+	if _pause_menu != null:
+		_set_paused(false)
 	_show_results()
 
 
@@ -139,23 +207,37 @@ func _show_results() -> void:
 	var results: ResultsScreen = ResultsScreen.new()
 	_overlay.add_child(results)
 	results.setup(_race_manager, GameState.selected_track)
-	results.rematch_requested.connect(GameState.start_race)
+	results.rematch_requested.connect(_restart)
 	results.change_track_requested.connect(_change_track)
 	results.leave_requested.connect(_leave_race)
 
 
-## Back to the lobby in multiplayer, to the main menu otherwise.
+func _restart() -> void:
+	if _is_net:
+		Network.start_race()
+	else:
+		GameState.start_race()
+
+
+## Back to the lobby in multiplayer, to the main menu otherwise. The network
+## host takes everybody along; a client leaves on its own.
 func _leave_race() -> void:
+	if _is_net:
+		if _is_server:
+			Network.return_to_lobby()
+		else:
+			_net_sync.leave_race()
+			Network.go_to_lobby()
+		return
 	var is_multi: bool = GameState.mode == GameState.Mode.MULTI
 	GameState.go_to_menu(MenuScreen.LOBBY if is_multi else MenuScreen.MAIN)
 
 
 func _change_track() -> void:
 	var is_multi: bool = GameState.mode == GameState.Mode.MULTI
-	GameState.menu_start_context = {
+	GameState.go_to_menu(MenuScreen.TRACK_SELECT, {
 		"start_race": true, "return_to": MenuScreen.LOBBY if is_multi else MenuScreen.MAIN,
-	}
-	GameState.go_to_menu(MenuScreen.TRACK_SELECT)
+	})
 
 
 func _on_preset_applied(preset: EnvPreset) -> void:

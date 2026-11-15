@@ -20,6 +20,11 @@ const FRONT_WHEEL_COUNT: int = 2
 var input_source: PlayerInput
 ## Extra grip multiplier from the weather (1.0 = dry).
 var weather_grip: float = 1.0
+## Network client: the host simulates this car; it is only placed where the
+## host says and keeps its wheels, dust and sound going.
+var is_puppet: bool = false
+## Velocity reported by the host while this car is a puppet.
+var puppet_velocity: Vector3 = Vector3.ZERO
 
 @export_group("Stat ranges (stat 1 .. stat 10)")
 ## Top speed in m/s.
@@ -180,7 +185,26 @@ func get_gear() -> int:
 
 
 func get_forward_speed() -> float:
-	return linear_velocity.dot(-global_basis.z)
+	return get_velocity().dot(-global_basis.z)
+
+
+## Velocity in m/s, from physics or, for a network puppet, from the host.
+func get_velocity() -> Vector3:
+	return puppet_velocity if is_puppet else linear_velocity
+
+
+## Smoothed steering position (-1 left .. 1 right).
+func get_steer() -> float:
+	return _steer
+
+
+## Hands the car over to the network: no physics, input only drives the visuals.
+func make_puppet(visual_input: PlayerInput) -> void:
+	is_puppet = true
+	freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
+	freeze = true
+	input_source = visual_input
+	controls_enabled = true
 
 
 ## Throttle input used on the last physics tick (0..1).
@@ -189,7 +213,7 @@ func get_throttle() -> float:
 
 
 func get_speed_kmh() -> float:
-	return linear_velocity.length() * 3.6
+	return get_velocity().length() * 3.6
 
 
 ## Angle in degrees between where the car points and where it is going (0 = no slide).
@@ -223,13 +247,15 @@ func _physics_process(delta: float) -> void:
 	var input: PlayerInput = _idle_input
 	if controls_enabled:
 		input = input_source if input_source != null else InputManager.get_input(player_index)
-	if input.reset_pressed:
-		reset_upright()
-	_detect_impact()
+	if not is_puppet:
+		if input.reset_pressed:
+			reset_upright()
+		_detect_impact()
 
 	var top_speed: float = get_top_speed()
 	var forward_speed: float = get_forward_speed()
-	_steer = move_toward(_steer, input.steer, steer_speed * delta)
+	# A puppet's steering already comes smoothed from the host.
+	_steer = input.steer if is_puppet else move_toward(_steer, input.steer, steer_speed * delta)
 	var speed_ratio: float = clampf(absf(forward_speed) / top_speed, 0.0, 1.0)
 	var max_angle: float = lerpf(steer_angle_low_speed, steer_angle_high_speed, speed_ratio)
 	# Sliding unlocks extra steering lock so a drift can always be caught.
@@ -279,7 +305,7 @@ func _detect_impact() -> void:
 
 
 func _get_slip_angle() -> float:
-	var velocity: Vector3 = linear_velocity
+	var velocity: Vector3 = get_velocity()
 	velocity.y = 0.0
 	var forward: Vector3 = -global_basis.z
 	forward.y = 0.0
@@ -418,7 +444,8 @@ func _create_dust_emitters() -> void:
 
 func _update_dust() -> void:
 	# Horizontal speed only, so settling on the suspension raises no dust.
-	var speed: float = Vector2(linear_velocity.x, linear_velocity.z).length()
+	var velocity: Vector3 = get_velocity()
+	var speed: float = Vector2(velocity.x, velocity.z).length()
 	var rolling: float = clampf(speed / dust_full_speed, 0.0, 1.0) * dust_rolling_share
 	var sliding: float = clampf(_get_slip_angle() / dust_full_slip, 0.0, 1.0) * (1.0 - dust_rolling_share)
 	for i: int in _dust_emitters.size():

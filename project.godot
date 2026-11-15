@@ -19,6 +19,7 @@ config/features=PackedStringArray("4.7", "Forward Plus")
 GameState="*res://autoload/game_state.gd"
 Settings="*res://autoload/settings.gd"
 InputManager="*res://autoload/input_manager.gd"
+Network="*res://autoload/network.gd"
 
 [display]
 

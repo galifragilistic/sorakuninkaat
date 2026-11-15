@@ -3,11 +3,10 @@ extends Node
 ## on which track and with which rules, plus session records and points.
 
 enum SplitLayout { VERTICAL, HORIZONTAL }
-enum Mode { SINGLE, MULTI }
+## NET: a network game; the lobby slots are shared through the Network autoload.
+enum Mode { SINGLE, MULTI, NET }
 
 const MAX_PLAYERS: int = 4
-## Player slots that can race at the moment (3-4 players come in a later phase).
-const MAX_LOCAL_PLAYERS: int = 4
 
 const MENU_SCENE: String = "res://ui/menus/menu_root.tscn"
 const RACE_SCENE: String = "res://race/race.tscn"
@@ -92,7 +91,7 @@ func get_race_players() -> Array[int]:
 ## opponents are generated here; in multiplayer the lobby slots are used as they are.
 func build_grid() -> Dictionary:
 	var grid: Dictionary = {}
-	if mode == Mode.MULTI:
+	if mode != Mode.SINGLE:
 		for slot: int in get_joined_players():
 			grid[slot] = players[slot]
 		return grid
@@ -133,7 +132,8 @@ func start_race() -> void:
 	get_tree().change_scene_to_file(RACE_SCENE)
 
 
-func go_to_menu(screen: StringName = &"") -> void:
+func go_to_menu(screen: StringName = &"", context: Dictionary = {}) -> void:
 	menu_start_screen = screen
+	menu_start_context = context
 	get_tree().paused = false
 	get_tree().change_scene_to_file(MENU_SCENE)

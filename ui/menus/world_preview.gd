@@ -76,6 +76,8 @@ func show_track(track: TrackInfo) -> void:
 	_viewport.add_child(controller)
 
 	_camera = Camera3D.new()
+	# Moved every frame in _process, not in physics steps.
+	_camera.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	_camera.projection = Camera3D.PROJECTION_ORTHOGONAL
 	_camera.far = camera_far
 	_camera.rotation_degrees = Vector3(camera_pitch_degrees, camera_yaw_degrees, 0.0)

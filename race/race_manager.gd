@@ -26,12 +26,17 @@ enum State { WAITING, COUNTDOWN, RACING, FINISHED }
 ## Once the winner is in, the others have this long to finish (s).
 @export var finish_timeout: float = 30.0
 
+## Values per racer in get_racer_data() / apply_remote_racers().
+const FLOATS_PER_RACER: int = 13
+
 var track: Track
 var lap_count: int = 3
 var state: State = State.WAITING
 ## Seconds since the start signal.
 var race_time: float = 0.0
 var racers: Array[RacerState] = []
+## False on network clients: the host runs the rules and sends the results.
+var is_authority: bool = true
 
 var _countdown_left: float = 0.0
 var _last_overtake_time: float = 0.0
@@ -39,11 +44,13 @@ var _first_finish_time: float = RacerState.NO_TIME
 var _standings: Array[RacerState] = []
 
 
-func setup(race_track: Track, laps: int) -> void:
+func setup(race_track: Track, laps: int, authority: bool = true) -> void:
 	track = race_track
 	lap_count = laps
-	for checkpoint: Checkpoint in track.checkpoints:
-		checkpoint.car_passed.connect(_on_checkpoint_passed)
+	is_authority = authority
+	if is_authority:
+		for checkpoint: Checkpoint in track.checkpoints:
+			checkpoint.car_passed.connect(_on_checkpoint_passed)
 
 
 func add_racer(car: Car, player_index: int, display_name: String, setup: PlayerSetup) -> RacerState:
@@ -86,7 +93,61 @@ func get_display_lap(racer: RacerState) -> int:
 	return mini(racer.laps_completed + 1, lap_count)
 
 
+func find_racer_by_slot(slot: int) -> RacerState:
+	for racer: RacerState in racers:
+		if racer.player_index == slot:
+			return racer
+	return null
+
+
+## Host: everything a client needs to show positions and times, racers in add order.
+func get_racer_data() -> PackedFloat32Array:
+	var data: PackedFloat32Array = PackedFloat32Array()
+	for racer: RacerState in racers:
+		data.append_array([
+			racer.laps_completed, racer.next_checkpoint, float(racer.crossed_start), racer.lap_start_time,
+			racer.last_lap_time, racer.best_lap_time, racer.progress, racer.position, racer.gap_to_leader,
+			float(racer.finished), racer.finish_time, float(racer.did_not_finish), racer.track_offset,
+		])
+	return data
+
+
+## Client: takes over the host's race clock and racer fields.
+func apply_remote_racers(remote_time: float, data: PackedFloat32Array) -> void:
+	race_time = remote_time
+	for i: int in mini(racers.size(), data.size() / FLOATS_PER_RACER):
+		var racer: RacerState = racers[i]
+		var base: int = i * FLOATS_PER_RACER
+		racer.laps_completed = int(data[base])
+		racer.next_checkpoint = int(data[base + 1])
+		racer.crossed_start = data[base + 2] > 0.5
+		racer.lap_start_time = data[base + 3]
+		racer.last_lap_time = data[base + 4]
+		racer.best_lap_time = data[base + 5]
+		racer.progress = data[base + 6]
+		racer.position = int(data[base + 7])
+		racer.gap_to_leader = data[base + 8]
+		racer.finished = racer.finished or data[base + 9] > 0.5
+		racer.finish_time = data[base + 10]
+		racer.did_not_finish = data[base + 11] > 0.5
+		racer.track_offset = data[base + 12]
+	_standings.sort_custom(func(a: RacerState, b: RacerState) -> bool: return a.position < b.position)
+
+
+## Client: follows the host's race state.
+func apply_remote_state(new_state: State) -> void:
+	if new_state == State.RACING and state != State.RACING:
+		race_time = 0.0
+	if new_state != state:
+		_set_state(new_state)
+
+
 func _physics_process(delta: float) -> void:
+	if not is_authority:
+		# Between updates from the host the clock keeps running locally.
+		if state == State.RACING:
+			race_time += delta
+		return
 	match state:
 		State.COUNTDOWN:
 			var before: int = ceili(_countdown_left)
@@ -206,7 +267,7 @@ func _update_standings() -> void:
 	_standings.sort_custom(_is_ahead)
 	_report_overtakes(previous)
 	var leader: RacerState = _standings[0]
-	var leader_speed: float = maxf(leader.car.linear_velocity.length(), gap_min_speed)
+	var leader_speed: float = maxf(leader.car.get_velocity().length(), gap_min_speed)
 	for i: int in _standings.size():
 		var racer: RacerState = _standings[i]
 		racer.position = i + 1

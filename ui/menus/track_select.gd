@@ -196,6 +196,12 @@ func _add_option_row(column: VBoxContainer, caption: String, options: Array, act
 				chips[other].selected = other == i)
 
 
+## In a network game the host's choices (track, weather, time) go to everyone.
+func _exit_tree() -> void:
+	if GameState.mode == GameState.Mode.NET:
+		Network.broadcast_lobby()
+
+
 func _get_surface_color(kind: SurfaceData.Kind) -> Color:
 	match kind:
 		SurfaceData.Kind.GRAVEL:

@@ -12,3 +12,5 @@ var joined: bool = false
 var is_ready: bool = false
 ## Driven by the computer instead of a person.
 var is_ai: bool = false
+## Network game: the peer that controls this slot (0 = nobody / local play).
+var peer_id: int = 0

@@ -57,7 +57,7 @@ func _process(delta: float) -> void:
 	var target_position: Vector3 = target.get_global_transform_interpolated().origin
 	_focus = _focus.lerp(target_position, _smoothing(follow_sharpness, delta))
 
-	var velocity: Vector3 = target.linear_velocity
+	var velocity: Vector3 = target.get_velocity()
 	velocity.y = 0.0
 	var desired_ahead: Vector3 = (velocity * look_ahead_time).limit_length(max_look_ahead)
 	_look_ahead = _look_ahead.lerp(desired_ahead, _smoothing(look_ahead_sharpness, delta))

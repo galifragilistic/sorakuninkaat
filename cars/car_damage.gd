@@ -47,6 +47,17 @@ func apply_impact(local_impulse: Vector3, speed_change: float, durability: int) 
 	changed.emit()
 
 
+func get_zones() -> PackedFloat32Array:
+	return _zones.duplicate()
+
+
+## Network clients take the damage the host has worked out.
+func set_zones(zones: PackedFloat32Array) -> void:
+	for i: int in mini(zones.size(), ZONE_COUNT):
+		_zones[i] = clampf(zones[i], 0.0, 1.0)
+	changed.emit()
+
+
 func repair() -> void:
 	_zones.fill(0.0)
 	changed.emit()

@@ -15,6 +15,10 @@ var reset_pressed: bool = false
 var _reset_held: bool = false
 
 
+func is_reset_held() -> bool:
+	return _reset_held
+
+
 func update_reset(held: bool) -> void:
 	reset_pressed = held and not _reset_held
 	_reset_held = held

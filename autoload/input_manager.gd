@@ -41,6 +41,9 @@ const JOY_STEER_DEADZONE: float = 0.15
 const ACTION_SECONDARY: StringName = &"menu_secondary"
 const ACTION_START: StringName = &"menu_start"
 const ACTION_PAUSE: StringName = &"pause"
+## Lobby tabs (LB / RB on a gamepad, Q / E on the keyboard).
+const ACTION_TAB_PREVIOUS: StringName = &"menu_tab_previous"
+const ACTION_TAB_NEXT: StringName = &"menu_tab_next"
 ## Matches a button on every connected gamepad.
 const ALL_DEVICES: int = -1
 
@@ -99,6 +102,8 @@ func _register_actions() -> void:
 	_add_action(ACTION_SECONDARY, [KEY_X], [JOY_BUTTON_X])
 	_add_action(ACTION_START, [], [JOY_BUTTON_START])
 	_add_action(ACTION_PAUSE, [KEY_ESCAPE], [JOY_BUTTON_START])
+	_add_action(ACTION_TAB_PREVIOUS, [KEY_Q], [JOY_BUTTON_LEFT_SHOULDER])
+	_add_action(ACTION_TAB_NEXT, [KEY_E], [JOY_BUTTON_RIGHT_SHOULDER])
 	# Godot 4 binds ui_accept and ui_cancel to the keyboard only.
 	_add_action(&"ui_accept", [], [JOY_BUTTON_A])
 	_add_action(&"ui_cancel", [], [JOY_BUTTON_B])

@@ -8,6 +8,10 @@ signal restart_requested
 signal quit_requested
 
 @export var panel_width: float = 380.0
+## Network clients cannot restart the race for everybody.
+@export var show_restart: bool = true
+## Optional line under the title, e.g. that a network race keeps running.
+@export var note: String = ""
 @export var button_height: float = 52.0
 
 var _buttons: VBoxContainer
@@ -31,12 +35,17 @@ func _ready() -> void:
 	var column: VBoxContainer = MenuKit.make_vbox(16)
 	panel.add_child(column)
 	column.add_child(UiStyle.make_label(tr("TAUKO"), UiStyle.title_font(), MenuKit.TITLE_FONT_SIZE))
+	if not note.is_empty():
+		var note_label: Label = UiStyle.make_label(note, UiStyle.FONT_MEDIUM, 14, UiStyle.WARNING)
+		note_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		column.add_child(note_label)
 
 	_buttons = MenuKit.make_vbox(8)
 	column.add_child(_buttons)
 	_first_button = _add_button(_buttons, tr("JATKA"))
 	_first_button.pressed.connect(func() -> void: resume_requested.emit())
-	_add_button(_buttons, tr("ALOITA ALUSTA")).pressed.connect(func() -> void: restart_requested.emit())
+	if show_restart:
+		_add_button(_buttons, tr("ALOITA ALUSTA")).pressed.connect(func() -> void: restart_requested.emit())
 	_settings_button = _add_button(_buttons, tr("ASETUKSET"))
 	_settings_button.pressed.connect(_show_settings.bind(true))
 	_add_button(_buttons, tr("LOPETA KISA")).pressed.connect(func() -> void: quit_requested.emit())

@@ -37,7 +37,7 @@ func _build() -> void:
 	column.position = menu_position
 	add_child(column)
 	_first_item = _add_item(column, tr("YKSINPELI"), tr("Aja kisa yksin kelloa vastaan"), _on_single_player)
-	_add_item(column, tr("MONINPELI"), tr("Jaettu ruutu · 1–2 pelaajaa"), go_to.bind(LOBBY))
+	_add_item(column, tr("MONINPELI"), tr("Jaettu ruutu tai verkko · 1–4 pelaajaa"), go_to.bind(LOBBY))
 	_add_item(column, tr("AUTOTALLI"), tr("Autot, värit ja kuviot"), go_to.bind(CAR_SELECT, {"player": 0}))
 	_add_item(column, tr("RADAT"), tr("Selaa ja valitse rata"), go_to.bind(TRACK_SELECT))
 	_add_item(column, tr("ASETUKSET"), tr("Grafiikka ja pelisäännöt"), go_to.bind(SETTINGS))
@@ -149,10 +149,11 @@ func _build_controllers_box() -> void:
 
 func _update_devices() -> void:
 	for i: int in _device_labels.size():
-		var available: bool = i < GameState.MAX_LOCAL_PLAYERS
-		_device_labels[i].text = InputManager.get_device_name(i) if available else tr("Tulossa")
+		# Gamepads claim a slot with A in the lobby, not here, so A keeps selecting menu items.
+		var has_device: bool = InputManager.get_device(i) != InputManager.Device.NONE
+		_device_labels[i].text = InputManager.get_device_name(i) if has_device else tr("Liity aulassa")
 		_device_labels[i].add_theme_color_override(
-			"font_color", UiStyle.TEXT if available else UiStyle.TEXT_DISABLED
+			"font_color", UiStyle.TEXT if has_device else UiStyle.TEXT_SECONDARY
 		)
 
 

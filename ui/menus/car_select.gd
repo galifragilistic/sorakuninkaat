@@ -222,6 +222,11 @@ func _confirm() -> void:
 		next_context["return_to"] = CAR_SELECT
 		next_context["return_context"] = context
 		go_to(context["next"], next_context)
+	elif GameState.mode == GameState.Mode.NET and Network.is_online():
+		# The host keeps the shared lobby; picking a car also means "ready".
+		Network.submit_local_setup()
+		Network.set_local_ready(true)
+		_on_back()
 	else:
 		setup.is_ready = setup.joined
 		_on_back()

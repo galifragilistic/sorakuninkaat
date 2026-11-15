@@ -55,7 +55,7 @@ func _physics_process(delta: float) -> void:
 	if _car == null or not _car.controls_enabled:
 		return
 	_offset = _track.get_offset_near(_car.global_position, _offset)
-	var velocity: Vector3 = _car.linear_velocity
+	var velocity: Vector3 = _car.get_velocity()
 	var speed: float = velocity.length()
 
 	if _reverse_timer > 0.0:

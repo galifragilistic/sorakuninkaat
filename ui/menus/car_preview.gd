@@ -72,6 +72,8 @@ func _ready() -> void:
 	_viewport.add_child(key_light)
 
 	_pivot = Node3D.new()
+	# Turned every frame in _process, not in physics steps.
+	_pivot.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	_pivot.rotation_degrees.y = start_angle_degrees
 	_viewport.add_child(_pivot)
 	_car = CAR_SCENE.instantiate() as Car
@@ -82,6 +84,7 @@ func _ready() -> void:
 	_car.headlights_enabled = headlights_on
 
 	_camera = Camera3D.new()
+	_camera.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	_camera.projection = Camera3D.PROJECTION_ORTHOGONAL
 	_camera.size = view_size
 	_camera.rotation_degrees = Vector3(camera_pitch_degrees, camera_yaw_degrees, 0.0)

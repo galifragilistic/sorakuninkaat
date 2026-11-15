@@ -9,6 +9,12 @@ signal value_changed(index: int)
 @export var value_width: float = 150.0
 
 var options: PackedStringArray = PackedStringArray()
+## When false the value is shown but cannot be changed (e.g. on a network client).
+var editable: bool = true:
+	set(value):
+		editable = value
+		focus_mode = Control.FOCUS_ALL if editable else Control.FOCUS_NONE
+		_update_style()
 var index: int = 0:
 	set(value):
 		index = clampi(value, 0, maxi(0, options.size() - 1))
@@ -43,12 +49,17 @@ func _init() -> void:
 	_add_arrow(UiGlyph.Kind.CHEVRON_RIGHT)
 	focus_entered.connect(_update_style)
 	focus_exited.connect(_update_style)
-	mouse_entered.connect(grab_focus)
+	mouse_entered.connect(_on_mouse_entered)
 	_update_style()
 
 
+func _on_mouse_entered() -> void:
+	if editable:
+		grab_focus()
+
+
 func step(direction: int) -> void:
-	if options.size() < 2:
+	if options.size() < 2 or not editable:
 		return
 	index = wrapi(index + direction, 0, options.size())
 	SoundBank.play(self, SoundBank.Sound.UI_MOVE, ChamferButton.UI_SOUND_DB)
@@ -90,7 +101,7 @@ func _update_style() -> void:
 	if _value_label == null:
 		return
 	var active: bool = has_focus()
-	var can_change: bool = options.size() > 1
+	var can_change: bool = options.size() > 1 and editable
 	_title_label.add_theme_color_override("font_color", UiStyle.TEXT if active else UiStyle.TEXT_SECONDARY)
 	for i: int in _arrows.size():
 		_arrows[i].fill_color = UiStyle.ACCENT if active and can_change else UiStyle.BUTTON

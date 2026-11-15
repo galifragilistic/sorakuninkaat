@@ -1,11 +1,13 @@
-[gd_resource type="Resource" script_class="TrackInfo" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="TrackInfo" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://tracks/track_info.gd" id="1"]
+[ext_resource type="PackedScene" path="res://tracks/satamakaarre/satamakaarre.tscn" id="2"]
 
 [resource]
 script = ExtResource("1")
 display_name = "Satamakaarre"
-description = "Nopea asfalttirata sataman laitureilla."
+description = "Nopea ja leveä asfalttirata sataman konttien välissä."
 surface = 0
 surface_label = "ASFALTTI"
-summary = "Asfaltti"
+summary = "Asfaltti · nopea"
+scene = ExtResource("2")

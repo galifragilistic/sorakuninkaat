@@ -25,31 +25,61 @@ func _ready() -> void:
 	add_child(_track)
 
 	_race_manager.setup(_track, GameState.lap_count)
-	InputManager.solo_mode = GameState.get_race_players().size() == 1
+	var grid: Dictionary = GameState.build_grid()
+	var humans: Array[RacerState] = []
+	var ai_number: int = 0
 	var slot: int = 0
-	for player: int in GameState.get_race_players():
+	for player: int in grid:
+		var setup: PlayerSetup = grid[player]
 		var car: Car = car_scene.instantiate() as Car
 		car.player_index = player
 		car.name = "Car%d" % (player + 1)
 		add_child(car)
-		car.apply_setup(GameState.players[player])
+		car.apply_setup(setup)
 		car.global_transform = _track.get_grid_transform(slot)
 		car.reset_physics_interpolation()
 		_cars.append(car)
-		_race_manager.add_racer(car, player, tr("Pelaaja %d") % (player + 1))
 		slot += 1
+
+		var racer_name: String = tr("Pelaaja %d") % (player + 1)
+		if setup.is_ai:
+			ai_number += 1
+			racer_name = tr("Tekoäly %d") % ai_number
+			var driver: AiDriver = AiDriver.new()
+			driver.name = "AiDriver"
+			car.add_child(driver)
+			driver.setup(car, _track)
+		var racer: RacerState = _race_manager.add_racer(car, player, racer_name, setup)
+		if not setup.is_ai:
+			humans.append(racer)
+	InputManager.solo_mode = humans.size() == 1
 
 	_overlay = CanvasLayer.new()
 	_overlay.layer = overlay_layer
 	_overlay.process_mode = Node.PROCESS_MODE_ALWAYS
 	add_child(_overlay)
 
-	_split_screen.setup(_race_manager, _track, _race_manager.racers, GameState.split_layout)
+	_split_screen.setup(_race_manager, _track, humans, GameState.split_layout)
 	_environment.preset_applied.connect(_on_preset_applied)
-	_on_preset_applied(_environment.preset)
+	_environment.set_preset(GameState.get_time_preset(), GameState.get_weather())
+	_setup_weather(humans)
 	_race_manager.lap_completed.connect(_on_lap_completed)
 	_race_manager.state_changed.connect(_on_state_changed)
 	_race_manager.start_countdown()
+
+
+## Slippery roads for everyone, and rain or snow around each player's car.
+func _setup_weather(humans: Array[RacerState]) -> void:
+	var weather: WeatherData = GameState.get_weather()
+	for car: Car in _cars:
+		car.weather_grip = weather.grip_multiplier
+	if weather.precipitation == WeatherData.Precipitation.NONE:
+		return
+	for racer: RacerState in humans:
+		var particles: PrecipitationEmitter = PrecipitationEmitter.new()
+		particles.target = racer.car
+		add_child(particles)
+		particles.configure(weather.precipitation, weather.precipitation_amount)
 
 
 func _unhandled_input(event: InputEvent) -> void:

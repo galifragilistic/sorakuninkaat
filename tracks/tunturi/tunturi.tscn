@@ -1,0 +1,36 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://tracks/track.gd" id="1"]
+[ext_resource type="Resource" path="res://tracks/surfaces/snow.tres" id="2"]
+[ext_resource type="Resource" path="res://tracks/surfaces/snow_ground.tres" id="4"]
+[ext_resource type="Script" path="res://tracks/track_scenery.gd" id="5"]
+[ext_resource type="Resource" path="res://tracks/surfaces/water.tres" id="6"]
+
+[sub_resource type="StandardMaterial3D" id="container_a"]
+albedo_color = Color(0.62, 0.62, 0.72, 1)
+roughness = 0.8
+
+[sub_resource type="StandardMaterial3D" id="container_b"]
+albedo_color = Color(0.78, 0.36, 0.24, 1)
+roughness = 0.8
+
+[node name="Tunturi" type="Node3D"]
+script = ExtResource("1")
+track_name = "Tunturi"
+control_points = PackedVector3Array(-130, 0, 0, -110, 0, -60, -60, 0, -85, -10, 0, -60, 30, 0, -95, 90, 0, -90, 135, 0, -50, 120, 0, 0, 140, 0, 50, 90, 0, 90, 40, 0, 60, -10, 0, 95, -70, 0, 80, -90, 0, 35)
+road_width = 11
+road_surface = ExtResource("2")
+ground_surface = ExtResource("4")
+ground_size = Vector2(340, 270)
+
+[node name="Scenery" type="Node3D" parent="."]
+script = ExtResource("5")
+lake_surface = ExtResource("6")
+lake_enabled = false
+tree_count = 190
+tree_color = Color(0.34, 0.5, 0.42, 1)
+tree_top_color = Color(0.88, 0.93, 0.97, 1)
+lamps = PackedVector2Array(0.02, 1, 0.16, -1, 0.3, 1, 0.45, -1, 0.6, 1, 0.75, -1, 0.9, 1)
+bale_rows = PackedVector2Array(0.24, -1, 0.52, -1, 0.82, -1)
+jumps = PackedFloat32Array(0.36, 0.69)
+

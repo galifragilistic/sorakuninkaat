@@ -1,11 +1,13 @@
-[gd_resource type="Resource" script_class="TrackInfo" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="TrackInfo" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://tracks/track_info.gd" id="1"]
+[ext_resource type="PackedScene" path="res://tracks/hiekkasarkka/hiekkasarkka.tscn" id="2"]
 
 [resource]
 script = ExtResource("1")
 display_name = "Hiekkasärkkä"
-description = "Pehmeää hiekkaa ja pitkiä, luistavia kaarteita."
+description = "Pehmeää hiekkaa, pitkiä luistavia kaarteita ja hyppyri dyynin laella."
 surface = 2
 surface_label = "HIEKKA"
-summary = "Hiekka"
+summary = "Hiekka · hyppyri"
+scene = ExtResource("2")

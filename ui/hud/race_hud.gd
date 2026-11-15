@@ -8,6 +8,8 @@ extends Control
 
 ## Set before the HUD enters the tree.
 @export var compact: bool = false
+## Compact mode only: show a small minimap in the top-right corner.
+@export var compact_minimap: bool = false
 
 @export_group("Layout")
 @export var edge_margin: Vector2 = Vector2(32.0, 28.0)
@@ -29,6 +31,7 @@ extends Control
 @export var compact_speedometer_margin: Vector2 = Vector2(20.0, 16.0)
 @export var compact_time_label_width: float = 118.0
 @export var compact_banner_font_size: int = 76
+@export var compact_minimap_size: Vector2 = Vector2(116.0, 76.0)
 
 @export_group("Behaviour")
 ## How long a split badge stays on screen (s).
@@ -83,6 +86,8 @@ func _ready() -> void:
 	if compact:
 		_build_compact_position_and_lap()
 		_build_compact_time()
+		if compact_minimap:
+			_build_compact_minimap()
 	else:
 		_build_position_and_lap()
 		_build_standings()
@@ -103,7 +108,9 @@ func setup(manager: RaceManager, racer: RacerState, track: Track, camera: Camera
 	_speedometer.max_speed = racer.car.get_base_top_speed() * 3.6
 	if compact:
 		_player_chip.fill_color = accent
-		_player_chip_label.text = "P%d" % (racer.player_index + 1)
+		_player_chip_label.text = racer.get_tag()
+		if _minimap != null:
+			_minimap.setup(track, manager.racers, racer.player_index)
 	else:
 		_minimap.setup(track, manager.racers, racer.player_index)
 		_track_name_label.text = tr(track.track_name).to_upper()
@@ -219,6 +226,26 @@ func _build_compact_position_and_lap() -> void:
 	_lap_total_label = lap_parts[1]
 
 
+func _build_compact_minimap() -> void:
+	var panel: ChamferPanel = ChamferPanel.create_panel(Vector4(6.0, 6.0, 6.0, 6.0))
+	panel.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	panel.offset_right = -compact_edge_margin.x
+	panel.offset_left = -compact_edge_margin.x
+	panel.offset_top = compact_edge_margin.y
+	add_child(panel)
+	_minimap = Minimap.new()
+	_minimap.custom_minimum_size = compact_minimap_size
+	_minimap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_minimap.margin = 9.0
+	_minimap.outline_width = 6.0
+	_minimap.road_width = 3.0
+	_minimap.dot_radius = 3.0
+	_minimap.own_dot_radius = 4.5
+	_minimap.own_ring_radius = 8.0
+	panel.add_child(_minimap)
+
+
 ## Compact: lap time with the delta to the best lap underneath, bottom left.
 func _build_compact_time() -> void:
 	var panel: ChamferPanel = ChamferPanel.create_panel(Vector4(16.0, 6.0, 16.0, 8.0))
@@ -322,7 +349,7 @@ func _update_standings() -> void:
 		var chip: ChamferPanel = row["chip"]
 		chip.fill_color = color
 		var chip_label: Label = row["chip_label"]
-		chip_label.text = "P%d" % (entry.player_index + 1)
+		chip_label.text = entry.get_tag()
 		var name_label: Label = row["name"]
 		name_label.text = entry.display_name
 		name_label.add_theme_font_override("font", UiStyle.FONT_BOLD if is_own else UiStyle.FONT_MEDIUM)

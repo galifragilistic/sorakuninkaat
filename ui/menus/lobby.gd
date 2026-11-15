@@ -1,7 +1,7 @@
 extends MenuScreen
-## Multiplayer lobby (mockups/02_Moninpeli.png): player cards, race settings
-## and the start button. Local split screen only; the network tabs are
-## placeholders until the network phase.
+## Multiplayer lobby (mockups/02_Moninpeli.png): four slots that can hold a
+## player or a computer driver, race settings and the start button. Local
+## split screen only; the network tabs are placeholders until the network phase.
 
 @export_group("Layout")
 @export var cards_position: Vector2 = Vector2(56.0, 110.0)
@@ -16,6 +16,7 @@ extends MenuScreen
 var _cards: Array[ChamferButton] = []
 var _joined_views: Array[Control] = []
 var _empty_views: Array[Control] = []
+var _name_labels: Array[Label] = []
 var _device_labels: Array[Label] = []
 var _car_labels: Array[Label] = []
 var _status_chips: Array[ChamferPanel] = []
@@ -37,25 +38,40 @@ func _build() -> void:
 	_build_cards()
 	_build_settings()
 	MenuKit.add_hints(self, [
-		["A", tr("Liity / valmis")], ["X", tr("Vaihda auto")], ["START", tr("Aloita")], ["B", tr("Takaisin")],
+		["A", tr("Liity / valmis")], ["X", tr("Auto / tekoäly")], ["START", tr("Aloita")], ["B", tr("Takaisin")],
 	])
 
 
 func _enter() -> void:
 	GameState.mode = GameState.Mode.MULTI
 	GameState.players[0].joined = true
+	GameState.players[0].is_ai = false
+	InputManager.join_enabled = true
 	InputManager.device_changed.connect(_on_device_changed)
 	_refresh()
+
+
+func _exit_tree() -> void:
+	InputManager.join_enabled = false
 
 
 func _get_initial_focus() -> Control:
 	return _cards[context.get("focus_player", 0)]
 
 
+## X: change car for a player, add a computer driver to an empty slot, or remove one.
 func _on_secondary() -> void:
 	var player: int = _cards.find(get_viewport().gui_get_focus_owner() as ChamferButton)
-	if player >= 0 and GameState.players[player].joined:
+	if player < 0:
+		return
+	var setup: PlayerSetup = GameState.players[player]
+	if not setup.joined:
+		_add_ai(player)
+	elif setup.is_ai:
+		_leave(player)
+	else:
 		_open_car_select(player)
+	_refresh()
 
 
 func _on_start() -> void:
@@ -96,7 +112,6 @@ func _build_cards() -> void:
 		card.normal_color = UiStyle.PANEL
 		card.set_padding(Vector4.ZERO)
 		card.custom_minimum_size = card_size
-		card.disabled = i >= GameState.MAX_LOCAL_PLAYERS
 		card.pressed.connect(_on_card_pressed.bind(i))
 		grid.add_child(card)
 		_cards.append(card)
@@ -134,9 +149,10 @@ func _build_joined_view(parent: Control, player: int) -> Control:
 	var header: HBoxContainer = MenuKit.make_hbox(10)
 	column.add_child(header)
 	header.add_child(MenuKit.make_player_chip(player, 15))
-	var name_label: Label = UiStyle.make_label(tr("Pelaaja %d") % (player + 1), UiStyle.FONT_DISPLAY, 20)
+	var name_label: Label = UiStyle.make_label("", UiStyle.FONT_DISPLAY, 20)
 	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(name_label)
+	_name_labels.append(name_label)
 	var device: Label = UiStyle.make_label("", UiStyle.FONT_MEDIUM, 14, UiStyle.TEXT_SECONDARY)
 	header.add_child(device)
 	_device_labels.append(device)
@@ -178,21 +194,19 @@ func _build_empty_view(parent: Control, player: int) -> Control:
 	view.alignment = BoxContainer.ALIGNMENT_CENTER
 	view.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	parent.add_child(view)
-	var available: bool = player < GameState.MAX_LOCAL_PLAYERS
-	var color: Color = GameState.get_player_color(player) if available else UiStyle.TEXT_DISABLED
 
 	var plus: UiGlyph = UiGlyph.create(UiGlyph.Kind.PLUS, "", 52.0)
-	plus.color = color
+	plus.color = GameState.get_player_color(player)
 	plus.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	view.add_child(plus)
-	var title_text: String = tr("P%d · Paina A liittyäksesi") if available else tr("P%d · tulossa myöhemmin")
 	var title: Label = UiStyle.make_label(
-		title_text % (player + 1), UiStyle.FONT_DISPLAY, 18, UiStyle.TEXT if available else UiStyle.TEXT_DISABLED
+		tr("P%d · Paina A liittyäksesi") % (player + 1), UiStyle.FONT_DISPLAY, 18
 	)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	view.add_child(title)
-	var note_text: String = tr("Nuolinäppäimet tai ohjain") if available else tr("3–4 pelaajan jaettu ruutu")
-	var note: Label = UiStyle.make_label(note_text, UiStyle.FONT_MEDIUM, 14, UiStyle.TEXT_SECONDARY)
+	var note: Label = UiStyle.make_label(
+		tr("tai lisää tekoälykuski painamalla X"), UiStyle.FONT_MEDIUM, 14, UiStyle.TEXT_SECONDARY
+	)
 	note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	view.add_child(note)
 	return view
@@ -237,9 +251,13 @@ func _build_settings() -> void:
 	)
 	laps_spinner.value_changed.connect(func(index: int) -> void: GameState.lap_count = Catalog.LAP_OPTIONS[index])
 	column.add_child(laps_spinner)
-	# Single-value rows until more presets exist.
-	column.add_child(OptionSpinner.create(tr("Sää"), PackedStringArray([tr("Aurinkoinen")]), 0))
-	column.add_child(OptionSpinner.create(tr("Aika"), PackedStringArray([tr("Iltarusko")]), 0))
+
+	var weather: OptionSpinner = OptionSpinner.create(tr("Sää"), Catalog.get_weather_names(), GameState.weather)
+	weather.value_changed.connect(func(index: int) -> void: GameState.weather = index)
+	column.add_child(weather)
+	var time: OptionSpinner = OptionSpinner.create(tr("Aika"), Catalog.get_time_names(), GameState.time_of_day)
+	time.value_changed.connect(func(index: int) -> void: GameState.time_of_day = index)
+	column.add_child(time)
 
 	var on_off: PackedStringArray = PackedStringArray([tr("Pois"), tr("Päällä")])
 	var damage: OptionSpinner = OptionSpinner.create(tr("Vauriot"), on_off, int(Settings.damage_enabled))
@@ -270,19 +288,24 @@ func _build_settings() -> void:
 
 func _refresh() -> void:
 	var ready_count: int = 0
-	var joined_count: int = 0
+	var human_count: int = 0
 	var waiting_for: String = ""
 	for i: int in GameState.MAX_PLAYERS:
 		var setup: PlayerSetup = GameState.players[i]
-		var joined: bool = setup.joined and i < GameState.MAX_LOCAL_PLAYERS
-		_joined_views[i].visible = joined
-		_empty_views[i].visible = not joined
-		if not joined:
+		_joined_views[i].visible = setup.joined
+		_empty_views[i].visible = not setup.joined
+		if not setup.joined:
 			continue
-		joined_count += 1
-		_device_labels[i].text = InputManager.get_device_name(i)
 		_car_labels[i].text = setup.stats.display_name
 		_previews[i].show_setup(setup)
+		if setup.is_ai:
+			_name_labels[i].text = tr("Tekoäly")
+			_device_labels[i].text = tr("Tietokone")
+			MenuKit.set_chip(_status_chips[i], tr("TEKOÄLY"), UiStyle.INFO)
+			continue
+		human_count += 1
+		_name_labels[i].text = tr("Pelaaja %d") % (i + 1)
+		_device_labels[i].text = InputManager.get_device_name(i)
 		if setup.is_ready:
 			ready_count += 1
 			MenuKit.set_chip(_status_chips[i], tr("VALMIS"), UiStyle.SUCCESS)
@@ -298,18 +321,44 @@ func _refresh() -> void:
 	if waiting_for.is_empty():
 		_status_label.text = tr("Kaikki valmiina")
 	else:
-		_status_label.text = tr("%d/%d valmiina · odotetaan: %s") % [ready_count, joined_count, waiting_for]
+		_status_label.text = tr("%d/%d valmiina · odotetaan: %s") % [ready_count, human_count, waiting_for]
 	_status_label.add_theme_color_override("font_color", UiStyle.TEXT_SECONDARY)
 
 
+## A: join an empty slot, toggle ready for a player, or remove a computer driver.
 func _on_card_pressed(player: int) -> void:
 	var setup: PlayerSetup = GameState.players[player]
 	if not setup.joined:
-		setup.joined = true
-		setup.is_ready = false
+		# Without a free device the slot can only be driven by the computer.
+		if InputManager.ensure_device(player):
+			setup.joined = true
+			setup.is_ai = false
+			setup.is_ready = false
+		else:
+			_add_ai(player)
+	elif setup.is_ai:
+		_leave(player)
 	else:
 		setup.is_ready = not setup.is_ready
 	_refresh()
+
+
+func _add_ai(player: int) -> void:
+	var setup: PlayerSetup = GameState.players[player]
+	setup.joined = true
+	setup.is_ai = true
+	setup.is_ready = true
+	setup.stats = Catalog.CARS.pick_random()
+
+
+func _leave(player: int) -> void:
+	# Player 1 hosts the lobby and cannot leave it.
+	if player == 0:
+		return
+	var setup: PlayerSetup = GameState.players[player]
+	setup.joined = false
+	setup.is_ai = false
+	setup.is_ready = false
 
 
 func _open_car_select(player: int) -> void:
@@ -317,24 +366,27 @@ func _open_car_select(player: int) -> void:
 
 
 func _on_device_changed(player_index: int) -> void:
-	# A gamepad that just claimed a slot joins the lobby straight away.
-	var is_gamepad: bool = InputManager.get_device(player_index) == InputManager.Device.JOYPAD
-	if is_gamepad and player_index < GameState.MAX_LOCAL_PLAYERS:
-		GameState.players[player_index].joined = true
+	# A gamepad that just claimed a slot joins the lobby straight away, replacing a computer driver.
+	if InputManager.get_device(player_index) == InputManager.Device.JOYPAD:
+		var setup: PlayerSetup = GameState.players[player_index]
+		if not setup.joined or setup.is_ai:
+			setup.joined = true
+			setup.is_ai = false
+			setup.is_ready = false
 	_refresh()
 
 
 func _on_back() -> void:
-	# Leaving the lobby drops the extra players, so single player stays single.
+	# Leaving the lobby empties the other slots, so single player stays single.
 	for i: int in range(1, GameState.MAX_PLAYERS):
-		GameState.players[i].joined = false
-		GameState.players[i].is_ready = false
+		_leave(i)
 	go_to(MAIN)
 
 
 func _try_start() -> void:
 	for i: int in GameState.get_joined_players():
-		if not GameState.players[i].is_ready:
+		var setup: PlayerSetup = GameState.players[i]
+		if not setup.is_ai and not setup.is_ready:
 			_status_label.add_theme_color_override("font_color", UiStyle.WARNING)
 			return
 	GameState.start_race()

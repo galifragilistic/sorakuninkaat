@@ -1,11 +1,13 @@
-[gd_resource type="Resource" script_class="TrackInfo" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="TrackInfo" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://tracks/track_info.gd" id="1"]
+[ext_resource type="PackedScene" path="res://tracks/jainen_jarvi/jainen_jarvi.tscn" id="2"]
 
 [resource]
 script = ExtResource("1")
 display_name = "Jäinen järvi"
-description = "Kasin muotoinen rata järven jäällä."
+description = "Kasin muotoinen rata järven jäällä. Risteyksessä kannattaa katsoa molempiin suuntiin."
 surface = 4
 surface_label = "JÄÄ"
 summary = "Jää · kasirata"
+scene = ExtResource("2")

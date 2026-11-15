@@ -30,6 +30,22 @@ const CAR_COLORS: Array[Color] = [
 ]
 
 const LAP_OPTIONS: Array[int] = [1, 2, 3, 5, 8, 10]
+
+## Time-of-day presets in menu order: morning, day, evening, night.
+const TIME_PRESETS: Array[EnvPreset] = [
+	preload("res://env/presets/morning.tres"),
+	preload("res://env/presets/day.tres"),
+	preload("res://env/presets/evening_clear.tres"),
+	preload("res://env/presets/night.tres"),
+]
+const DEFAULT_TIME_INDEX: int = 2
+## Weather in menu order: clear, rain, snow, fog.
+const WEATHERS: Array[WeatherData] = [
+	preload("res://env/weather/clear.tres"),
+	preload("res://env/weather/rain.tres"),
+	preload("res://env/weather/snow.tres"),
+	preload("res://env/weather/fog.tres"),
+]
 ## Championship points for places 1-4.
 const POINTS: Array[int] = [10, 8, 6, 5]
 
@@ -43,6 +59,20 @@ static func get_default_track() -> TrackInfo:
 		if track.is_available():
 			return track
 	return null
+
+
+static func get_weather_names() -> PackedStringArray:
+	var names: PackedStringArray = PackedStringArray()
+	for weather: WeatherData in WEATHERS:
+		names.append(weather.display_name)
+	return names
+
+
+static func get_time_names() -> PackedStringArray:
+	var names: PackedStringArray = PackedStringArray()
+	for preset: EnvPreset in TIME_PRESETS:
+		names.append(preset.display_name)
+	return names
 
 
 static func get_points(place: int) -> int:

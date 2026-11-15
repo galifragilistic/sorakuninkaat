@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="SurfaceData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://tracks/surface_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+kind = 0
+display_name = "Betoni"
+grip = 0.9
+rolling_drag = 0.12
+color_a = Color(0.5, 0.52, 0.56, 1)
+color_b = Color(0.43, 0.45, 0.5, 1)
+edge_color = Color(0.3, 0.31, 0.36, 1)
+dust_amount = 0.0
+dust_color = Color(1, 1, 1, 0.2)

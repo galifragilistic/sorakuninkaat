@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="WeatherData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://env/weather_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Lumisade"
+grip_multiplier = 0.75
+sun_energy_scale = 0.55
+ambient_energy_scale = 1.05
+saturation_scale = 0.88
+volumetric_fog_density = 0.001
+fog_density = 0.0012
+fog_color = Color(0.8, 0.84, 0.9, 1)
+precipitation = 2
+precipitation_amount = 1.0

@@ -64,6 +64,15 @@ extends Node3D
 @export var bale_size: Vector3 = Vector3(1.9, 1.1, 1.2)
 @export var bale_color: Color = Color(0.86, 0.66, 0.27)
 
+@export_group("Jumps")
+## Lap fractions (0..1) where a ramp starts.
+@export var jumps: PackedFloat32Array = PackedFloat32Array()
+@export var jump_length: float = 7.0
+@export var jump_height: float = 1.0
+## How much lighter the ramp is than the road, so it can be seen coming.
+@export_range(0.0, 1.0, 0.01) var jump_lighten: float = 0.25
+@export var jump_stripe_color: Color = Color(1.0, 0.48, 0.1)
+
 @export_group("Exclusion zones")
 ## Extra circles kept free of trees: x, z = centre, y = radius.
 @export var tree_exclusions: PackedVector3Array = PackedVector3Array()
@@ -79,6 +88,7 @@ func build(track: Track) -> void:
 		_build_lake()
 	_build_lamps(track)
 	_build_bales(track)
+	_build_jumps(track)
 	_build_trees(track)
 
 
@@ -317,6 +327,51 @@ func _build_lamps(track: Track) -> void:
 			sprite.material_override = glow[1]
 			sprite.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			lit.add_child(sprite)
+
+
+# --- Jumps ---------------------------------------------------------------
+
+## A wedge across the whole road: a slope up in the driving direction and a drop at the end.
+func _build_jumps(track: Track) -> void:
+	var half_width: float = track.road_width * 0.5
+	for fraction: float in jumps:
+		var surface: SurfaceData = track.get_road_surface_at(fraction)
+		var start: float = fraction * track.get_length()
+		var end: float = start + jump_length
+		var lift: Vector3 = Vector3.UP * track.road_lift
+		var start_center: Vector3 = to_local(track.get_position_at(start)) + lift
+		var end_center: Vector3 = to_local(track.get_position_at(end)) + lift
+		var start_right: Vector3 = global_basis.inverse() * track.get_right_at(start) * half_width
+		var end_right: Vector3 = global_basis.inverse() * track.get_right_at(end) * half_width
+		var forward: Vector3 = global_basis.inverse() * track.get_direction_at(end)
+		var top: Vector3 = Vector3.UP * jump_height
+
+		var a_left: Vector3 = start_center - start_right
+		var a_right: Vector3 = start_center + start_right
+		var b_left: Vector3 = end_center - end_right
+		var b_right: Vector3 = end_center + end_right
+		var slope_color: Color = surface.color_a.lightened(jump_lighten)
+
+		var tool: SurfaceTool = LowPoly.begin()
+		LowPoly.add_quad(tool, a_left, a_right, b_right + top, b_left + top, slope_color, Vector3.UP)
+		LowPoly.add_quad(tool, b_left + top, b_right + top, b_right, b_left, jump_stripe_color, forward)
+		LowPoly.add_triangle(tool, a_left, b_left + top, b_left, surface.edge_color, -start_right)
+		LowPoly.add_triangle(tool, a_right, b_right + top, b_right, surface.edge_color, start_right)
+		var mesh: ArrayMesh = tool.commit()
+
+		var body: SurfaceBody = SurfaceBody.new()
+		body.name = "Jump_%d" % get_child_count()
+		body.surface = surface
+		add_child(body)
+		var mesh_instance: MeshInstance3D = MeshInstance3D.new()
+		mesh_instance.mesh = mesh
+		mesh_instance.material_override = LowPoly.vertex_color_material()
+		body.add_child(mesh_instance)
+		var shape: ConcavePolygonShape3D = mesh.create_trimesh_shape()
+		shape.backface_collision = true
+		var collision: CollisionShape3D = CollisionShape3D.new()
+		collision.shape = shape
+		body.add_child(collision)
 
 
 # --- Hay bales -----------------------------------------------------------

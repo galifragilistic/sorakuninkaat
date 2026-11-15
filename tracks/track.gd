@@ -20,6 +20,9 @@ const CHECKER_SHADER: Shader = preload("res://tracks/shaders/checker.gdshader")
 @export var road_lift: float = 0.03
 ## Width of the darker shoulder strip on both road edges (m).
 @export var shoulder_width: float = 0.9
+## Raises the second half of the lap slightly. Use on tracks that cross
+## themselves so the two road ribbons do not flicker at the crossing.
+@export var second_half_extra_lift: float = 0.0
 
 @export_group("Surfaces")
 @export var road_surface: SurfaceData
@@ -69,6 +72,10 @@ var curve: Curve3D
 var path: Path3D
 var checkpoints: Array[Checkpoint] = []
 
+## Centre line sampled every sample_spacing metres (global space), for fast local searches.
+var _samples: PackedVector3Array = PackedVector3Array()
+var _sample_step: float = 1.0
+
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
 
@@ -101,6 +108,12 @@ func get_direction_at(offset: float) -> Vector3:
 	return (ahead - behind).normalized()
 
 
+## Road surface at a point of the lap given as a fraction (0..1).
+func get_road_surface_at(fraction: float) -> SurfaceData:
+	var in_alt: bool = fraction >= alt_surface_range.x and fraction < alt_surface_range.y
+	return alt_surface if alt_surface != null and in_alt else road_surface
+
+
 ## Unit vector pointing to the right of the driving direction.
 func get_right_at(offset: float) -> Vector3:
 	return get_direction_at(offset).cross(Vector3.UP).normalized()
@@ -122,6 +135,26 @@ func get_distance_to_centerline(global_point: Vector3) -> float:
 ## Lap offset (0..length) of the point on the centre line closest to a global position.
 func get_offset_at(global_point: Vector3) -> float:
 	return curve.get_closest_offset(to_local(global_point))
+
+
+## Like get_offset_at(), but only searches within window metres of hint_offset.
+## Keeps a car on its own stretch of road where the track crosses or runs
+## close to itself. Falls back to a full search if the car is nowhere near.
+func get_offset_near(global_point: Vector3, hint_offset: float, window: float = 40.0) -> float:
+	var count: int = _samples.size()
+	var hint_index: int = roundi(fposmod(hint_offset, get_length()) / _sample_step)
+	var span: int = ceili(window / _sample_step)
+	var best_index: int = posmod(hint_index, count)
+	var best_distance: float = INF
+	for i: int in range(-span, span + 1):
+		var index: int = posmod(hint_index + i, count)
+		var distance: float = _samples[index].distance_squared_to(global_point)
+		if distance < best_distance:
+			best_distance = distance
+			best_index = index
+	if best_distance > window * window:
+		return get_offset_at(global_point)
+	return float(best_index) * _sample_step
 
 
 ## Transform for the car in grid slot 0, 1, 2... behind the start line (-Z forward).
@@ -157,6 +190,10 @@ func _build_curve() -> void:
 	path.name = "Path"
 	path.curve = curve
 	add_child(path)
+	var count: int = maxi(1, floori(get_length() / sample_spacing))
+	_sample_step = get_length() / float(count)
+	for i: int in count:
+		_samples.append(get_position_at(float(i) * _sample_step))
 
 
 func _build_road() -> void:
@@ -173,7 +210,10 @@ func _build_road() -> void:
 
 ## Cross-section points (left to right) at a lap offset, in local space.
 func _get_cross_section(offset: float, lateral_offsets: PackedFloat32Array) -> PackedVector3Array:
-	var center: Vector3 = to_local(get_position_at(offset)) + Vector3.UP * road_lift
+	var lift: float = road_lift
+	if fposmod(offset, get_length()) > get_length() * 0.5:
+		lift += second_half_extra_lift
+	var center: Vector3 = to_local(get_position_at(offset)) + Vector3.UP * lift
 	var right: Vector3 = global_basis.inverse() * get_right_at(offset)
 	var points: PackedVector3Array = PackedVector3Array()
 	for lateral: float in lateral_offsets:

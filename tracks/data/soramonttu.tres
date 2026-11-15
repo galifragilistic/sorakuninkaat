@@ -6,8 +6,8 @@
 [resource]
 script = ExtResource("1")
 display_name = "Soramonttu"
-description = "Sorakuoppa järven ympärillä: nopea alkuosuus, asfalttipätkä ja tiukka loppukaarre."
+description = "Sorakuoppa järven ympärillä: nopea alkuosuus, asfalttipätkä ja hyppyri takasuoralla."
 surface = 1
 surface_label = "SORA"
-summary = "Sora · 11 mutkaa · järvi"
+summary = "Sora · järvi · hyppyri"
 scene = ExtResource("2")

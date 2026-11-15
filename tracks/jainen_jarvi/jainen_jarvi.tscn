@@ -1,0 +1,37 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://tracks/track.gd" id="1"]
+[ext_resource type="Resource" path="res://tracks/surfaces/ice.tres" id="2"]
+[ext_resource type="Resource" path="res://tracks/surfaces/snow_ground.tres" id="4"]
+[ext_resource type="Script" path="res://tracks/track_scenery.gd" id="5"]
+[ext_resource type="Resource" path="res://tracks/surfaces/water.tres" id="6"]
+
+[sub_resource type="StandardMaterial3D" id="container_a"]
+albedo_color = Color(0.62, 0.62, 0.72, 1)
+roughness = 0.8
+
+[sub_resource type="StandardMaterial3D" id="container_b"]
+albedo_color = Color(0.78, 0.36, 0.24, 1)
+roughness = 0.8
+
+[node name="JainenJarvi" type="Node3D"]
+script = ExtResource("1")
+track_name = "Jäinen järvi"
+control_points = PackedVector3Array(85, 0, 0, 60, 0, 45, 0, 0, 0, -60, 0, -45, -85, 0, 0, -60, 0, 45, 0, 0, 0, 60, 0, -45)
+road_width = 12
+road_surface = ExtResource("2")
+ground_surface = ExtResource("4")
+ground_size = Vector2(280, 220)
+second_half_extra_lift = 0.02
+
+[node name="Scenery" type="Node3D" parent="."]
+script = ExtResource("5")
+lake_surface = ExtResource("6")
+lake_enabled = false
+tree_count = 60
+tree_color = Color(0.36, 0.5, 0.44, 1)
+tree_top_color = Color(0.86, 0.91, 0.96, 1)
+tree_road_margin = 9.0
+lamps = PackedVector2Array(0.02, -1, 0.14, -1, 0.36, -1, 0.5, -1, 0.64, -1, 0.86, -1)
+bale_rows = PackedVector2Array(0.07, -1, 0.57, -1)
+

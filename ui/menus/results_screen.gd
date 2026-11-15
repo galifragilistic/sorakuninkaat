@@ -35,7 +35,10 @@ func setup(manager: RaceManager, track: TrackInfo) -> void:
 	var standings: Array[RacerState] = manager.get_standings()
 
 	var caption: Label = UiStyle.make_caption(
-		tr("%s · %d KIERROSTA · ILTARUSKO") % [track.display_name.to_upper(), manager.lap_count], UiStyle.INFO
+		tr("%s · %d KIERROSTA · %s · %s") % [
+			track.display_name.to_upper(), manager.lap_count,
+			GameState.get_time_preset().display_name.to_upper(), GameState.get_weather().display_name.to_upper(),
+		], UiStyle.INFO
 	)
 	caption.position = title_position
 	add_child(caption)
@@ -83,7 +86,7 @@ func _build_podium(standings: Array[RacerState]) -> void:
 		car.size = podium_car_size
 		car.position = Vector2(x + (podium_box_width - podium_car_size.x) * 0.5, base_y - height - podium_car_size.y + 18.0)
 		add_child(car)
-		car.show_setup(GameState.players[racer.player_index])
+		car.show_setup(racer.setup)
 
 
 func _build_table(standings: Array[RacerState]) -> void:
@@ -117,7 +120,7 @@ func _build_table(standings: Array[RacerState]) -> void:
 
 		row.add_child(_sized(UiStyle.make_label("%d." % (i + 1), UiStyle.FONT_DISPLAY, 22), 0))
 		var driver: HBoxContainer = MenuKit.make_hbox(10)
-		driver.add_child(MenuKit.make_player_chip(racer.player_index))
+		driver.add_child(MenuKit.make_chip(racer.get_tag(), GameState.get_player_color(racer.player_index)))
 		driver.add_child(UiStyle.make_label(racer.display_name, UiStyle.FONT_MEDIUM, 17))
 		row.add_child(_sized(driver, 1))
 		row.add_child(_sized(UiStyle.make_label(

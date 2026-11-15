@@ -46,11 +46,14 @@ func setup(race_track: Track, laps: int) -> void:
 		checkpoint.car_passed.connect(_on_checkpoint_passed)
 
 
-func add_racer(car: Car, player_index: int, display_name: String) -> RacerState:
+func add_racer(car: Car, player_index: int, display_name: String, setup: PlayerSetup) -> RacerState:
 	var racer: RacerState = RacerState.new()
 	racer.car = car
 	racer.player_index = player_index
 	racer.display_name = display_name
+	racer.setup = setup
+	racer.is_ai = setup.is_ai
+	racer.track_offset = track.get_offset_at(car.global_position)
 	racer.position = racers.size() + 1
 	racers.append(racer)
 	_standings.append(racer)
@@ -189,7 +192,8 @@ func _update_standings() -> void:
 	for racer: RacerState in racers:
 		if racer.finished:
 			continue
-		var offset: float = track.get_offset_at(racer.car.global_position)
+		var offset: float = track.get_offset_near(racer.car.global_position, racer.track_offset)
+		racer.track_offset = offset
 		# The closest-offset wraps at the start line; use the checkpoint state to unwrap it.
 		var just_started_lap: bool = racer.next_checkpoint == 1 or not racer.crossed_start
 		if just_started_lap and offset > length * 0.5:

@@ -24,6 +24,7 @@ var _name_label: Label
 var _description_label: Label
 var _record_label: Label
 var _confirm_button: ChamferButton
+var _opponents_spinner: OptionSpinner
 
 
 func _build() -> void:
@@ -45,7 +46,10 @@ func _enter() -> void:
 	_world_preview.show_track(GameState.selected_track)
 	_show_track(GameState.selected_track)
 	_update_tags()
-	_confirm_button.label.text = tr("ALOITA KISA") if context.get("start_race", false) else tr("VALITSE RATA")
+	var starts_race: bool = context.get("start_race", false)
+	_confirm_button.label.text = tr("ALOITA KISA") if starts_race else tr("VALITSE RATA")
+	# Opponents are chosen here only for a single player race; the lobby has its own slots.
+	_opponents_spinner.visible = starts_race and GameState.mode == GameState.Mode.SINGLE
 
 
 func _get_initial_focus() -> Control:
@@ -138,9 +142,21 @@ func _build_panel() -> void:
 	_description_label.custom_minimum_size.y = 44.0
 	column.add_child(_description_label)
 
-	# Only the evening / clear preset exists so far; the rest unlock with the weather phase.
-	_add_option_row(column, tr("SÄÄ"), [tr("Aurinko"), tr("Sade"), tr("Lumi"), tr("Sumu")], 0)
-	_add_option_row(column, tr("VUOROKAUDENAIKA"), [tr("Aamu"), tr("Päivä"), tr("Ilta"), tr("Yö")], 2)
+	_add_option_row(
+		column, tr("SÄÄ"), [tr("Aurinko"), tr("Sade"), tr("Lumi"), tr("Sumu")], GameState.weather,
+		func(index: int) -> void: GameState.weather = index
+	)
+	_add_option_row(
+		column, tr("VUOROKAUDENAIKA"), [tr("Aamu"), tr("Päivä"), tr("Ilta"), tr("Yö")], GameState.time_of_day,
+		func(index: int) -> void: GameState.time_of_day = index
+	)
+
+	_opponents_spinner = OptionSpinner.create(
+		tr("Tekoälykuskit"), PackedStringArray(["0", "1", "2", "3"]), GameState.ai_opponents
+	)
+	_opponents_spinner.value_width = 110.0
+	_opponents_spinner.value_changed.connect(func(index: int) -> void: GameState.ai_opponents = index)
+	column.add_child(_opponents_spinner)
 
 	var record_row: HBoxContainer = MenuKit.make_hbox(0)
 	column.add_child(record_row)
@@ -159,10 +175,12 @@ func _build_panel() -> void:
 	column.add_child(_confirm_button)
 
 
-func _add_option_row(column: VBoxContainer, caption: String, options: Array, active: int) -> void:
+## Row of option chips; picking one calls on_pick with its index.
+func _add_option_row(column: VBoxContainer, caption: String, options: Array, active: int, on_pick: Callable) -> void:
 	column.add_child(UiStyle.make_caption(caption))
 	var row: HBoxContainer = MenuKit.make_hbox(6)
 	column.add_child(row)
+	var chips: Array[ChamferButton] = []
 	for i: int in options.size():
 		var option_text: String = options[i]
 		var chip: ChamferButton = ChamferButton.create(option_text, 14, Vector4(6.0, 9.0, 6.0, 9.0))
@@ -170,8 +188,13 @@ func _add_option_row(column: VBoxContainer, caption: String, options: Array, act
 		chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		chip.selected_color = UiStyle.TEXT
 		chip.selected = i == active
-		chip.disabled = i != active
 		row.add_child(chip)
+		chips.append(chip)
+	for i: int in chips.size():
+		chips[i].pressed.connect(func() -> void:
+			on_pick.call(i)
+			for other: int in chips.size():
+				chips[other].selected = other == i)
 
 
 func _get_surface_color(kind: SurfaceData.Kind) -> Color:

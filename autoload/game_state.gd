@@ -7,7 +7,7 @@ enum Mode { SINGLE, MULTI }
 
 const MAX_PLAYERS: int = 4
 ## Player slots that can race at the moment (3-4 players come in a later phase).
-const MAX_LOCAL_PLAYERS: int = 2
+const MAX_LOCAL_PLAYERS: int = 4
 
 const MENU_SCENE: String = "res://ui/menus/menu_root.tscn"
 const RACE_SCENE: String = "res://race/race.tscn"
@@ -31,6 +31,11 @@ var split_layout: SplitLayout = SplitLayout.VERTICAL
 var menu_start_screen: StringName = &""
 ## Context handed to that screen.
 var menu_start_context: Dictionary = {}
+## Computer opponents in a single player race (0..MAX_PLAYERS - 1).
+var ai_opponents: int = 3
+## Indices into Catalog.WEATHERS and Catalog.TIME_PRESETS.
+var weather: int = 0
+var time_of_day: int = Catalog.DEFAULT_TIME_INDEX
 
 ## Best lap of this session per track (keyed by TrackInfo.display_name).
 var track_records: Dictionary = {}
@@ -81,6 +86,33 @@ func get_race_players() -> Array[int]:
 	if mode == Mode.SINGLE:
 		return [0]
 	return get_joined_players()
+
+
+## The starting grid, front to back: slot index -> setup. In single player the
+## opponents are generated here; in multiplayer the lobby slots are used as they are.
+func build_grid() -> Dictionary:
+	var grid: Dictionary = {}
+	if mode == Mode.MULTI:
+		for slot: int in get_joined_players():
+			grid[slot] = players[slot]
+		return grid
+	grid[0] = players[0]
+	for slot: int in range(1, mini(ai_opponents, MAX_PLAYERS - 1) + 1):
+		var setup: PlayerSetup = PlayerSetup.new()
+		setup.stats = Catalog.CARS.pick_random()
+		setup.color = PLAYER_COLORS[slot]
+		setup.joined = true
+		setup.is_ai = true
+		grid[slot] = setup
+	return grid
+
+
+func get_weather() -> WeatherData:
+	return Catalog.WEATHERS[weather]
+
+
+func get_time_preset() -> EnvPreset:
+	return Catalog.TIME_PRESETS[time_of_day]
 
 
 func get_track_record(track: TrackInfo) -> float:

@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="SurfaceData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://tracks/surface_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+kind = 3
+display_name = "Hanki"
+grip = 0.45
+rolling_drag = 0.55
+color_a = Color(0.93, 0.95, 0.99, 1)
+color_b = Color(0.82, 0.86, 0.95, 1)
+edge_color = Color(0.6, 0.67, 0.8, 1)
+dust_amount = 0.8
+dust_color = Color(0.95, 0.97, 1, 0.45)

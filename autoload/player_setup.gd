@@ -10,3 +10,5 @@ var pattern: Pattern = Pattern.STRIPE
 ## Whether this player slot takes part in the next race.
 var joined: bool = false
 var is_ready: bool = false
+## Driven by the computer instead of a person.
+var is_ai: bool = false

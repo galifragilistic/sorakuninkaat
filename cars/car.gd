@@ -14,6 +14,11 @@ const FRONT_WHEEL_COUNT: int = 2
 ## While false the car ignores its player and holds the handbrake (countdown, after the finish).
 @export var controls_enabled: bool = true
 
+## Set by an AiDriver; when null the car reads its player's device.
+var input_source: PlayerInput
+## Extra grip multiplier from the weather (1.0 = dry).
+var weather_grip: float = 1.0
+
 @export_group("Stat ranges (stat 1 .. stat 10)")
 ## Top speed in m/s.
 @export var top_speed_range: Vector2 = Vector2(26.0, 50.0)
@@ -193,7 +198,7 @@ func reset_upright() -> void:
 func _physics_process(delta: float) -> void:
 	var input: PlayerInput = _idle_input
 	if controls_enabled:
-		input = InputManager.get_input(player_index)
+		input = input_source if input_source != null else InputManager.get_input(player_index)
 	if input.reset_pressed:
 		reset_upright()
 	_detect_impact()
@@ -331,7 +336,7 @@ func _simulate_wheel(
 	var lat_speed: float = point_velocity.dot(right)
 	var axle_grip: float = front_grip_scale if is_front else rear_grip_scale
 	var max_friction: float = tire_friction * surface_grip * grip_multiplier * axle_grip * load_force
-	max_friction *= damage.get_grip_multiplier()
+	max_friction *= damage.get_grip_multiplier() * weather_grip
 
 	# Longitudinal: engine, brakes, rolling drag.
 	var long_force: float = 0.0

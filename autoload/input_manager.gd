@@ -1,8 +1,9 @@
 extends Node
 ## Routes raw device input to per-player PlayerInput objects.
 ## Player control code reads only InputManager.get_input(player_index).
-## Defaults: P1 keyboard (WASD), P2 keyboard (arrows). A gamepad that presses
-## A takes over the first free or arrow-key player slot.
+## Defaults: P1 keyboard (WASD), P2 keyboard (arrows). While join_enabled is
+## set (in the lobby), a gamepad that presses A takes over the first free or
+## arrow-key player slot.
 
 signal device_changed(player_index: int)
 
@@ -46,6 +47,8 @@ const ALL_DEVICES: int = -1
 ## With a single driver there is nobody to tell apart, so player 1 may use
 ## the keyboard and any connected gamepad at the same time.
 var solo_mode: bool = false
+## Lets unassigned gamepads claim a player slot with the A button.
+var join_enabled: bool = false
 
 var _devices: Array[Device] = []
 var _joy_ids: Array[int] = []
@@ -129,19 +132,36 @@ func get_input(player_index: int) -> PlayerInput:
 
 
 func _input(event: InputEvent) -> void:
+	if not join_enabled:
+		return
 	var button: InputEventJoypadButton = event as InputEventJoypadButton
 	if button != null and button.pressed and button.button_index == JOY_JOIN_BUTTON:
-		_join_joypad(button.device)
+		if _join_joypad(button.device):
+			# The press joined the game; it should not also click a menu button.
+			get_viewport().set_input_as_handled()
 
 
-## Gives an unassigned gamepad to the first slot that has no device or uses the arrow keys.
-func _join_joypad(joy_id: int) -> void:
+## Gives an unassigned gamepad to the first slot that has no device or uses
+## the arrow keys. Returns true if the gamepad got a slot.
+func _join_joypad(joy_id: int) -> bool:
 	if _joy_ids.has(joy_id):
-		return
+		return false
 	for i: int in range(FIRST_JOYPAD_SLOT, GameState.MAX_PLAYERS):
 		if _devices[i] == Device.NONE or _devices[i] == Device.KEYBOARD_ARROWS:
 			assign_device(i, Device.JOYPAD, joy_id)
-			return
+			return true
+	return false
+
+
+## Makes sure a slot has something to drive with, handing it the arrow keys
+## if nobody uses them. Returns false if the slot still has no device.
+func ensure_device(player_index: int) -> bool:
+	if _devices[player_index] != Device.NONE:
+		return true
+	if _devices.has(Device.KEYBOARD_ARROWS):
+		return false
+	assign_device(player_index, Device.KEYBOARD_ARROWS)
+	return true
 
 
 ## A player whose gamepad is unplugged falls back to the arrow keys if they are free.

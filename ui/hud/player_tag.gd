@@ -44,6 +44,6 @@ func _draw() -> void:
 	var font: Font = UiStyle.FONT_DISPLAY
 	var baseline: float = (h + font.get_ascent(font_size) - font.get_descent(font_size)) * 0.5
 	draw_string(
-		font, Vector2(0.0, baseline), "P%d" % (racer.player_index + 1),
+		font, Vector2(0.0, baseline), racer.get_tag(),
 		HORIZONTAL_ALIGNMENT_CENTER, w, font_size, UiStyle.TEXT_ON_ACCENT
 	)

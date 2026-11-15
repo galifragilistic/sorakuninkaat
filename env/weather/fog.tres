@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="WeatherData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://env/weather_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Sumu"
+grip_multiplier = 1.0
+sun_energy_scale = 0.5
+ambient_energy_scale = 1.0
+saturation_scale = 0.7
+volumetric_fog_density = 0.004
+fog_density = 0.0075
+fog_color = Color(0.72, 0.76, 0.8, 1)
+precipitation = 0
+precipitation_amount = 1.0

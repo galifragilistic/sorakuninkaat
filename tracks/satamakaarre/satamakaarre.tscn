@@ -1,0 +1,67 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://tracks/track.gd" id="1"]
+[ext_resource type="Resource" path="res://tracks/surfaces/asphalt.tres" id="2"]
+[ext_resource type="Resource" path="res://tracks/surfaces/concrete.tres" id="4"]
+[ext_resource type="Script" path="res://tracks/track_scenery.gd" id="5"]
+[ext_resource type="Resource" path="res://tracks/surfaces/water.tres" id="6"]
+
+[sub_resource type="StandardMaterial3D" id="container_a"]
+albedo_color = Color(0.62, 0.62, 0.72, 1)
+roughness = 0.8
+
+[sub_resource type="StandardMaterial3D" id="container_b"]
+albedo_color = Color(0.78, 0.36, 0.24, 1)
+roughness = 0.8
+
+[node name="Satamakaarre" type="Node3D"]
+script = ExtResource("1")
+track_name = "Satamakaarre"
+control_points = PackedVector3Array(-95, 0, -35, -40, 0, -42, 30, 0, -42, 90, 0, -35, 100, 0, 5, 85, 0, 42, 20, 0, 45, -25, 0, 40, -50, 0, 5, -95, 0, 0)
+road_width = 12
+road_surface = ExtResource("2")
+ground_surface = ExtResource("4")
+ground_size = Vector2(280, 220)
+
+[node name="Scenery" type="Node3D" parent="."]
+script = ExtResource("5")
+lake_surface = ExtResource("6")
+lake_center = Vector3(25, 0, 2)
+lake_radius = 16.0
+lake_irregularity = 0.05
+lake_sides = 4
+tree_count = 10
+lamps = PackedVector2Array(0.03, 1, 0.14, 1, 0.26, 1, 0.4, 1, 0.52, 1, 0.66, 1, 0.8, 1, 0.92, 1)
+bale_rows = PackedVector2Array(0.33, -1, 0.47, -1, 0.74, -1, 0.9, -1)
+tree_exclusions = PackedVector3Array(-10, 14, -68, 55, 12, 68, -75, 12, 55)
+
+[node name="ContainerA" type="CSGBox3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 1.6, -68)
+use_collision = true
+size = Vector3(12, 3.2, 4.2)
+material = SubResource("container_a")
+
+[node name="ContainerB" type="CSGBox3D" parent="."]
+transform = Transform3D(0.966, 0, 0.259, 0, 1, 0, -0.259, 0, 0.966, 4, 1.6, -70)
+use_collision = true
+size = Vector3(12, 3.2, 4.2)
+material = SubResource("container_b")
+
+[node name="ContainerC" type="CSGBox3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 55, 1.6, 68)
+use_collision = true
+size = Vector3(12, 3.2, 4.2)
+material = SubResource("container_b")
+
+[node name="ContainerD" type="CSGBox3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 55, 3.2, 73)
+use_collision = true
+size = Vector3(12, 6.4, 4.2)
+material = SubResource("container_a")
+
+[node name="ContainerE" type="CSGBox3D" parent="."]
+transform = Transform3D(0.707, 0, 0.707, 0, 1, 0, -0.707, 0, 0.707, -75, 1.6, 55)
+use_collision = true
+size = Vector3(12, 3.2, 4.2)
+material = SubResource("container_a")
+

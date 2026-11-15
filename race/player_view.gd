@@ -26,8 +26,11 @@ var _vignette_material: ShaderMaterial
 
 
 ## Call after the view is in the tree. compact picks the split-screen HUD,
-## show_frame draws the player-coloured border.
-func setup(manager: RaceManager, view_racer: RacerState, track: Track, compact: bool, show_frame: bool) -> void:
+## show_frame draws the player-coloured border, own_minimap adds a small map to the HUD.
+func setup(
+	manager: RaceManager, view_racer: RacerState, track: Track,
+	compact: bool, show_frame: bool, own_minimap: bool = false
+) -> void:
 	racer = view_racer
 	clip_contents = true
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -71,6 +74,7 @@ func setup(manager: RaceManager, view_racer: RacerState, track: Track, compact: 
 
 	hud = HUD_SCENE.instantiate() as RaceHud
 	hud.compact = compact
+	hud.compact_minimap = own_minimap
 	add_child(hud)
 	hud.setup(manager, racer, track, camera)
 

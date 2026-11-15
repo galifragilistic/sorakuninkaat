@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="WeatherData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://env/weather_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Sade"
+grip_multiplier = 0.85
+sun_energy_scale = 0.45
+ambient_energy_scale = 0.9
+saturation_scale = 0.8
+volumetric_fog_density = 0.0015
+fog_density = 0.0016
+fog_color = Color(0.52, 0.58, 0.66, 1)
+precipitation = 1
+precipitation_amount = 1.0

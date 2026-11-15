@@ -1,11 +1,13 @@
-[gd_resource type="Resource" script_class="TrackInfo" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="TrackInfo" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://tracks/track_info.gd" id="1"]
+[ext_resource type="PackedScene" path="res://tracks/tunturi/tunturi.tscn" id="2"]
 
 [resource]
 script = ExtResource("1")
 display_name = "Tunturi"
-description = "Pitkä lumirata tunturin rinteillä."
+description = "Pitkä lumirata tunturin rinteillä, kaksi hyppyriä."
 surface = 3
 surface_label = "LUMI"
-summary = "Lumi"
+summary = "Lumi · pitkä · 2 hyppyriä"
+scene = ExtResource("2")

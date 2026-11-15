@@ -19,6 +19,12 @@ extends Node
 @export var rumble_volume_db: float = -15.0
 ## Speed (m/s) at which the surface rumble is loudest.
 @export var rumble_full_speed: float = 25.0
+## Slow random wandering of the tyre and surface loops, so they never sound
+## like the same clip over and over: pitch (share of 1.0) and volume (dB).
+@export_range(0.0, 0.3, 0.01) var wander_pitch: float = 0.08
+@export var wander_volume_db: float = 2.0
+## How fast the wandering changes (noise cycles per second).
+@export var wander_speed: float = 0.7
 
 @export_group("Crash")
 @export var crash_volume_db: float = -5.0
@@ -41,6 +47,8 @@ var _engine: AudioStreamPlayer
 var _skid: AudioStreamPlayer
 var _rumble: AudioStreamPlayer
 var _revs: float = 0.0
+var _wander: FastNoiseLite
+var _time: float = 0.0
 
 
 func setup(car: Car, listener_cars: Array[Car]) -> void:
@@ -53,6 +61,9 @@ func setup(car: Car, listener_cars: Array[Car]) -> void:
 	_engine = _add_loop(SoundBank.Sound.ENGINE)
 	_skid = _add_loop(SoundBank.Sound.SKID)
 	_rumble = _add_loop(SoundBank.Sound.RUMBLE)
+	_wander = FastNoiseLite.new()
+	_wander.seed = randi()
+	_wander.frequency = wander_speed
 	car.impact.connect(_on_impact)
 
 
@@ -68,13 +79,23 @@ func _add_loop(sound: SoundBank.Sound) -> AudioStreamPlayer:
 	player.stream = SoundBank.get_stream(sound)
 	player.volume_db = silent_db
 	add_child(player)
-	player.play()
+	# Every car starts its loops at a different point, so two cars side by
+	# side do not play the same clip in step.
+	player.play(randf() * player.stream.get_length())
 	return player
 
 
 func _process(delta: float) -> void:
 	if _car == null:
 		return
+	_time += delta
+	# Two independent wandering values in -1..1 for the skid, two for the rumble.
+	var skid_pitch: float = _wander.get_noise_1d(_time)
+	var skid_level: float = _wander.get_noise_1d(_time + 100.0)
+	var rumble_pitch: float = _wander.get_noise_1d(_time + 200.0)
+	var rumble_level: float = _wander.get_noise_1d(_time + 300.0)
+	_skid.pitch_scale = 1.0 + skid_pitch * wander_pitch
+	_rumble.pitch_scale = 1.0 + rumble_pitch * wander_pitch
 	var presence_db: float = _get_presence_db()
 	var speed: float = _car.get_velocity().length()
 	var throttle: float = _car.get_throttle()
@@ -88,14 +109,14 @@ func _process(delta: float) -> void:
 	var skid: float = 0.0
 	if grounded and speed > skid_min_speed:
 		skid = clampf(inverse_lerp(skid_slip_range.x, skid_slip_range.y, _car.get_slip_angle()), 0.0, 1.0)
-	_skid.volume_db = _level_db(skid, skid_volume_db) + presence_db
+	_skid.volume_db = _level_db(skid, skid_volume_db) + presence_db + skid_level * wander_volume_db
 
 	var surface: SurfaceData = _car.get_current_surface()
 	var rumble: float = 0.0
 	if grounded and surface != null:
 		# Loose surfaces rumble; smooth ones stay quiet.
 		rumble = clampf(speed / rumble_full_speed, 0.0, 1.0) * surface.dust_amount
-	_rumble.volume_db = _level_db(rumble, rumble_volume_db) + presence_db
+	_rumble.volume_db = _level_db(rumble, rumble_volume_db) + presence_db + rumble_level * wander_volume_db
 
 
 ## 0..1 loudness to decibels, silent at zero.

@@ -11,9 +11,10 @@ const NOISE_SEED: int = 1234
 const ENGINE_FREQUENCY: float = 80.0
 const ENGINE_SECONDS: float = 0.25
 const ENGINE_HARMONICS: int = 7
-const LOOP_SECONDS: float = 0.6
+## Noise loops are long so the ear does not pick up the repeat.
+const LOOP_SECONDS: float = 4.0
 ## Share of a noise loop that is cross-faded so the loop point does not click.
-const LOOP_FADE: float = 0.15
+const LOOP_FADE: float = 0.25
 const DUMMY_DRIVER: String = "Dummy"
 
 static var _cache: Dictionary = {}
@@ -107,8 +108,11 @@ static func _noise_loop(smoothing: float, highpass: float) -> PackedFloat32Array
 	for i: int in count:
 		var value: float = raw[i]
 		if i < fade:
-			# Blend the tail of the take into its start.
-			value = lerpf(raw[count + i], value, float(i) / float(fade))
+			# Blend the tail of the take into its start. Equal-power curves: the two
+			# noise takes are unrelated, so a linear blend would dip in loudness
+			# halfway through and mark the loop point.
+			var t: float = float(i) / float(fade) * PI * 0.5
+			value = raw[count + i] * cos(t) + value * sin(t)
 		samples[i] = value * gain
 	return samples
 

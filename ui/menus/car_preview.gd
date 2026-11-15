@@ -41,6 +41,7 @@ var _pending_color: Color = Color.WHITE
 var _pending_pattern: PlayerSetup.Pattern = PlayerSetup.Pattern.STRIPE
 var _has_pending: bool = false
 var _pending_stats: CarStats
+var _shown_stats: CarStats
 
 
 func _init() -> void:
@@ -118,10 +119,10 @@ func show_car(color: Color, pattern: PlayerSetup.Pattern, stats: CarStats = null
 		_pending_stats = stats
 		_has_pending = true
 		return
-	if stats != null:
-		(_car.get_node("Visual") as Node3D).scale = stats.body_scale
-	_car.set_body_color(color)
-	_car.set_stripe_visible(pattern == PlayerSetup.Pattern.STRIPE)
+	if stats != null and stats != _shown_stats:
+		_shown_stats = stats
+		_car.set_model(stats)
+	_car.set_paint(color, pattern)
 
 
 func _process(delta: float) -> void:

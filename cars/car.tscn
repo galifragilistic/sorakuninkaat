@@ -1,74 +1,16 @@
-[gd_scene load_steps=22 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://cars/car.gd" id="1"]
 [ext_resource type="Resource" path="res://cars/data/sora_gt.tres" id="2"]
 [ext_resource type="PackedScene" path="res://vfx/dust.tscn" id="3"]
 [ext_resource type="Script" path="res://cars/car_damage.gd" id="4"]
+[ext_resource type="Script" path="res://cars/car_model.gd" id="5"]
 
 [sub_resource type="PhysicsMaterial" id="chassis_physics"]
 friction = 0.2
 
 [sub_resource type="BoxShape3D" id="chassis_shape"]
 size = Vector3(1.7, 0.5, 3.6)
-
-[sub_resource type="BoxMesh" id="body_mesh"]
-size = Vector3(1.7, 0.5, 3.6)
-
-[sub_resource type="BoxMesh" id="cabin_mesh"]
-size = Vector3(1.5, 0.45, 1.7)
-
-[sub_resource type="StandardMaterial3D" id="glass_material"]
-albedo_color = Color(0.11, 0.13, 0.2, 1)
-roughness = 0.3
-
-[sub_resource type="BoxMesh" id="roof_mesh"]
-size = Vector3(1.56, 0.08, 1.5)
-
-[sub_resource type="BoxMesh" id="stripe_mesh"]
-size = Vector3(0.42, 0.03, 3.62)
-
-[sub_resource type="StandardMaterial3D" id="stripe_material"]
-albedo_color = Color(0.95, 0.95, 0.92, 1)
-roughness = 0.6
-
-[sub_resource type="BoxMesh" id="spoiler_mesh"]
-size = Vector3(1.7, 0.08, 0.4)
-
-[sub_resource type="StandardMaterial3D" id="trim_material"]
-albedo_color = Color(0.1, 0.11, 0.15, 1)
-roughness = 0.7
-
-[sub_resource type="BoxMesh" id="light_mesh"]
-size = Vector3(0.34, 0.16, 0.06)
-
-[sub_resource type="StandardMaterial3D" id="light_material"]
-albedo_color = Color(1, 0.95, 0.75, 1)
-emission_enabled = true
-emission = Color(1, 0.9, 0.62, 1)
-emission_energy_multiplier = 4.0
-
-[sub_resource type="BoxMesh" id="aux_light_mesh"]
-size = Vector3(0.16, 0.16, 0.06)
-
-[sub_resource type="BoxMesh" id="tail_light_mesh"]
-size = Vector3(0.36, 0.14, 0.06)
-
-[sub_resource type="StandardMaterial3D" id="tail_light_material"]
-albedo_color = Color(0.9, 0.12, 0.1, 1)
-emission_enabled = true
-emission = Color(1, 0.15, 0.1, 1)
-emission_energy_multiplier = 2.5
-
-[sub_resource type="CylinderMesh" id="wheel_mesh"]
-top_radius = 0.33
-bottom_radius = 0.33
-height = 0.26
-radial_segments = 10
-rings = 1
-
-[sub_resource type="StandardMaterial3D" id="tire_material"]
-albedo_color = Color(0.09, 0.09, 0.11, 1)
-roughness = 0.9
 
 [node name="Car" type="RigidBody3D"]
 mass = 1000.0
@@ -88,59 +30,7 @@ shape = SubResource("chassis_shape")
 script = ExtResource("4")
 
 [node name="Visual" type="Node3D" parent="."]
-
-[node name="Body" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 0)
-mesh = SubResource("body_mesh")
-
-[node name="Cabin" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.07, 0.3)
-mesh = SubResource("cabin_mesh")
-surface_material_override/0 = SubResource("glass_material")
-
-[node name="Roof" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.33, 0.3)
-mesh = SubResource("roof_mesh")
-
-[node name="Stripe" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.855, 0)
-mesh = SubResource("stripe_mesh")
-surface_material_override/0 = SubResource("stripe_material")
-
-[node name="Spoiler" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.08, 1.62)
-mesh = SubResource("spoiler_mesh")
-surface_material_override/0 = SubResource("trim_material")
-
-[node name="HeadlightLeft" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.6, 0.68, -1.81)
-mesh = SubResource("light_mesh")
-surface_material_override/0 = SubResource("light_material")
-
-[node name="HeadlightRight" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.6, 0.68, -1.81)
-mesh = SubResource("light_mesh")
-surface_material_override/0 = SubResource("light_material")
-
-[node name="AuxLightLeft" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2, 0.5, -1.81)
-mesh = SubResource("aux_light_mesh")
-surface_material_override/0 = SubResource("light_material")
-
-[node name="AuxLightRight" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 0.5, -1.81)
-mesh = SubResource("aux_light_mesh")
-surface_material_override/0 = SubResource("light_material")
-
-[node name="TailLightLeft" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.6, 0.7, 1.81)
-mesh = SubResource("tail_light_mesh")
-surface_material_override/0 = SubResource("tail_light_material")
-
-[node name="TailLightRight" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.6, 0.7, 1.81)
-mesh = SubResource("tail_light_mesh")
-surface_material_override/0 = SubResource("tail_light_material")
+script = ExtResource("5")
 
 [node name="Headlights" type="Node3D" parent="."]
 
@@ -168,26 +58,18 @@ spot_angle_attenuation = 0.8
 
 [node name="Mesh" type="MeshInstance3D" parent="Wheels/FrontLeft"]
 transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0)
-mesh = SubResource("wheel_mesh")
-surface_material_override/0 = SubResource("tire_material")
 
 [node name="FrontRight" type="Node3D" parent="Wheels"]
 
 [node name="Mesh" type="MeshInstance3D" parent="Wheels/FrontRight"]
 transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0)
-mesh = SubResource("wheel_mesh")
-surface_material_override/0 = SubResource("tire_material")
 
 [node name="RearLeft" type="Node3D" parent="Wheels"]
 
 [node name="Mesh" type="MeshInstance3D" parent="Wheels/RearLeft"]
 transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0)
-mesh = SubResource("wheel_mesh")
-surface_material_override/0 = SubResource("tire_material")
 
 [node name="RearRight" type="Node3D" parent="Wheels"]
 
 [node name="Mesh" type="MeshInstance3D" parent="Wheels/RearRight"]
 transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0)
-mesh = SubResource("wheel_mesh")
-surface_material_override/0 = SubResource("tire_material")

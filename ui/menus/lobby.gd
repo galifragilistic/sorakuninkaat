@@ -786,6 +786,7 @@ func _add_ai(player: int) -> void:
 	setup.is_ai = true
 	setup.is_ready = true
 	setup.stats = Catalog.CARS.pick_random()
+	setup.pattern = PlayerSetup.random_pattern()
 
 
 func _leave(player: int) -> void:

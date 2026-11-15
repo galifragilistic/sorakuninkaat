@@ -118,6 +118,7 @@ func build_grid() -> Dictionary:
 		var setup: PlayerSetup = PlayerSetup.new()
 		setup.stats = Catalog.CARS.pick_random()
 		setup.color = PLAYER_COLORS[slot]
+		setup.pattern = PlayerSetup.random_pattern()
 		setup.joined = true
 		setup.is_ai = true
 		grid[slot] = setup

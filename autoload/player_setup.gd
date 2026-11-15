@@ -2,7 +2,8 @@ class_name PlayerSetup
 extends RefCounted
 ## One player's choices made in the menus: car, paint and lobby state.
 
-enum Pattern { STRIPE, PLAIN }
+## Sent over the network as an int: only add new patterns at the end.
+enum Pattern { STRIPE, PLAIN, SIDE_BAND, TWO_TONE, CHECKER }
 
 var stats: CarStats
 ## Name the player chose ("" = the default "Pelaaja N"). See GameState.get_player_name().
@@ -19,3 +20,8 @@ var is_ai: bool = false
 var stand_in: bool = false
 ## Network game: the peer that controls this slot (0 = nobody / local play).
 var peer_id: int = 0
+
+
+## A pattern for a computer driver, so the field does not look all the same.
+static func random_pattern() -> Pattern:
+	return randi_range(0, Pattern.size() - 1) as Pattern

@@ -92,9 +92,6 @@ var puppet_velocity: Vector3 = Vector3.ZERO
 ## Number of forward gears shown on the HUD.
 @export var gear_count: int = 5
 
-@export_group("Paint")
-@export_range(0.0, 1.0, 0.01) var body_roughness: float = 0.6
-
 @export_group("Lights")
 @export var headlights_enabled: bool = true:
 	set(value):
@@ -141,9 +138,7 @@ var _idle_input: PlayerInput = PlayerInput.new()
 @onready var _wheel_nodes: Array[Node3D] = [
 	$Wheels/FrontLeft, $Wheels/FrontRight, $Wheels/RearLeft, $Wheels/RearRight,
 ]
-@onready var _body_meshes: Array[MeshInstance3D] = [$Visual/Body, $Visual/Roof]
-@onready var _stripe: MeshInstance3D = $Visual/Stripe
-@onready var _visual: Node3D = $Visual
+@onready var _model: CarModel = $Visual
 @onready var _headlights: Node3D = $Headlights
 @onready var damage: CarDamage = $Damage
 
@@ -162,6 +157,7 @@ func _ready() -> void:
 		_wheel_nodes[i].position = _mount_points[i] + Vector3.DOWN * suspension_rest_length
 		_wheel_surfaces.append(null)
 	_idle_input.handbrake = true
+	set_model(stats)
 	_apply_player_color()
 	_update_headlights()
 	_create_dust_emitters()
@@ -467,24 +463,30 @@ func _update_dust() -> void:
 
 
 func _apply_player_color() -> void:
-	set_body_color(GameState.get_player_color(player_index))
+	set_paint(GameState.get_player_color(player_index), PlayerSetup.Pattern.STRIPE)
 
 
 ## Applies the car, paint and pattern a player picked in the menus.
 func apply_setup(setup: PlayerSetup) -> void:
 	stats = setup.stats
-	_visual.scale = stats.body_scale
-	set_body_color(setup.color)
-	set_stripe_visible(setup.pattern == PlayerSetup.Pattern.STRIPE)
+	set_model(stats)
+	set_paint(setup.color, setup.pattern)
 
 
-func set_body_color(color: Color) -> void:
-	var material: StandardMaterial3D = StandardMaterial3D.new()
-	material.albedo_color = color
-	material.roughness = body_roughness
-	for mesh: MeshInstance3D in _body_meshes:
-		mesh.material_override = material
+## Rebuilds the body, wheels and lamps in the shape of car_stats' model.
+func set_model(car_stats: CarStats) -> void:
+	var look: CarLook = car_stats.look if car_stats != null and car_stats.look != null else CarLook.new()
+	_model.build(look, _mount_points, wheel_radius)
+	var wheel_mesh: ArrayMesh = _model.build_wheel_mesh(look, wheel_radius)
+	var wheel_material: StandardMaterial3D = _model.make_wheel_material()
+	for wheel: Node3D in _wheel_nodes:
+		var mesh_node: MeshInstance3D = wheel.get_node("Mesh") as MeshInstance3D
+		mesh_node.mesh = wheel_mesh
+		mesh_node.material_override = wheel_material
+	var spotlights: Array[Node] = _headlights.get_children()
+	for i: int in mini(spotlights.size(), _model.head_lamp_positions.size()):
+		(spotlights[i] as Node3D).position = _model.head_lamp_positions[i]
 
 
-func set_stripe_visible(stripe_visible: bool) -> void:
-	_stripe.visible = stripe_visible
+func set_paint(color: Color, pattern: PlayerSetup.Pattern) -> void:
+	_model.set_paint(color, pattern)

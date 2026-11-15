@@ -160,7 +160,9 @@ func _build_stats_panel() -> void:
 		_swatches.append(swatch)
 
 	_pattern_spinner = OptionSpinner.create(
-		tr("Kuvio"), PackedStringArray([tr("Kilparaita"), tr("Yksivärinen")]), 0
+		tr("Kuvio"), PackedStringArray([
+			tr("Kilparaita"), tr("Yksivärinen"), tr("Sivuraita"), tr("Kaksivärinen"), tr("Shakkiruudut"),
+		]), 0
 	)
 	_pattern_spinner.value_width = 130.0
 	_pattern_spinner.value_changed.connect(_on_pattern_changed)

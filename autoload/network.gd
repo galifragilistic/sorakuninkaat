@@ -334,6 +334,7 @@ func set_slot_ai(slot: int, enabled: bool) -> void:
 		setup.peer_id = 0
 		setup.stats = Catalog.CARS.pick_random()
 		setup.color = GameState.get_player_color(slot)
+		setup.pattern = PlayerSetup.random_pattern()
 	elif not enabled and setup.is_ai:
 		setup.joined = false
 		setup.is_ai = false

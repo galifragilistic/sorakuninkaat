@@ -1,6 +1,42 @@
-[gd_resource type="Resource" script_class="CarStats" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="CarStats" load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://cars/car_stats.gd" id="1"]
+[ext_resource type="Script" path="res://cars/car_look.gd" id="2"]
+
+[sub_resource type="Resource" id="look"]
+script = ExtResource("2")
+length = 3.9
+width = 1.8
+clearance = 0.5
+hood_height = 1.02
+deck_height = 1.06
+hood_slope = 0.02
+nose_length = 0.2
+nose_drop = 0.04
+nose_lift = 0.02
+nose_pinch = 0.02
+tail_length = 0.1
+tail_drop = 0.02
+tail_lift = 0.02
+tail_pinch = 0.01
+shoulder = 0.06
+sill = 0.05
+cabin_start = -0.4
+cabin_end = 1.75
+cabin_height = 0.62
+roof_inset = 0.06
+windscreen_run = 0.35
+rear_window_run = 0.08
+pillar = 0.1
+bumper_lights = 0
+roof_rack = true
+bull_bar = true
+fender_flares = true
+spare_wheel = true
+bumper_depth = 0.14
+wheel_width = 0.34
+rim_ratio = 0.5
+rim_color = Color(0.3, 0.32, 0.35, 1)
 
 [resource]
 script = ExtResource("1")
@@ -13,4 +49,4 @@ grip_gravel = 9
 grip_asphalt = 4
 durability = 9
 drivetrain = 2
-body_scale = Vector3(1.06, 1.28, 1)
+look = SubResource("look")

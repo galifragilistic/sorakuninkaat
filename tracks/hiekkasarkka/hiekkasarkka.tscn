@@ -17,10 +17,12 @@ roughness = 0.8
 [node name="Hiekkasarkka" type="Node3D"]
 script = ExtResource("1")
 track_name = "Hiekkasärkkä"
-control_points = PackedVector3Array(-85, 0, 10, -65, 0, -40, -15, 0, -55, 35, 0, -40, 85, 0, -50, 100, 0, -5, 70, 0, 35, 20, 0, 25, -20, 0, 50, -65, 0, 45)
+control_points = PackedVector3Array(-85, 0, 10, -65, 3, -40, -15, -1, -55, 35, 4, -40, 85, 1, -50, 100, 5, -5, 70, 2, 35, 20, -0.5, 25, -20, 3, 50, -65, 1, 45)
 road_width = 11
 road_surface = ExtResource("2")
 ground_surface = ExtResource("4")
+terrain_features = PackedVector4Array(-40, -10, 30, 5, 60, 8, 28, 4, -100, -75, 35, 6, 110, 75, 35, 6, -20, 95, 30, 5, 18, -8, 22, -3.5, 0, -95, 30, 4)
+terrain_noise_height = 2.0
 ground_size = Vector2(280, 220)
 
 [node name="Scenery" type="Node3D" parent="."]

@@ -5,6 +5,9 @@ extends RigidBody3D
 ## surface grip runs out (SPEC.md section 3).
 
 signal surface_changed(surface: SurfaceData)
+
+## Every car is in this group (tunnels look for cars inside them).
+const GROUP: StringName = &"cars"
 ## A crash or hard landing; speed_change is the velocity lost in one tick (m/s).
 signal impact(speed_change: float)
 
@@ -146,6 +149,7 @@ var _idle_input: PlayerInput = PlayerInput.new()
 
 
 func _ready() -> void:
+	add_to_group(GROUP)
 	var half_width: float = track_width * 0.5
 	var half_base: float = wheel_base * 0.5
 	_mount_points = [

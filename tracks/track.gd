@@ -1,8 +1,9 @@
 class_name Track
 extends Node3D
 ## Builds a closed circuit from control points: low-poly road ribbon(s) with
-## per-surface colliders, a patchwork terrain and boundary walls.
-## A TrackScenery child, if present, is built afterwards.
+## per-surface colliders, a hilly patchwork terrain shaped around the road,
+## bridges, tunnels and boundary walls. The control points' y values are the
+## road heights. A TrackScenery child, if present, is built afterwards.
 
 const CHECKER_SHADER: Shader = preload("res://tracks/shaders/checker.gdshader")
 
@@ -34,14 +35,35 @@ const CHECKER_SHADER: Shader = preload("res://tracks/shaders/checker.gdshader")
 
 @export_group("Terrain")
 @export var ground_size: Vector2 = Vector2(280.0, 220.0)
-@export var ground_thickness: float = 2.0
 ## Edge length of the terrain triangles (m).
-@export var terrain_cell_size: float = 9.0
+@export var terrain_cell_size: float = 5.0
+## Hills and hollows: x, z = centre, z of the vector = radius, w = height
+## (negative for a hollow).
+@export var terrain_features: PackedVector4Array = PackedVector4Array()
+## Gentle random rolling on top of the features (m).
+@export var terrain_noise_height: float = 1.2
+@export var terrain_height_frequency: float = 0.012
+## Hills and rolling fade out over this distance from the outer walls (m).
+@export var terrain_edge_falloff: float = 25.0
+## The ground is flattened to road height this far beyond the road edges (m)...
+@export var road_flat_margin: float = 3.0
+## ...and blends back to its own shape over this distance (m).
+@export var road_blend_width: float = 12.0
+## The ground sits this far below the road surface next to it.
+@export var road_sink: float = 0.2
+## Side skirts hide the gap between the road edge and lower ground (m).
+@export var road_skirt_depth: float = 2.0
 ## Lower = larger light and dark areas.
 @export var terrain_noise_frequency: float = 0.018
 ## Random per-triangle tint on top of the noise (0..1).
 @export_range(0.0, 1.0, 0.01) var terrain_color_jitter: float = 0.22
 @export var look_seed: int = 7
+
+@export_group("Bridges and tunnels")
+## Each entry: x = control point index, y and z = start and end in metres
+## relative to that point along the road (y negative = before the point).
+@export var bridges: PackedVector3Array = PackedVector3Array()
+@export var tunnels: PackedVector3Array = PackedVector3Array()
 
 @export_group("World bounds")
 @export var wall_height: float = 3.0
@@ -93,17 +115,27 @@ var checkpoints: Array[Checkpoint] = []
 var _samples: PackedVector3Array = PackedVector3Array()
 var _sample_step: float = 1.0
 
+## True for samples on a bridge: those do not shape the ground.
+var _sample_on_bridge: PackedByteArray = PackedByteArray()
+var _point_offsets: PackedFloat32Array = PackedFloat32Array()
+var _bridge_ranges: Array[Vector2] = []
+var _tunnel_ranges: Array[Vector2] = []
+var _terrain: TrackTerrain
+
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
 
 func _ready() -> void:
 	_rng.seed = look_seed
 	_build_curve()
+	_resolve_structures()
 	_build_ground()
 	_build_walls()
 	_build_road()
 	_build_start_line()
 	_build_checkpoints()
+	_build_structures()
+	_place_props_on_ground()
 	for child: Node in get_children():
 		var scenery: TrackScenery = child as TrackScenery
 		if scenery != null:
@@ -129,6 +161,44 @@ func get_direction_at(offset: float) -> Vector3:
 func get_road_surface_at(fraction: float) -> SurfaceData:
 	var in_alt: bool = fraction >= alt_surface_range.x and fraction < alt_surface_range.y
 	return alt_surface if alt_surface != null and in_alt else road_surface
+
+
+## Ground height under a global point (the terrain, not the road).
+func get_ground_height(global_point: Vector3) -> float:
+	var local_point: Vector3 = to_local(global_point)
+	return _terrain.height_at(local_point.x, local_point.z)
+
+
+func is_on_bridge(offset: float) -> bool:
+	return _in_ranges(fposmod(offset, get_length()), _bridge_ranges)
+
+
+func is_in_tunnel(offset: float) -> bool:
+	return _in_ranges(fposmod(offset, get_length()), _tunnel_ranges)
+
+
+## Horizontal distance from a point to the nearest road that passes at least
+## a few metres below it (not counting bridges). INF when there is none.
+func get_distance_to_road_below(global_point: Vector3) -> float:
+	var nearest: float = INF
+	for i: int in _samples.size():
+		var sample: Vector3 = _samples[i]
+		if _sample_on_bridge[i] == 1 or sample.y > global_point.y - 2.0:
+			continue
+		nearest = minf(nearest, Vector2(sample.x - global_point.x, sample.z - global_point.z).length())
+	return nearest
+
+
+## True if a point is within margin metres of the road on a bridge or in a tunnel.
+func is_near_structure(global_point: Vector3, margin: float) -> bool:
+	for i: int in _samples.size():
+		var offset: float = float(i) * _sample_step
+		if not (is_on_bridge(offset) or is_in_tunnel(offset)):
+			continue
+		var sample: Vector3 = _samples[i]
+		if Vector2(sample.x - global_point.x, sample.z - global_point.z).length() < road_width * 0.5 + margin:
+			return true
+	return false
 
 
 ## Unit vector pointing to the right of the driving direction.
@@ -211,6 +281,79 @@ func _build_curve() -> void:
 	_sample_step = get_length() / float(count)
 	for i: int in count:
 		_samples.append(get_position_at(float(i) * _sample_step))
+	_point_offsets = _measure_point_offsets()
+
+
+## Lap offset of every control point: the length of the curve up to it.
+func _measure_point_offsets() -> PackedFloat32Array:
+	var offsets: PackedFloat32Array = PackedFloat32Array([0.0])
+	for i: int in range(1, control_points.size()):
+		var partial: Curve3D = Curve3D.new()
+		partial.bake_interval = curve.bake_interval
+		for p: int in i + 1:
+			partial.add_point(curve.get_point_position(p), curve.get_point_in(p), curve.get_point_out(p))
+		offsets.append(partial.get_baked_length())
+	return offsets
+
+
+## Turns the bridge and tunnel entries into lap offset ranges and marks the
+## road samples on bridges.
+func _resolve_structures() -> void:
+	for entry: Vector3 in bridges:
+		_bridge_ranges.append(_entry_range(entry))
+	for entry: Vector3 in tunnels:
+		_tunnel_ranges.append(_entry_range(entry))
+	_sample_on_bridge.resize(_samples.size())
+	for i: int in _samples.size():
+		_sample_on_bridge[i] = 1 if _in_ranges(float(i) * _sample_step, _bridge_ranges) else 0
+
+
+func _entry_range(entry: Vector3) -> Vector2:
+	var base: float = _point_offsets[clampi(int(entry.x), 0, _point_offsets.size() - 1)]
+	return Vector2(base + entry.y, base + entry.z)
+
+
+func _in_ranges(offset: float, ranges: Array[Vector2]) -> bool:
+	for range_offsets: Vector2 in ranges:
+		if offset >= range_offsets.x and offset <= range_offsets.y:
+			return true
+	return false
+
+
+func _build_structures() -> void:
+	for i: int in _bridge_ranges.size():
+		var bridge: TrackBridge = TrackBridge.new()
+		bridge.name = "Bridge_%d" % i
+		add_child(bridge)
+		bridge.build(self, _bridge_ranges[i].x, _bridge_ranges[i].y)
+	for i: int in _tunnel_ranges.size():
+		var tunnel: TrackTunnel = TrackTunnel.new()
+		tunnel.name = "Tunnel_%d" % i
+		# The top of the mound looks like the ground around it (grass, sand, snow).
+		tunnel.grass_top_color = ground_surface.color_a
+		add_child(tunnel)
+		tunnel.build(self, _tunnel_ranges[i].x, _tunnel_ranges[i].y)
+
+
+## Blocks placed in the scene (containers, buildings) stand on the ground.
+func _place_props_on_ground() -> void:
+	for child: Node in get_children():
+		var block: CSGBox3D = child as CSGBox3D
+		if block != null:
+			block.position.y = get_ground_height(block.global_position) + block.size.y * 0.5
+
+
+## Height of the ground before the road shapes it: rolling plus features,
+## fading out towards the outer walls.
+func _natural_height(x: float, z: float, noise: FastNoiseLite) -> float:
+	var height: float = noise.get_noise_2d(x, z) * terrain_noise_height
+	for feature: Vector4 in terrain_features:
+		var distance: float = Vector2(x - feature.x, z - feature.y).length()
+		if distance < feature.z:
+			height += feature.w * smoothstep(feature.z, 0.0, distance)
+	var half: Vector2 = ground_size * 0.5
+	var to_edge: float = minf(half.x - absf(x), half.y - absf(z))
+	return height * smoothstep(0.0, terrain_edge_falloff, to_edge)
 
 
 func _build_road() -> void:
@@ -225,8 +368,8 @@ func _build_road() -> void:
 		_build_ribbon(alt_surface_range.y, 1.0, road_surface)
 
 
-## Cross-section points (left to right) at a lap offset, in local space.
-func _get_cross_section(offset: float, lateral_offsets: PackedFloat32Array) -> PackedVector3Array:
+## Cross-section points (left to right) on the road surface at a lap offset, in local space.
+func get_cross_section(offset: float, lateral_offsets: PackedFloat32Array) -> PackedVector3Array:
 	var lift: float = road_lift
 	if fposmod(offset, get_length()) > get_length() * 0.5:
 		lift += second_half_extra_lift
@@ -250,10 +393,19 @@ func _build_ribbon(from_fraction: float, to_fraction: float, surface: SurfaceDat
 	var strip_count: int = laterals.size() - 1
 
 	var tool: SurfaceTool = LowPoly.begin()
-	var previous: PackedVector3Array = _get_cross_section(from_offset, laterals)
+	var skirt_tool: SurfaceTool = LowPoly.begin()
+	var skirt_color: Color = surface.edge_color.darkened(0.25)
+	var skirt: Vector3 = Vector3.DOWN * road_skirt_depth
+	var previous: PackedVector3Array = get_cross_section(from_offset, laterals)
 	for i: int in steps:
 		var offset: float = lerpf(from_offset, to_offset, float(i + 1) / float(steps))
-		var current: PackedVector3Array = _get_cross_section(offset, laterals)
+		var current: PackedVector3Array = get_cross_section(offset, laterals)
+		# Skirts down the road edges, except on bridges where the deck takes over.
+		if not is_on_bridge(offset - sample_spacing * 0.5):
+			var right: Vector3 = global_basis.inverse() * get_right_at(offset)
+			var last: int = laterals.size() - 1
+			LowPoly.add_quad(skirt_tool, previous[0], current[0], current[0] + skirt, previous[0] + skirt, skirt_color, -right)
+			LowPoly.add_quad(skirt_tool, previous[last], current[last], current[last] + skirt, previous[last] + skirt, skirt_color, right)
 		for strip: int in strip_count:
 			var is_shoulder: bool = strip == 0 or strip == strip_count - 1
 			var color: Color = surface.edge_color
@@ -276,6 +428,11 @@ func _build_ribbon(from_fraction: float, to_fraction: float, surface: SurfaceDat
 	mesh_instance.material_override = LowPoly.vertex_color_material()
 	mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	body.add_child(mesh_instance)
+	# Visual only: driving back up onto the road should not catch on the skirt.
+	var skirt_instance: MeshInstance3D = MeshInstance3D.new()
+	skirt_instance.mesh = skirt_tool.commit()
+	skirt_instance.material_override = LowPoly.vertex_color_material()
+	body.add_child(skirt_instance)
 
 	var shape: ConcavePolygonShape3D = mesh.create_trimesh_shape()
 	shape.backface_collision = true
@@ -289,8 +446,8 @@ func _build_start_line() -> void:
 	var half_width: float = road_width * 0.5 - shoulder_width
 	var laterals: PackedFloat32Array = PackedFloat32Array([-half_width, half_width])
 	var lift: Vector3 = Vector3.UP * start_line_lift
-	var back: PackedVector3Array = _get_cross_section(-half_length, laterals)
-	var front: PackedVector3Array = _get_cross_section(half_length, laterals)
+	var back: PackedVector3Array = get_cross_section(-half_length, laterals)
+	var front: PackedVector3Array = get_cross_section(half_length, laterals)
 	var corners: Array[Vector3] = [back[0] + lift, front[0] + lift, front[1] + lift, back[1] + lift]
 	var uvs: Array[Vector2] = [Vector2(0.0, 0.0), Vector2(0.0, 1.0), Vector2(1.0, 1.0), Vector2(1.0, 0.0)]
 
@@ -351,6 +508,9 @@ func _build_checkpoint_gate(offset: float, index: int) -> void:
 	var lights: SurfaceTool = LowPoly.begin()
 	for side: float in [-1.0, 1.0]:
 		var base: Vector3 = to_local(get_roadside_position(offset, side, checkpoint_post_margin))
+		# On a bridge the posts stand on the deck, elsewhere on the ground.
+		if not is_on_bridge(offset):
+			base.y = get_ground_height(to_global(base))
 		LowPoly.add_box(posts, base + Vector3.UP * checkpoint_post_height * 0.5, post_size, checkpoint_post_color)
 		var lamp: Vector3 = base + Vector3.UP * (checkpoint_post_height + checkpoint_light_size.y * 0.5)
 		LowPoly.add_box(lights, lamp, checkpoint_light_size, checkpoint_marker_color)
@@ -366,8 +526,8 @@ func _build_checkpoint_gate(offset: float, index: int) -> void:
 		laterals.append(position_on_line + checkpoint_dash_length)
 		position_on_line += checkpoint_dash_length + checkpoint_dash_gap
 	var half_depth: float = checkpoint_dash_depth * 0.5
-	var back: PackedVector3Array = _get_cross_section(offset - half_depth, laterals)
-	var front: PackedVector3Array = _get_cross_section(offset + half_depth, laterals)
+	var back: PackedVector3Array = get_cross_section(offset - half_depth, laterals)
+	var front: PackedVector3Array = get_cross_section(offset + half_depth, laterals)
 	var lift: Vector3 = Vector3.UP * checkpoint_dash_lift
 	var dashes: SurfaceTool = LowPoly.begin()
 	for i: int in range(0, laterals.size(), 2):
@@ -391,50 +551,40 @@ func _build_ground() -> void:
 	body.surface = ground_surface
 	add_child(body)
 
+	var height_noise: FastNoiseLite = FastNoiseLite.new()
+	height_noise.seed = look_seed + 101
+	height_noise.frequency = terrain_height_frequency
+	var road_points: PackedVector3Array = PackedVector3Array()
+	var pulls: PackedByteArray = PackedByteArray()
+	for i: int in _samples.size():
+		road_points.append(to_local(_samples[i]))
+		pulls.append(0 if _sample_on_bridge[i] == 1 else 1)
+	var pull_inner: float = road_width * 0.5 + road_flat_margin
+	_terrain = TrackTerrain.new()
+	_terrain.build(
+		ground_size, terrain_cell_size, _natural_height.bind(height_noise), road_points, pulls,
+		pull_inner, pull_inner + road_blend_width, road_sink
+	)
+
+	var color_noise: FastNoiseLite = FastNoiseLite.new()
+	color_noise.seed = look_seed
+	color_noise.frequency = terrain_noise_frequency
+	var mesh: ArrayMesh = _terrain.make_mesh(_get_terrain_color.bind(color_noise))
 	var mesh_instance: MeshInstance3D = MeshInstance3D.new()
-	mesh_instance.mesh = _build_terrain_mesh()
+	mesh_instance.mesh = mesh
 	mesh_instance.material_override = LowPoly.vertex_color_material()
-	mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# Hills now throw shadows on the road and on each other.
+	mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	body.add_child(mesh_instance)
 
-	var box: BoxShape3D = BoxShape3D.new()
-	box.size = Vector3(ground_size.x, ground_thickness, ground_size.y)
+	var shape: ConcavePolygonShape3D = mesh.create_trimesh_shape()
 	var collision: CollisionShape3D = CollisionShape3D.new()
-	collision.shape = box
-	collision.position = Vector3.DOWN * ground_thickness * 0.5
+	collision.shape = shape
 	body.add_child(collision)
 
 
-## Flat triangle patchwork. Each triangle gets its own shade of the ground colours.
-func _build_terrain_mesh() -> ArrayMesh:
-	var noise: FastNoiseLite = FastNoiseLite.new()
-	noise.seed = look_seed
-	noise.frequency = terrain_noise_frequency
-	var columns: int = ceili(ground_size.x / terrain_cell_size)
-	var rows: int = ceili(ground_size.y / terrain_cell_size)
-	var cell: Vector2 = Vector2(ground_size.x / float(columns), ground_size.y / float(rows))
-	var origin: Vector3 = Vector3(-ground_size.x * 0.5, 0.0, -ground_size.y * 0.5)
-
-	var tool: SurfaceTool = LowPoly.begin()
-	for column: int in columns:
-		for row: int in rows:
-			var a: Vector3 = origin + Vector3(column * cell.x, 0.0, row * cell.y)
-			var b: Vector3 = a + Vector3(cell.x, 0.0, 0.0)
-			var c: Vector3 = a + Vector3(cell.x, 0.0, cell.y)
-			var d: Vector3 = a + Vector3(0.0, 0.0, cell.y)
-			# Alternate the diagonal so the triangles form diamonds instead of stripes.
-			var triangles: Array = [[a, b, c], [a, c, d]]
-			if (column + row) % 2 == 1:
-				triangles = [[a, b, d], [b, c, d]]
-			for triangle: Array in triangles:
-				var p0: Vector3 = triangle[0]
-				var p1: Vector3 = triangle[1]
-				var p2: Vector3 = triangle[2]
-				LowPoly.add_triangle(tool, p0, p1, p2, _get_terrain_color(noise, (p0 + p1 + p2) / 3.0), Vector3.UP)
-	return tool.commit()
-
-
-func _get_terrain_color(noise: FastNoiseLite, point: Vector3) -> Color:
+## Each triangle gets its own shade of the ground colours.
+func _get_terrain_color(point: Vector3, noise: FastNoiseLite) -> Color:
 	var shade: float = noise.get_noise_2d(point.x, point.z) * 0.5 + 0.5
 	shade += _rng.randf_range(-terrain_color_jitter, terrain_color_jitter)
 	return ground_surface.color_a.lerp(ground_surface.color_b, clampf(shade, 0.0, 1.0))

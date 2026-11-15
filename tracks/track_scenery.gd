@@ -38,6 +38,9 @@ extends Node3D
 @export var lake_surface: SurfaceData
 @export var lake_highlight_color: Color = Color(0.72, 0.87, 0.9)
 @export var lake_layer_lift: float = 0.02
+## Water surface height above the lowest point of the lake's hollow (m). Give
+## the lake a hollow with a negative terrain feature so the water has banks.
+@export var lake_water_rise: float = 1.2
 
 @export_group("Track lights")
 ## x = lap fraction (0..1), y = side (-1 left, 1 right).
@@ -74,6 +77,8 @@ extends Node3D
 @export var jump_stripe_color: Color = Color(1.0, 0.48, 0.1)
 
 @export_group("Exclusion zones")
+## No trees this close to the road on bridges and in tunnels (m beyond the road edge).
+@export var structure_clearance: float = 13.0
 ## Extra circles kept free of trees: x, z = centre, y = radius.
 @export var tree_exclusions: PackedVector3Array = PackedVector3Array()
 
@@ -85,7 +90,7 @@ var _lake_shore_radius: float = 0.0
 func build(track: Track) -> void:
 	_rng.seed = scenery_seed
 	if lake_enabled:
-		_build_lake()
+		_build_lake(track)
 	_build_lamps(track)
 	_build_bales(track)
 	_build_jumps(track)
@@ -126,6 +131,9 @@ func _build_trees(track: Track) -> void:
 			continue
 		if _is_excluded(point):
 			continue
+		if track.is_near_structure(to_global(point), structure_clearance):
+			continue
+		point.y = track.get_ground_height(to_global(point))
 		var crowded: bool = false
 		for other: Vector3 in positions:
 			if other.distance_to(point) < tree_spacing:
@@ -181,7 +189,7 @@ func _flat_distance(a: Vector3, b: Vector3) -> float:
 
 # --- Lake ----------------------------------------------------------------
 
-func _build_lake() -> void:
+func _build_lake(track: Track) -> void:
 	var shore: PackedVector3Array = PackedVector3Array()
 	var beach: PackedVector3Array = PackedVector3Array()
 	var inner: PackedVector3Array = PackedVector3Array()
@@ -194,6 +202,11 @@ func _build_lake() -> void:
 		inner.append(LowPoly.ring_point(Vector3.ZERO, radius * 0.55, i, lake_sides, 0.3))
 	_lake_shore_radius = max_radius + lake_shore_width
 
+	# The water lies flat in the lake's hollow; the beach climbs the banks.
+	var water_level: float = track.get_ground_height(to_global(lake_center)) + lake_water_rise
+	for i: int in lake_sides:
+		var bank: Vector3 = lake_center + beach[i]
+		beach[i].y = maxf(track.get_ground_height(to_global(bank)) - water_level, 0.0)
 	var beach_y: Vector3 = Vector3.UP * lake_layer_lift
 	var water_y: Vector3 = Vector3.UP * lake_layer_lift * 2.0
 	var inner_y: Vector3 = Vector3.UP * lake_layer_lift * 3.0
@@ -227,7 +240,7 @@ func _build_lake() -> void:
 	var body: SurfaceBody = SurfaceBody.new()
 	body.name = "Lake"
 	body.surface = lake_surface
-	body.position = lake_center
+	body.position = Vector3(lake_center.x, water_level, lake_center.z)
 	add_child(body)
 
 	var mesh_instance: MeshInstance3D = MeshInstance3D.new()
@@ -279,7 +292,11 @@ func _build_lamps(track: Track) -> void:
 		var body: StaticBody3D = StaticBody3D.new()
 		body.name = "Lamp_%d" % get_child_count()
 		add_child(body)
-		body.global_position = track.get_roadside_position(lamp.x * track.get_length(), lamp.y, lamp_margin)
+		var lamp_offset: float = lamp.x * track.get_length()
+		var lamp_base: Vector3 = track.get_roadside_position(lamp_offset, lamp.y, lamp_margin)
+		if not track.is_on_bridge(lamp_offset):
+			lamp_base.y = track.get_ground_height(lamp_base)
+		body.global_position = lamp_base
 
 		var pole: MeshInstance3D = MeshInstance3D.new()
 		pole.mesh = pole_mesh
@@ -393,6 +410,7 @@ func _build_bales(track: Track) -> void:
 			body.name = "Bale_%d" % get_child_count()
 			add_child(body)
 			var origin: Vector3 = track.get_roadside_position(offset, row.y, bale_margin + bale_size.z * 0.5)
+			origin.y = track.get_ground_height(origin)
 			# Long side along the road.
 			var facing: Basis = Basis.looking_at(track.get_right_at(offset), Vector3.UP)
 			body.global_transform = Transform3D(facing, origin)

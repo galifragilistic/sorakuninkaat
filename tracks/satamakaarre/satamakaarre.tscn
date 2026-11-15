@@ -17,10 +17,13 @@ roughness = 0.8
 [node name="Satamakaarre" type="Node3D"]
 script = ExtResource("1")
 track_name = "Satamakaarre"
-control_points = PackedVector3Array(-95, 0, -35, -40, 0, -42, 30, 0, -42, 90, 0, -35, 100, 0, 5, 85, 0, 42, 20, 0, 45, -25, 0, 40, -50, 0, 5, -95, 0, 0)
+control_points = PackedVector3Array(-95, 0, -35, -40, 2, -42, 30, 2, -42, 90, 1, -35, 100, 0.5, 5, 85, 0, 42, 20, 0, 45, -25, 0, 40, -50, 0, 5, -95, 0, 0)
 road_width = 12
 road_surface = ExtResource("2")
 ground_surface = ExtResource("4")
+terrain_features = PackedVector4Array(-5, -42, 22, -6, 25, 2, 24, -3)
+terrain_noise_height = 0.4
+bridges = PackedVector3Array(2, -56, -14)
 ground_size = Vector2(280, 220)
 
 [node name="Scenery" type="Node3D" parent="."]
@@ -31,7 +34,7 @@ lake_radius = 16.0
 lake_irregularity = 0.05
 lake_sides = 4
 tree_count = 10
-lamps = PackedVector2Array(0.03, 1, 0.14, 1, 0.26, 1, 0.4, 1, 0.52, 1, 0.66, 1, 0.8, 1, 0.92, 1)
+lamps = PackedVector2Array(0.03, 1, 0.24, 1, 0.4, 1, 0.52, 1, 0.66, 1, 0.8, 1, 0.92, 1)
 bale_rows = PackedVector2Array(0.33, -1, 0.47, -1, 0.74, -1, 0.9, -1)
 tree_exclusions = PackedVector3Array(-10, 14, -68, 55, 12, 68, -75, 12, 55)
 

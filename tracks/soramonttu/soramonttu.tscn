@@ -18,12 +18,13 @@ roughness = 0.8
 [node name="Soramonttu" type="Node3D"]
 script = ExtResource("1")
 track_name = "Soramonttu"
-control_points = PackedVector3Array(-70, 0, 0, -45, 0, -35, 0, 0, -30, 35, 0, -50, 75, 0, -35, 80, 0, 5, 50, 0, 25, 30, 0, 50, -5, 0, 55, -30, 0, 30, -60, 0, 30)
+control_points = PackedVector3Array(-70, 0, 0, -45, 2.5, -35, 0, 5, -30, 35, 2, -50, 75, 0, -35, 80, -1.5, 5, 50, -2.5, 25, 30, -1, 50, -5, 0.5, 55, -30, 1, 30, -60, 0.5, 30)
 road_width = 10
 road_surface = ExtResource("2")
 alt_surface = ExtResource("3")
 alt_surface_range = Vector2(0.4, 0.6)
 ground_surface = ExtResource("4")
+terrain_features = PackedVector4Array(5, -45, 35, 6, 8, 10, 24, -3.5, 95, 45, 30, 5, -100, -60, 35, 5, 100, -85, 30, 6, -105, 70, 30, 4)
 ground_size = Vector2(280, 220)
 
 [node name="Scenery" type="Node3D" parent="."]

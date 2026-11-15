@@ -33,6 +33,12 @@ extends Node
 @export var max_reverse_attempts: int = 2
 @export var lost_distance_road_widths: float = 3.5
 @export var respawn_height: float = 0.6
+## A car on the ground this far above or below its road has fallen off it (m).
+@export var lost_height: float = 5.0
+## Counts as stuck when it has not got this far along the road (m)...
+@export var min_progress: float = 4.0
+## ...in this many seconds.
+@export var progress_check_time: float = 2.5
 
 var input: PlayerInput = PlayerInput.new()
 
@@ -42,12 +48,15 @@ var _offset: float = 0.0
 var _stuck_timer: float = 0.0
 var _reverse_timer: float = 0.0
 var _reverse_attempts: int = 0
+var _progress_timer: float = 0.0
+var _progress_from: float = 0.0
 
 
 func setup(car: Car, track: Track) -> void:
 	_car = car
 	_track = track
 	_offset = track.get_offset_at(car.global_position)
+	_progress_from = _offset
 	car.input_source = input
 
 
@@ -94,15 +103,33 @@ func _update_stuck(speed: float, delta: float) -> bool:
 	if _track.get_distance_to_centerline(_car.global_position) > lost_distance:
 		_respawn()
 		return true
+	# Fell off a bridge onto a road below, or similar.
+	var road_height: float = _track.get_position_at(_offset).y
+	if _car.is_grounded() and absf(_car.global_position.y - road_height) > lost_height:
+		_respawn()
+		return true
+	var stalled: bool = false
+	# Standing still against something...
 	if speed > stuck_speed:
 		_stuck_timer = 0.0
-		if speed > stuck_speed * 4.0:
+	else:
+		_stuck_timer += delta
+		if _stuck_timer >= stuck_time:
+			_stuck_timer = 0.0
+			stalled = true
+	# ...or rocking back and forth without getting anywhere.
+	_progress_timer += delta
+	if _progress_timer >= progress_check_time:
+		var length: float = _track.get_length()
+		var advanced: float = fposmod(_offset - _progress_from + length * 0.5, length) - length * 0.5
+		_progress_timer = 0.0
+		_progress_from = _offset
+		if advanced < min_progress:
+			stalled = true
+		elif advanced > min_progress * 3.0:
 			_reverse_attempts = 0
+	if not stalled:
 		return false
-	_stuck_timer += delta
-	if _stuck_timer < stuck_time:
-		return false
-	_stuck_timer = 0.0
 	if _reverse_attempts >= max_reverse_attempts:
 		_respawn()
 	else:
@@ -122,6 +149,8 @@ func _drive_reverse() -> void:
 func _respawn() -> void:
 	_reverse_attempts = 0
 	_stuck_timer = 0.0
+	_progress_timer = 0.0
+	_progress_from = _offset
 	var origin: Vector3 = _track.get_position_at(_offset) + Vector3.UP * respawn_height
 	_car.global_transform = Transform3D(Basis.looking_at(_track.get_direction_at(_offset), Vector3.UP), origin)
 	_car.linear_velocity = Vector3.ZERO

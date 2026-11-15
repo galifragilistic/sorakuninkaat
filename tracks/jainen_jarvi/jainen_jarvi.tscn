@@ -17,10 +17,13 @@ roughness = 0.8
 [node name="JainenJarvi" type="Node3D"]
 script = ExtResource("1")
 track_name = "Jäinen järvi"
-control_points = PackedVector3Array(85, 0, 0, 60, 0, 45, 0, 0, 0, -60, 0, -45, -85, 0, 0, -60, 0, 45, 0, 0, 0, 60, 0, -45)
+control_points = PackedVector3Array(85, 0, 0, 60, 0, 45, 0, 0, 0, -60, 0, -45, -85, 0, 0, -60, 3.5, 45, 0, 7.5, 0, 60, 3.5, -45)
 road_width = 12
 road_surface = ExtResource("2")
 ground_surface = ExtResource("4")
+terrain_features = PackedVector4Array(0, -95, 40, 6, 0, 95, 40, 6, -125, -80, 30, 5, 125, 80, 30, 5)
+terrain_noise_height = 0.5
+bridges = PackedVector3Array(6, -32, 32)
 ground_size = Vector2(280, 220)
 second_half_extra_lift = 0.02
 

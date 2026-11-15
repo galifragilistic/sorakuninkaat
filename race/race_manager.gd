@@ -23,6 +23,10 @@ enum State { WAITING, COUNTDOWN, RACING, FINISHED }
 @export var overtake_margin: float = 1.0
 ## Once the winner is in, the others have this long to finish (s).
 @export var finish_timeout: float = 30.0
+## A checkpoint counts this far past it even if its gate did not see the car (m).
+@export var missed_checkpoint_margin: float = 4.0
+## ...as long as the car is within this many road widths of the road.
+@export var missed_checkpoint_road_widths: float = 2.0
 
 ## Values per racer in get_racer_data() / apply_remote_racers().
 const FLOATS_PER_RACER: int = 14
@@ -288,6 +292,7 @@ func _update_standings() -> void:
 		elif racer.next_checkpoint == 0 and racer.crossed_start and offset < length * 0.5:
 			offset += length
 		racer.progress = float(racer.laps_completed) * length + offset
+		_check_missed_checkpoint(racer)
 
 	var previous: Array[RacerState] = _standings.duplicate()
 	_standings.sort_custom(_is_ahead)
@@ -299,6 +304,25 @@ func _update_standings() -> void:
 		# Gaps of racers still driving change only at checkpoints (_record_passage).
 		if racer.finished and leader.finished and not racer.did_not_finish:
 			racer.gap_to_leader = racer.finish_time - leader.finish_time
+
+
+## Backup for the checkpoint gates: a car that cuts a sharp corner can slip
+## past the side of a gate. Once its progress along the road is clearly past
+## the next checkpoint while it is near the road, the checkpoint counts anyway.
+func _check_missed_checkpoint(racer: RacerState) -> void:
+	if state != State.RACING or racer.finished:
+		return
+	var length: float = track.get_length()
+	var checkpoint_progress: float = float(racer.laps_completed) * length + track.get_checkpoint_offset(racer.next_checkpoint)
+	if racer.next_checkpoint == 0 and racer.crossed_start:
+		checkpoint_progress += length
+	if racer.progress < checkpoint_progress + missed_checkpoint_margin:
+		return
+	var road: Vector3 = track.get_position_at(racer.track_offset)
+	var sideways: float = Vector2(racer.car.global_position.x - road.x, racer.car.global_position.z - road.z).length()
+	if sideways > track.road_width * missed_checkpoint_road_widths:
+		return
+	_on_checkpoint_passed(track.checkpoints[racer.next_checkpoint], racer.car)
 
 
 func _report_overtakes(previous: Array[RacerState]) -> void:

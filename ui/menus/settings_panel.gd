@@ -23,6 +23,13 @@ func _ready() -> void:
 	fullscreen.value_changed.connect(func(index: int) -> void: Settings.fullscreen = index == 1)
 	add_child(fullscreen)
 
+	var volumes: PackedStringArray = PackedStringArray()
+	for step: int in Settings.VOLUME_STEPS + 1:
+		volumes.append(tr("%d %%") % (step * 10))
+	var volume: OptionSpinner = OptionSpinner.create(tr("Äänenvoimakkuus"), volumes, Settings.volume)
+	volume.value_changed.connect(func(index: int) -> void: Settings.volume = index)
+	add_child(volume)
+
 	var damage: OptionSpinner = OptionSpinner.create(tr("Vauriot"), on_off, int(Settings.damage_enabled))
 	damage.value_changed.connect(func(index: int) -> void: Settings.damage_enabled = index == 1)
 	add_child(damage)

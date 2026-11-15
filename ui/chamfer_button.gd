@@ -7,6 +7,8 @@ extends ChamferPanel
 signal pressed
 signal focused
 
+const UI_SOUND_DB: float = -14.0
+
 ## Fill while the button holds focus.
 @export var accent_color: Color = UiStyle.ACCENT
 ## Fill while selected but not focused.
@@ -111,6 +113,7 @@ func _gui_input(event: InputEvent) -> void:
 	var clicked: bool = mouse != null and mouse.pressed and mouse.button_index == MOUSE_BUTTON_LEFT
 	if clicked or event.is_action_pressed("ui_accept"):
 		accept_event()
+		SoundBank.play(self, SoundBank.Sound.UI_ACCEPT, UI_SOUND_DB)
 		pressed.emit()
 
 
@@ -122,6 +125,7 @@ func _on_mouse_entered() -> void:
 func _on_focus_changed() -> void:
 	_update_style()
 	if has_focus():
+		SoundBank.play(self, SoundBank.Sound.UI_MOVE, UI_SOUND_DB)
 		focused.emit()
 
 

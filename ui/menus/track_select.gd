@@ -43,7 +43,6 @@ func _build() -> void:
 
 
 func _enter() -> void:
-	_world_preview.show_track(GameState.selected_track)
 	_show_track(GameState.selected_track)
 	_update_tags()
 	var starts_race: bool = context.get("start_race", false)
@@ -219,6 +218,9 @@ func _apply_filter(filter_index: int) -> void:
 
 
 func _show_track(track: TrackInfo) -> void:
+	# Building a preview world takes a moment, so only do it when the track changes.
+	if track != _focused_track:
+		_world_preview.show_track(track)
 	_focused_track = track
 	_name_label.text = track.display_name
 	_description_label.text = track.description

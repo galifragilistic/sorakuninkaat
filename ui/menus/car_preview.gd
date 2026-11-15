@@ -40,6 +40,7 @@ var _camera: Camera3D
 var _pending_color: Color = Color.WHITE
 var _pending_pattern: PlayerSetup.Pattern = PlayerSetup.Pattern.STRIPE
 var _has_pending: bool = false
+var _pending_stats: CarStats
 
 
 func _init() -> void:
@@ -98,20 +99,24 @@ func _ready() -> void:
 	resized.connect(_update_viewport_size)
 	_update_viewport_size()
 	if _has_pending:
-		show_car(_pending_color, _pending_pattern)
+		show_car(_pending_color, _pending_pattern, _pending_stats)
 
 
 func show_setup(setup: PlayerSetup) -> void:
-	show_car(setup.color, setup.pattern)
+	show_car(setup.color, setup.pattern, setup.stats)
 
 
-func show_car(color: Color, pattern: PlayerSetup.Pattern) -> void:
+## stats is optional; when given, the model takes that car's proportions.
+func show_car(color: Color, pattern: PlayerSetup.Pattern, stats: CarStats = null) -> void:
 	if _car == null:
 		# Not in the tree yet; applied in _ready().
 		_pending_color = color
 		_pending_pattern = pattern
+		_pending_stats = stats
 		_has_pending = true
 		return
+	if stats != null:
+		(_car.get_node("Visual") as Node3D).scale = stats.body_scale
 	_car.set_body_color(color)
 	_car.set_stripe_visible(pattern == PlayerSetup.Pattern.STRIPE)
 

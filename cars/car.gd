@@ -5,6 +5,8 @@ extends RigidBody3D
 ## surface grip runs out (SPEC.md section 3).
 
 signal surface_changed(surface: SurfaceData)
+## A crash or hard landing; speed_change is the velocity lost in one tick (m/s).
+signal impact(speed_change: float)
 
 const WHEEL_COUNT: int = 4
 const FRONT_WHEEL_COUNT: int = 2
@@ -49,6 +51,9 @@ var weather_grip: float = 1.0
 ## Largest share of the friction circle that drive/brake force may use.
 ## The rest is always left for cornering.
 @export_range(0.1, 1.0, 0.01) var max_longitudinal_share: float = 0.8
+## The same for two-wheel-drive cars, whose driven axle carries all the power
+## and would otherwise spin out under throttle.
+@export_range(0.1, 1.0, 0.01) var two_wheel_drive_share: float = 0.55
 ## Tyre forces are applied this far above the contact point to limit body roll.
 @export var tire_force_height: float = 0.2
 
@@ -90,6 +95,15 @@ var weather_grip: float = 1.0
 
 @export_group("Dust")
 @export var dust_scene: PackedScene
+## Time in the air (s) after which touching down kicks up a dust burst.
+@export var landing_air_time: float = 0.25
+@export var landing_dust_time: float = 0.35
+
+@export_group("Damage smoke")
+## Total damage (0..1) at which the engine starts to smoke.
+@export_range(0.0, 1.0, 0.01) var smoke_start_damage: float = 0.35
+@export var smoke_color: Color = Color(0.12, 0.12, 0.14, 0.5)
+@export var smoke_position: Vector3 = Vector3(0.0, 0.95, -1.2)
 ## Speed (m/s) at which rolling dust reaches full strength.
 @export var dust_full_speed: float = 22.0
 ## Share of the dust that appears just from rolling; the rest comes from sliding.
@@ -110,6 +124,10 @@ var _mount_points: Array[Vector3] = []
 var _wheel_surfaces: Array[SurfaceData] = []
 var _dust_emitters: Array[Dust] = []
 var _previous_velocity: Vector3 = Vector3.ZERO
+var _throttle: float = 0.0
+var _air_time: float = 0.0
+var _landing_dust_left: float = 0.0
+var _smoke: Dust
 var _idle_input: PlayerInput = PlayerInput.new()
 
 @onready var _wheel_nodes: Array[Node3D] = [
@@ -117,6 +135,7 @@ var _idle_input: PlayerInput = PlayerInput.new()
 ]
 @onready var _body_meshes: Array[MeshInstance3D] = [$Visual/Body, $Visual/Roof]
 @onready var _stripe: MeshInstance3D = $Visual/Stripe
+@onready var _visual: Node3D = $Visual
 @onready var _headlights: Node3D = $Headlights
 @onready var damage: CarDamage = $Damage
 
@@ -162,6 +181,11 @@ func get_gear() -> int:
 
 func get_forward_speed() -> float:
 	return linear_velocity.dot(-global_basis.z)
+
+
+## Throttle input used on the last physics tick (0..1).
+func get_throttle() -> float:
+	return _throttle
 
 
 func get_speed_kmh() -> float:
@@ -215,6 +239,7 @@ func _physics_process(delta: float) -> void:
 	var steer_angle: float = -_steer * deg_to_rad(max_angle)
 
 	var drive_force: float = _get_drive_force(input, forward_speed, top_speed)
+	_throttle = input.throttle
 	var braking: float = input.brake if forward_speed > reverse_threshold else 0.0
 
 	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
@@ -231,6 +256,12 @@ func _physics_process(delta: float) -> void:
 
 	if _grounded_wheels == 0:
 		apply_torque(global_basis.y * -_steer * air_control_torque)
+		_air_time += delta
+	else:
+		if _air_time >= landing_air_time:
+			_landing_dust_left = landing_dust_time
+		_air_time = 0.0
+	_landing_dust_left = maxf(0.0, _landing_dust_left - delta)
 
 	if surface != _current_surface and surface != null:
 		_current_surface = surface
@@ -244,6 +275,7 @@ func _detect_impact() -> void:
 	var speed_change: float = change.length()
 	if speed_change >= damage.impact_threshold:
 		damage.apply_impact(global_basis.inverse() * change, speed_change, stats.durability)
+		impact.emit(speed_change)
 
 
 func _get_slip_angle() -> float:
@@ -348,7 +380,10 @@ func _simulate_wheel(
 	if brake_limit > 0.0:
 		long_force += clampf(-long_speed * brake_response * wheel_mass, -brake_limit, brake_limit)
 	long_force -= long_speed * rolling_drag * wheel_mass
-	var long_limit: float = max_friction * max_longitudinal_share
+	var share: float = max_longitudinal_share
+	if stats.get_driven_wheel_count() < WHEEL_COUNT:
+		share = two_wheel_drive_share
+	var long_limit: float = max_friction * share
 	long_force = clampf(long_force, -long_limit, long_limit)
 
 	# Lateral: cancel side slip with whatever is left of the friction circle.
@@ -376,6 +411,9 @@ func _create_dust_emitters() -> void:
 		_wheel_nodes[i].add_child(dust)
 		dust.position = Vector3.DOWN * wheel_radius
 		_dust_emitters.append(dust)
+	_smoke = dust_scene.instantiate() as Dust
+	add_child(_smoke)
+	_smoke.position = smoke_position
 
 
 func _update_dust() -> void:
@@ -388,7 +426,13 @@ func _update_dust() -> void:
 		if surface == null or speed < dust_min_speed:
 			_dust_emitters[i].set_intensity(0.0, Color.WHITE)
 			continue
-		_dust_emitters[i].set_intensity((rolling + sliding) * surface.dust_amount, surface.dust_color)
+		var amount: float = rolling + sliding
+		if _landing_dust_left > 0.0:
+			amount = 1.0
+		_dust_emitters[i].set_intensity(amount * surface.dust_amount, surface.dust_color)
+	if _smoke != null:
+		var smoke: float = inverse_lerp(smoke_start_damage, 1.0, damage.get_total())
+		_smoke.set_intensity(clampf(smoke, 0.0, 1.0), smoke_color)
 
 
 func _apply_player_color() -> void:
@@ -398,6 +442,7 @@ func _apply_player_color() -> void:
 ## Applies the car, paint and pattern a player picked in the menus.
 func apply_setup(setup: PlayerSetup) -> void:
 	stats = setup.stats
+	_visual.scale = stats.body_scale
 	set_body_color(setup.color)
 	set_stripe_visible(setup.pattern == PlayerSetup.Pattern.STRIPE)
 

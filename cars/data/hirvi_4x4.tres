@@ -13,3 +13,4 @@ grip_gravel = 9
 grip_asphalt = 4
 durability = 9
 drivetrain = 2
+body_scale = Vector3(1.06, 1.28, 1)

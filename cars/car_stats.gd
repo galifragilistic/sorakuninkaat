@@ -17,6 +17,8 @@ const STAT_MAX: int = 10
 @export_range(1, 10) var grip_asphalt: int = 5
 @export_range(1, 10) var durability: int = 5
 @export var drivetrain: Drivetrain = Drivetrain.AWD
+## Stretches the shared body model so cars are told apart by their proportions.
+@export var body_scale: Vector3 = Vector3.ONE
 
 
 ## Maps a 1-10 stat onto value_range (x = stat 1, y = stat 10).

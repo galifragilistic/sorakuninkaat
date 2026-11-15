@@ -51,6 +51,7 @@ func step(direction: int) -> void:
 	if options.size() < 2:
 		return
 	index = wrapi(index + direction, 0, options.size())
+	SoundBank.play(self, SoundBank.Sound.UI_MOVE, ChamferButton.UI_SOUND_DB)
 	value_changed.emit(index)
 
 

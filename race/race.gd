@@ -8,6 +8,7 @@ extends Node3D
 @export var results_delay: float = 2.0
 ## Canvas layer of the pause and results overlays (above the HUD).
 @export var overlay_layer: int = 10
+@export var countdown_volume_db: float = -8.0
 
 var _cars: Array[Car] = []
 var _track: Track
@@ -53,6 +54,14 @@ func _ready() -> void:
 		if not setup.is_ai:
 			humans.append(racer)
 	InputManager.solo_mode = humans.size() == 1
+	var listeners: Array[Car] = []
+	for racer: RacerState in humans:
+		listeners.append(racer.car)
+	for car: Car in _cars:
+		var audio: CarAudio = CarAudio.new()
+		audio.name = "Audio"
+		car.add_child(audio)
+		audio.setup(car, listeners)
 
 	_overlay = CanvasLayer.new()
 	_overlay.layer = overlay_layer
@@ -64,6 +73,7 @@ func _ready() -> void:
 	_environment.set_preset(GameState.get_time_preset(), GameState.get_weather())
 	_setup_weather(humans)
 	_race_manager.lap_completed.connect(_on_lap_completed)
+	_race_manager.countdown_tick.connect(_on_countdown_tick)
 	_race_manager.state_changed.connect(_on_state_changed)
 	_race_manager.start_countdown()
 
@@ -104,6 +114,11 @@ func _set_paused(paused: bool) -> void:
 	elif _pause_menu != null:
 		_pause_menu.queue_free()
 		_pause_menu = null
+
+
+func _on_countdown_tick(seconds_left: int) -> void:
+	var sound: SoundBank.Sound = SoundBank.Sound.BEEP if seconds_left > 0 else SoundBank.Sound.GO
+	SoundBank.play(self, sound, countdown_volume_db)
 
 
 func _on_lap_completed(_racer: RacerState, lap_time: float, _is_best: bool) -> void:

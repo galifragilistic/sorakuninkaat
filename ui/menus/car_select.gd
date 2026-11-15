@@ -192,12 +192,13 @@ func _show_car(index: int) -> void:
 	for i: int in values.size():
 		_stat_bars[i].value = values[i]
 		_stat_values[i].text = "%d/%d" % [values[i], CarStats.STAT_MAX]
+	_preview.show_car(_color, _pattern, car)
 
 
 func _update_paint() -> void:
 	for swatch: ColorSwatch in _swatches:
 		swatch.selected = swatch.color.is_equal_approx(_color)
-	_preview.show_car(_color, _pattern)
+	_preview.show_car(_color, _pattern, Catalog.CARS[_car_index])
 
 
 func _on_color_picked(paint: Color) -> void:

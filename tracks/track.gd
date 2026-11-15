@@ -32,6 +32,11 @@ const CHECKER_SHADER: Shader = preload("res://tracks/shaders/checker.gdshader")
 ## Start and end of the alt surface as fractions of lap length (0..1).
 @export var alt_surface_range: Vector2 = Vector2.ZERO
 @export var ground_surface: SurfaceData
+## Road in several surfaces: section i starts at road_section_starts[i]
+## (share of the lap, the first one 0) and runs to the next start. When set,
+## road_surface and alt_surface are not used for the road.
+@export var road_sections: Array[SurfaceData] = []
+@export var road_section_starts: PackedFloat32Array = PackedFloat32Array()
 
 @export_group("Terrain")
 @export var ground_size: Vector2 = Vector2(280.0, 220.0)
@@ -159,6 +164,12 @@ func get_direction_at(offset: float) -> Vector3:
 
 ## Road surface at a point of the lap given as a fraction (0..1).
 func get_road_surface_at(fraction: float) -> SurfaceData:
+	if not road_sections.is_empty():
+		var surface: SurfaceData = road_sections[0]
+		for i: int in road_sections.size():
+			if road_section_starts[i] <= fraction:
+				surface = road_sections[i]
+		return surface
 	var in_alt: bool = fraction >= alt_surface_range.x and fraction < alt_surface_range.y
 	return alt_surface if alt_surface != null and in_alt else road_surface
 
@@ -369,6 +380,11 @@ func _natural_height(x: float, z: float, noise: FastNoiseLite) -> float:
 
 
 func _build_road() -> void:
+	if not road_sections.is_empty():
+		for i: int in road_sections.size():
+			var end: float = road_section_starts[i + 1] if i + 1 < road_sections.size() else 1.0
+			_build_ribbon(road_section_starts[i], end, road_sections[i])
+		return
 	var has_alt: bool = alt_surface != null and alt_surface_range.y > alt_surface_range.x
 	if not has_alt:
 		_build_ribbon(0.0, 1.0, road_surface)

@@ -48,6 +48,22 @@ enum Mode { ROAD, PROPS }
 @export var road_low_color: Color = Color("#3f7bff")
 @export var road_color: Color = Color("#c9cfde")
 @export var road_high_color: Color = Color("#ff7a1a")
+## Road fill per SurfaceData.Kind, so each surface is easy to tell apart.
+@export var surface_colors: Dictionary = {
+	SurfaceData.Kind.ASPHALT: Color("#4a5063"),
+	SurfaceData.Kind.GRAVEL: Color("#c27a3e"),
+	SurfaceData.Kind.SAND: Color("#e6cc72"),
+	SurfaceData.Kind.SNOW: Color("#eef2f8"),
+	SurfaceData.Kind.ICE: Color("#86d3ff"),
+}
+## Width of the height stripe along the middle of the road (share of road width).
+@export_range(0.05, 0.6, 0.01) var height_stripe_share: float = 0.28
+## How much of the tunnel colour is mixed into the road inside tunnels.
+@export_range(0.0, 1.0, 0.01) var tunnel_tint: float = 0.6
+@export var warning_color: Color = Color("#ff5a3d")
+@export var warning_radius: float = 12.0
+@export var legend_swatch_size: float = 12.0
+@export var legend_padding: float = 10.0
 @export var road_edge_color: Color = Color("#0e1220")
 @export var bridge_edge_color: Color = Color("#ffe14d")
 @export var tunnel_color: Color = Color("#5a4632")
@@ -103,6 +119,7 @@ var _offsets: PackedFloat32Array = PackedFloat32Array()
 ## Lap offset ranges drawn as bridges and tunnels.
 var _bridge_ranges: Array[Vector2] = []
 var _tunnel_ranges: Array[Vector2] = []
+var _low_crossings: PackedVector3Array = PackedVector3Array()
 
 
 func _init() -> void:
@@ -122,23 +139,38 @@ func refresh() -> void:
 	_curve = design.make_curve(draw_sample_spacing)
 	_length = _curve.get_baked_length()
 	_offsets = design.get_point_offsets(_curve)
-	_bridge_ranges.clear()
+	# Marked bridges plus the automatic ones where the road passes over itself.
+	_bridge_ranges = design.get_bridge_ranges(_curve, _offsets)
+	_low_crossings = design.find_crossings(_curve)["low"]
 	_tunnel_ranges.clear()
 	for i: int in design.points.size():
-		var kind: int = design.features[i]
-		if kind != TrackDesign.Feature.BRIDGE and kind != TrackDesign.Feature.TUNNEL:
-			continue
-		var span: Vector2 = design.get_structure_range(i, _offsets, _length) + Vector2.ONE * _offsets[i]
-		if kind == TrackDesign.Feature.BRIDGE:
-			_bridge_ranges.append(span)
-		else:
-			_tunnel_ranges.append(span)
+		if design.features[i] == TrackDesign.Feature.TUNNEL:
+			_tunnel_ranges.append(design.get_structure_range(i, _offsets, _length) + Vector2.ONE * _offsets[i])
 	queue_redraw()
+
+
+## Index of the control point whose stretch contains the lap offset.
+func get_point_at_offset(offset: float) -> int:
+	var index: int = 0
+	for i: int in _offsets.size():
+		if _offsets[i] <= offset:
+			index = i
+	return index
+
+
+## Number of crossings too low to drive under (shown as warnings).
+func get_low_crossing_count() -> int:
+	return _low_crossings.size()
+
+
+## Map colour of a road surface.
+func get_surface_color(surface: SurfaceData) -> Color:
+	return surface_colors.get(surface.kind, road_color)
 
 
 ## Zooms so the whole editable area fits.
 func fit_view() -> void:
-	var area: Vector2 = TrackDesign.HALF_AREA * 2.0
+	var area: Vector2 = design.get_half_area() * 2.0 if design != null else Vector2.ONE
 	var available: Vector2 = size - Vector2.ONE * fit_margin * 2.0
 	if available.x <= 0.0 or available.y <= 0.0:
 		return
@@ -416,6 +448,47 @@ func _draw() -> void:
 	_draw_arrows()
 	_draw_props()
 	_draw_points()
+	_draw_warnings()
+	_draw_legend()
+
+
+## Red rings where the road crosses itself too low to drive under.
+func _draw_warnings() -> void:
+	for crossing: Vector3 in _low_crossings:
+		draw_arc(to_screen(crossing), warning_radius, 0.0, TAU, 24, warning_color, road_edge_width * 1.5, true)
+
+
+## Surface colours and bridge marking in the lower right corner.
+func _draw_legend() -> void:
+	var entries: Array = []
+	for surface: SurfaceData in TrackDesign.ROAD_SURFACES:
+		entries.append([tr(surface.display_name), get_surface_color(surface), false])
+	entries.append([tr("Silta"), bridge_edge_color, true])
+	if not _low_crossings.is_empty():
+		entries.append([tr("Liian matala risteys"), warning_color, true])
+	var font: Font = UiStyle.FONT_MEDIUM
+	var line_height: float = maxf(legend_swatch_size, float(label_font_size)) + legend_padding * 0.5
+	var text_width: float = 0.0
+	for entry: Array in entries:
+		text_width = maxf(text_width, font.get_string_size(entry[0], HORIZONTAL_ALIGNMENT_LEFT, -1.0, label_font_size).x)
+	var box_size: Vector2 = Vector2(
+		legend_padding * 3.0 + legend_swatch_size + text_width,
+		legend_padding * 1.5 + line_height * float(entries.size())
+	)
+	var corner: Vector2 = size - box_size - Vector2.ONE * legend_padding
+	draw_rect(Rect2(corner, box_size), Color(background_color, 0.85))
+	for i: int in entries.size():
+		var entry: Array = entries[i]
+		var top: Vector2 = corner + Vector2(legend_padding, legend_padding + line_height * float(i))
+		var swatch: Rect2 = Rect2(top, Vector2.ONE * legend_swatch_size)
+		if entry[2]:
+			draw_rect(swatch, entry[1], false, road_edge_width)
+		else:
+			draw_rect(swatch, entry[1])
+		draw_string(
+			font, top + Vector2(legend_swatch_size + legend_padding, legend_swatch_size), entry[0],
+			HORIZONTAL_ALIGNMENT_LEFT, -1.0, label_font_size, label_color
+		)
 
 
 func _draw_props() -> void:
@@ -466,7 +539,7 @@ func _draw_grid() -> void:
 		var screen_y: float = to_screen(Vector3(0.0, 0.0, float(z) * grid_spacing)).y
 		var color: Color = major_grid_color if z % major_grid_every == 0 else grid_color
 		draw_line(Vector2(0.0, screen_y), Vector2(size.x, screen_y), color)
-	var half: Vector2 = TrackDesign.HALF_AREA
+	var half: Vector2 = design.get_half_area()
 	var corner: Vector2 = to_screen(Vector3(-half.x, 0.0, -half.y))
 	draw_rect(Rect2(corner, half * 2.0 * _zoom), area_color, false, road_edge_width)
 
@@ -494,13 +567,19 @@ func _draw_road() -> void:
 		for segment: Array in segments:
 			var edge: Color = bridge_edge_color if is_in_structure(segment[2], true) else road_edge_color
 			_draw_thick(segment[0], segment[1], width + road_edge_width * 2.0, edge)
+		# The road is filled with its surface colour...
+		for segment: Array in segments:
+			var fill: Color = get_surface_color(design.get_surface(get_point_at_offset(segment[2])))
+			if is_in_structure(segment[2], false):
+				fill = fill.lerp(tunnel_color, tunnel_tint)
+			_draw_thick(segment[0], segment[1], width, fill)
+		# ...and a stripe down the middle shows height: blue below zero, orange above.
 		for segment: Array in segments:
 			var a: Vector3 = segment[0]
 			var b: Vector3 = segment[1]
-			var fill: Color = get_height_color((a.y + b.y) * 0.5)
-			if is_in_structure(segment[2], false):
-				fill = tunnel_color
-			_draw_thick(a, b, width, fill)
+			var height: float = (a.y + b.y) * 0.5
+			if absf(height) >= TrackDesign.HEIGHT_STEP * 0.5:
+				_draw_thick(a, b, width * height_stripe_share, get_height_color(height))
 
 
 func _draw_thick(a: Vector3, b: Vector3, width: float, color: Color) -> void:

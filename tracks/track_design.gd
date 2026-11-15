@@ -34,8 +34,33 @@ const THEMES: Array[TrackTheme] = [
 const FORMAT_VERSION: int = 1
 const MIN_POINTS: int = 4
 const MAX_POINTS: int = 40
-## Control points stay inside +-HALF_AREA (metres).
-const HALF_AREA: Vector2 = Vector2(150.0, 120.0)
+## Map sizes: control points and objects stay inside +-size (metres).
+const AREA_SIZES: Array[Vector2] = [
+	Vector2(110.0, 85.0), Vector2(150.0, 120.0), Vector2(200.0, 160.0), Vector2(260.0, 210.0),
+]
+const AREA_NAMES: Array[String] = ["Pieni", "Normaali", "Suuri", "Valtava"]
+const DEFAULT_AREA: int = 1
+## Surfaces a stretch of road can have. In `surfaces`, 0 means the theme's
+## road surface and n means ROAD_SURFACES[n - 1].
+const ROAD_SURFACES: Array[SurfaceData] = [
+	preload("res://tracks/surfaces/asphalt.tres"),
+	preload("res://tracks/surfaces/gravel.tres"),
+	preload("res://tracks/surfaces/sand.tres"),
+	preload("res://tracks/surfaces/snow.tres"),
+	preload("res://tracks/surfaces/ice.tres"),
+]
+## A road this much higher than a road it crosses gets a bridge automatically.
+const BRIDGE_CLEARANCE: float = 3.5
+## Crossings with a height difference between this and BRIDGE_CLEARANCE are
+## too low to drive under and too high to drive across.
+const LOW_CROSSING: float = 1.0
+const CROSSING_SAMPLE_SPACING: float = 3.0
+## Roads cross where their centre lines come closer than this share of the road width.
+const CROSSING_DISTANCE_SHARE: float = 0.9
+## Samples closer than this many road widths along the lap are the same stretch.
+const CROSSING_NEIGHBOUR_WIDTHS: float = 3.0
+## Automatic bridges reach this far past the crossed road's edge (metres).
+const AUTO_BRIDGE_MARGIN: float = 15.0
 const HEIGHT_RANGE: Vector2 = Vector2(-8.0, 14.0)
 const HEIGHT_STEP: float = 0.5
 const ROAD_WIDTH_RANGE: Vector2 = Vector2(6.0, 16.0)
@@ -43,9 +68,8 @@ const DEFAULT_ROAD_WIDTH: float = 10.0
 const SPAN_RANGE: Vector2 = Vector2(20.0, 90.0)
 const SPAN_STEP: float = 5.0
 const DEFAULT_SPAN: float = 40.0
-## Ground reaches this far past the outermost control point.
+## Ground reaches this far past the edge of the map area.
 const GROUND_BORDER: float = 35.0
-const MIN_GROUND_SIZE: Vector2 = Vector2(200.0, 160.0)
 ## Bridges and tunnels keep this far from the start line (metres).
 const START_CLEARANCE: float = 6.0
 ## Raises the second half of the lap a little so roads crossing at the same
@@ -65,6 +89,10 @@ var road_width: float = DEFAULT_ROAD_WIDTH
 var points: PackedVector3Array = PackedVector3Array()
 var features: PackedByteArray = PackedByteArray()
 var spans: PackedFloat32Array = PackedFloat32Array()
+## Surface of the road from each point to the next (see ROAD_SURFACES).
+var surfaces: PackedByteArray = PackedByteArray()
+## Index into AREA_SIZES.
+var area: int = DEFAULT_AREA
 ## Placed objects: (Prop, x, z, yaw in radians).
 var props: PackedVector4Array = PackedVector4Array()
 ## Index into FOREST_LEVELS.
@@ -102,16 +130,42 @@ func get_theme() -> TrackTheme:
 	return THEMES[clampi(theme_index, 0, THEMES.size() - 1)]
 
 
+func get_half_area() -> Vector2:
+	return AREA_SIZES[clampi(area, 0, AREA_SIZES.size() - 1)]
+
+
+## True if every point and object fits inside the given map size.
+func fits_area(area_index: int) -> bool:
+	var half: Vector2 = AREA_SIZES[area_index]
+	for point: Vector3 in points:
+		if absf(point.x) > half.x or absf(point.z) > half.y:
+			return false
+	for prop: Vector4 in props:
+		if absf(prop.y) > half.x or absf(prop.z) > half.y:
+			return false
+	return true
+
+
+## Surface of the road from point index to the next point.
+func get_surface(index: int) -> SurfaceData:
+	var choice: int = surfaces[index]
+	return get_theme().road_surface if choice == 0 else ROAD_SURFACES[choice - 1]
+
+
+## A new point keeps the surface of the stretch it was added to.
 func add_point(index: int, point: Vector3) -> void:
+	var surface: int = surfaces[index - 1] if index > 0 and index <= surfaces.size() else 0
 	points.insert(index, clamp_point(point))
 	features.insert(index, Feature.NONE)
 	spans.insert(index, DEFAULT_SPAN)
+	surfaces.insert(index, surface)
 
 
 func remove_point(index: int) -> void:
 	points.remove_at(index)
 	features.remove_at(index)
 	spans.remove_at(index)
+	surfaces.remove_at(index)
 
 
 ## Adds a prop and returns its index, or -1 when there are too many.
@@ -125,17 +179,17 @@ func add_prop(kind: Prop, x: float, z: float, yaw: float) -> int:
 func clamp_prop(prop: Vector4) -> Vector4:
 	return Vector4(
 		clampi(roundi(prop.x), 0, Prop.size() - 1),
-		clampf(prop.y, -HALF_AREA.x, HALF_AREA.x),
-		clampf(prop.z, -HALF_AREA.y, HALF_AREA.y),
+		clampf(prop.y, -get_half_area().x, get_half_area().x),
+		clampf(prop.z, -get_half_area().y, get_half_area().y),
 		fposmod(prop.w, TAU)
 	)
 
 
 func clamp_point(point: Vector3) -> Vector3:
 	return Vector3(
-		clampf(point.x, -HALF_AREA.x, HALF_AREA.x),
+		clampf(point.x, -get_half_area().x, get_half_area().x),
 		snappedf(clampf(point.y, HEIGHT_RANGE.x, HEIGHT_RANGE.y), HEIGHT_STEP),
-		clampf(point.z, -HALF_AREA.y, HALF_AREA.y)
+		clampf(point.z, -get_half_area().y, get_half_area().y)
 	)
 
 
@@ -145,6 +199,7 @@ func set_start(index: int) -> void:
 		points.append(points[0])
 		features.append(features[0])
 		spans.append(spans[0])
+		surfaces.append(surfaces[0])
 		remove_point(0)
 	# The start point cannot carry a structure.
 	features[0] = Feature.NONE
@@ -163,6 +218,11 @@ func reverse() -> void:
 	points = new_points
 	features = new_features
 	spans = new_spans
+	# Stretch k now runs the old stretch count - 1 - k backwards.
+	var new_surfaces: PackedByteArray = PackedByteArray()
+	for k: int in count:
+		new_surfaces.append(surfaces[count - 1 - k])
+	surfaces = new_surfaces
 
 
 ## Empty when the design can be raced, otherwise the reason it cannot.
@@ -196,12 +256,88 @@ func get_structure_range(index: int, offsets: PackedFloat32Array, length: float)
 
 
 func get_ground_size() -> Vector2:
-	var reach: Vector2 = Vector2.ZERO
-	for point: Vector3 in points:
-		reach.x = maxf(reach.x, absf(point.x))
-		reach.y = maxf(reach.y, absf(point.z))
-	var size: Vector2 = (reach + Vector2.ONE * (GROUND_BORDER + road_width * 0.5)) * 2.0
-	return Vector2(maxf(size.x, MIN_GROUND_SIZE.x), maxf(size.y, MIN_GROUND_SIZE.y))
+	return (get_half_area() + Vector2.ONE * GROUND_BORDER) * 2.0
+
+
+## Where the road crosses itself. "bridges" holds lap offset ranges (x..y)
+## where the road passes high enough over another stretch to get a bridge;
+## "low" holds the positions of crossings too low to drive under.
+func find_crossings(curve: Curve3D) -> Dictionary:
+	var length: float = curve.get_baked_length()
+	var count: int = maxi(1, ceili(length / CROSSING_SAMPLE_SPACING))
+	var step: float = length / float(count)
+	var samples: PackedVector3Array = PackedVector3Array()
+	# Samples bucketed by map cell so each one is only compared with its neighbours.
+	var cell_size: float = road_width
+	var cells: Dictionary = {}
+	for i: int in count:
+		var sample: Vector3 = curve.sample_baked(float(i) * step)
+		samples.append(sample)
+		var cell: Vector2i = Vector2i(floori(sample.x / cell_size), floori(sample.z / cell_size))
+		# Packed arrays are values: append to the stored copy and put it back.
+		var bucket: PackedInt32Array = cells.get(cell, PackedInt32Array())
+		bucket.append(i)
+		cells[cell] = bucket
+
+	var limit: float = road_width * CROSSING_DISTANCE_SHARE
+	var neighbour_gap: float = road_width * CROSSING_NEIGHBOUR_WIDTHS
+	var over: PackedFloat32Array = PackedFloat32Array()
+	var low: PackedVector3Array = PackedVector3Array()
+	for i: int in count:
+		var sample: Vector3 = samples[i]
+		var cell: Vector2i = Vector2i(floori(sample.x / cell_size), floori(sample.z / cell_size))
+		var is_over: bool = false
+		var is_low: bool = false
+		for dx: int in range(-1, 2):
+			for dz: int in range(-1, 2):
+				for j: int in cells.get(cell + Vector2i(dx, dz), PackedInt32Array()):
+					var gap: float = absf(float(i - j)) * step
+					if minf(gap, length - gap) < neighbour_gap:
+						continue
+					var other: Vector3 = samples[j]
+					if Vector2(sample.x - other.x, sample.z - other.z).length() >= limit:
+						continue
+					var rise: float = sample.y - other.y
+					if rise >= BRIDGE_CLEARANCE:
+						is_over = true
+					elif rise > LOW_CROSSING:
+						is_low = true
+		if is_over:
+			over.append(float(i) * step)
+		elif is_low:
+			low.append(sample)
+
+	var ranges: Array[Vector2] = []
+	var reach: float = road_width * 0.5 + AUTO_BRIDGE_MARGIN
+	for offset: float in over:
+		var span: Vector2 = Vector2(offset - reach, offset + reach)
+		if not ranges.is_empty() and span.x <= ranges[-1].y:
+			ranges[-1].y = span.y
+		else:
+			ranges.append(span)
+	return {"bridges": ranges, "low": low}
+
+
+## Every bridge on the track as lap offset ranges: the ones marked on points
+## and the automatic ones over crossings, merged and kept off the start line.
+func get_bridge_ranges(curve: Curve3D, offsets: PackedFloat32Array) -> Array[Vector2]:
+	var length: float = curve.get_baked_length()
+	var ranges: Array[Vector2] = []
+	for i: int in points.size():
+		if features[i] == Feature.BRIDGE:
+			ranges.append(get_structure_range(i, offsets, length) + Vector2.ONE * offsets[i])
+	ranges.append_array(find_crossings(curve)["bridges"])
+	ranges.sort_custom(func(a: Vector2, b: Vector2) -> bool: return a.x < b.x)
+	var merged: Array[Vector2] = []
+	for span: Vector2 in ranges:
+		var clamped: Vector2 = Vector2(maxf(span.x, START_CLEARANCE), minf(span.y, length - START_CLEARANCE))
+		if clamped.y <= clamped.x:
+			continue
+		if not merged.is_empty() and clamped.x <= merged[-1].y:
+			merged[-1].y = maxf(merged[-1].y, clamped.y)
+		else:
+			merged.append(clamped)
+	return merged
 
 
 ## Builds the track node; it builds its world when it enters the tree.
@@ -228,17 +364,21 @@ func build_track() -> Track:
 	# Shares of the lap covered by structures and jumps, kept clear of props.
 	var busy: Array[Vector2] = []
 	var jumps: PackedFloat32Array = PackedFloat32Array()
+	# Track bridge entries are (point index, start, end) relative to that point.
+	for span: Vector2 in get_bridge_ranges(curve, offsets):
+		var base: int = 0
+		for i: int in points.size():
+			if offsets[i] <= span.x:
+				base = i
+		bridges.append(Vector3(float(base), span.x - offsets[base], span.y - offsets[base]))
+		busy.append(span / length)
 	for i: int in points.size():
 		match features[i]:
-			Feature.BRIDGE, Feature.TUNNEL:
+			Feature.TUNNEL:
 				var span: Vector2 = get_structure_range(i, offsets, length)
 				if span.y <= span.x:
 					continue
-				var entry: Vector3 = Vector3(float(i), span.x, span.y)
-				if features[i] == Feature.BRIDGE:
-					bridges.append(entry)
-				else:
-					tunnels.append(entry)
+				tunnels.append(Vector3(float(i), span.x, span.y))
 				busy.append((Vector2.ONE * offsets[i] + span) / length)
 			Feature.JUMP:
 				var fraction: float = offsets[i] / length
@@ -246,12 +386,28 @@ func build_track() -> Track:
 				busy.append(Vector2(fraction - JUMP_CLEARANCE, fraction + JUMP_CLEARANCE))
 	track.bridges = bridges
 	track.tunnels = tunnels
+	# One road section per run of stretches with the same surface.
+	var sections: Array[SurfaceData] = []
+	var starts: PackedFloat32Array = PackedFloat32Array()
+	for i: int in points.size():
+		var surface: SurfaceData = get_surface(i)
+		if sections.is_empty() or sections[-1] != surface:
+			sections.append(surface)
+			starts.append(offsets[i] / length)
+	track.road_sections = sections
+	track.road_section_starts = starts
+	track.road_surface = sections[0]
 
 	var scenery: TrackScenery = TrackScenery.new()
 	scenery.name = "Scenery"
 	scenery.scenery_seed = look_seed
 	scenery.lake_enabled = false
-	scenery.tree_count = roundi(float(theme.tree_count) * FOREST_LEVELS[clampi(forest, 0, FOREST_LEVELS.size() - 1)])
+	# The theme's tree count is for the normal map size; bigger maps get more.
+	var default_ground: Vector2 = (AREA_SIZES[DEFAULT_AREA] + Vector2.ONE * GROUND_BORDER) * 2.0
+	var ground: Vector2 = get_ground_size()
+	var area_scale: float = (ground.x * ground.y) / (default_ground.x * default_ground.y)
+	var forest_share: float = FOREST_LEVELS[clampi(forest, 0, FOREST_LEVELS.size() - 1)]
+	scenery.tree_count = roundi(float(theme.tree_count) * forest_share * area_scale)
 	scenery.props = props
 	scenery.tree_color = theme.tree_color
 	scenery.tree_top_color = theme.tree_top_color
@@ -294,7 +450,7 @@ func to_dict() -> Dictionary:
 	return {
 		"version": FORMAT_VERSION, "name": display_name, "theme": theme_index, "road_width": road_width,
 		"points": point_list, "features": Array(features), "spans": Array(spans),
-		"props": prop_list, "forest": forest,
+		"props": prop_list, "forest": forest, "surfaces": Array(surfaces), "area": area,
 	}
 
 
@@ -308,8 +464,11 @@ static func from_dict(data: Dictionary) -> TrackDesign:
 	design.display_name = GameState.sanitize_name(str(data.get("name", "")))
 	design.theme_index = clampi(int(data.get("theme", 0)), 0, THEMES.size() - 1)
 	design.road_width = clampf(float(data.get("road_width", DEFAULT_ROAD_WIDTH)), ROAD_WIDTH_RANGE.x, ROAD_WIDTH_RANGE.y)
+	# The map size first: points and objects are clamped to it.
+	design.area = clampi(int(data.get("area", DEFAULT_AREA)), 0, AREA_SIZES.size() - 1)
 	var feature_list: Variant = data.get("features", [])
 	var span_list: Variant = data.get("spans", [])
+	var surface_list: Variant = data.get("surfaces", [])
 	for i: int in mini((point_list as Array).size(), MAX_POINTS):
 		var raw: Variant = (point_list as Array)[i]
 		if not raw is Array or (raw as Array).size() != 3:
@@ -320,6 +479,8 @@ static func from_dict(data: Dictionary) -> TrackDesign:
 			design.features[i] = clampi(int((feature_list as Array)[i]), 0, Feature.size() - 1)
 		if span_list is Array and i < (span_list as Array).size():
 			design.spans[i] = clampf(float((span_list as Array)[i]), SPAN_RANGE.x, SPAN_RANGE.y)
+		if surface_list is Array and i < (surface_list as Array).size():
+			design.surfaces[i] = clampi(int((surface_list as Array)[i]), 0, ROAD_SURFACES.size())
 	if design.points.size() < MIN_POINTS:
 		return null
 	design.features[0] = Feature.NONE

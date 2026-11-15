@@ -9,6 +9,8 @@ extends MenuScreen
 @export var profile_height: float = 92.0
 @export var panel_position: Vector2 = Vector2(896.0, 96.0)
 @export var panel_width: float = 328.0
+## Vertical gap between the rows of the side panel.
+@export var panel_gap: int = 3
 @export var spinner_value_width: float = 108.0
 @export var open_list_size: Vector2 = Vector2(460.0, 360.0)
 @export var help_font_size: int = 13
@@ -47,6 +49,8 @@ var _kind_spinner: OptionSpinner
 var _forest_spinner: OptionSpinner
 var _prop_buttons: Array[ChamferButton] = []
 var _help_label: Label
+var _area_spinner: OptionSpinner
+var _surface_spinner: OptionSpinner
 
 
 func get_backdrop() -> Backdrop:
@@ -116,7 +120,7 @@ func _build_panel() -> void:
 	panel.position = panel_position
 	panel.custom_minimum_size.x = panel_width
 	add_child(panel)
-	var column: VBoxContainer = MenuKit.make_vbox(6)
+	var column: VBoxContainer = MenuKit.make_vbox(panel_gap)
 	panel.add_child(column)
 
 	var mode_row: HBoxContainer = MenuKit.make_hbox(6)
@@ -124,7 +128,6 @@ func _build_panel() -> void:
 	_road_button = _add_button(mode_row, tr("TIE"), _set_mode.bind(TrackEditorCanvas.Mode.ROAD))
 	_props_button = _add_button(mode_row, tr("ESINEET"), _set_mode.bind(TrackEditorCanvas.Mode.PROPS))
 
-	column.add_child(UiStyle.make_caption(tr("RATA")))
 	_name_button = ChamferButton.create("", 17, Vector4(14.0, 8.0, 14.0, 8.0))
 	_name_button.add_glyph(UiGlyph.Kind.CHEVRON_RIGHT)
 	_name_button.pressed.connect(_open_name_dialog.bind(Callable()))
@@ -145,10 +148,16 @@ func _build_panel() -> void:
 		_design.road_width = TrackDesign.ROAD_WIDTH_RANGE.x + float(index)
 		_canvas.refresh()
 		_on_design_changed())
+	var areas: PackedStringArray = PackedStringArray()
+	for i: int in TrackDesign.AREA_SIZES.size():
+		var area_size: Vector2 = TrackDesign.AREA_SIZES[i] * 2.0
+		areas.append(tr("%s %d×%d") % [tr(TrackDesign.AREA_NAMES[i]), roundi(area_size.x), roundi(area_size.y)])
+	_area_spinner = _add_spinner(column, tr("Kartta"), areas)
+	_area_spinner.value_changed.connect(_on_area_picked)
 
 	_build_prop_section(column)
 	# Point controls; swapped for the object controls in object mode.
-	_point_section = MenuKit.make_vbox(6)
+	_point_section = MenuKit.make_vbox(panel_gap)
 	column.add_child(_point_section)
 	column = _point_section
 	_point_caption = UiStyle.make_caption("")
@@ -158,6 +167,14 @@ func _build_panel() -> void:
 		heights.append(tr("%+.1f m") % _height_at(i))
 	_height_spinner = _add_spinner(column, tr("Korkeus"), heights)
 	_height_spinner.value_changed.connect(_on_height_picked)
+	var surface_names: PackedStringArray = PackedStringArray([tr("Maaston mukaan")])
+	for surface: SurfaceData in TrackDesign.ROAD_SURFACES:
+		surface_names.append(tr(surface.display_name))
+	_surface_spinner = _add_spinner(column, tr("Pinta"), surface_names)
+	_surface_spinner.value_changed.connect(func(index: int) -> void:
+		_design.surfaces[_canvas.selected] = index
+		_canvas.refresh()
+		_on_design_changed())
 	var features: PackedStringArray = PackedStringArray()
 	for feature: String in FEATURE_NAMES:
 		features.append(tr(feature))
@@ -179,7 +196,6 @@ func _build_panel() -> void:
 	_delete_button = _add_button(point_row, tr("POISTA"), func() -> void: _canvas.remove_point(_canvas.selected))
 
 	column = _point_section.get_parent() as VBoxContainer
-	column.add_child(UiStyle.make_caption(tr("TIEDOSTO")))
 	var file_row: HBoxContainer = MenuKit.make_hbox(6)
 	column.add_child(file_row)
 	_add_button(file_row, tr("UUSI"), _on_new)
@@ -196,7 +212,7 @@ func _build_panel() -> void:
 
 
 func _build_prop_section(column: VBoxContainer) -> void:
-	_prop_section = MenuKit.make_vbox(6)
+	_prop_section = MenuKit.make_vbox(panel_gap)
 	column.add_child(_prop_section)
 	_prop_caption = UiStyle.make_caption("")
 	_prop_section.add_child(_prop_caption)
@@ -266,6 +282,7 @@ func _set_design(design: TrackDesign) -> void:
 	_theme_spinner.index = design.theme_index
 	_width_spinner.index = roundi(design.road_width - TrackDesign.ROAD_WIDTH_RANGE.x)
 	_forest_spinner.index = design.forest
+	_area_spinner.index = design.area
 	_canvas.select_prop(-1)
 	_update_name()
 	_on_selection_changed(0)
@@ -284,6 +301,7 @@ func _on_selection_changed(index: int) -> void:
 	_height_spinner.index = _height_index(_design.points[index].y)
 	_feature_spinner.index = _design.features[index]
 	_span_spinner.index = _span_index(_design.spans[index])
+	_surface_spinner.index = _design.surfaces[index]
 	var has_span: bool = _design.features[index] == TrackDesign.Feature.BRIDGE \
 		or _design.features[index] == TrackDesign.Feature.TUNNEL
 	_span_spinner.editable = has_span
@@ -297,6 +315,21 @@ func _on_design_changed() -> void:
 	_on_selection_changed(_canvas.selected)
 	_on_prop_selection_changed()
 	CustomTracks.save_draft(_design)
+	var low: int = _canvas.get_low_crossing_count()
+	if low > 0:
+		_show_status(tr("Risteys on liian matala: nosta ylempää tietä vähintään %.1f m alemman yläpuolelle.") % TrackDesign.BRIDGE_CLEARANCE)
+
+
+## A bigger map is always fine; a smaller one only if the track fits in it.
+func _on_area_picked(index: int) -> void:
+	if not _design.fits_area(index):
+		_area_spinner.index = _design.area
+		_show_status(tr("Rata ja esineet eivät mahdu pienemmälle kartalle."))
+		return
+	_design.area = index
+	_canvas.fit_view()
+	_canvas.refresh()
+	_on_design_changed()
 
 
 func _on_height_picked(index: int) -> void:

@@ -61,6 +61,8 @@ var _address_field: LineEdit
 var _join_button: ChamferButton
 var _own_address_label: Label
 var _net_status_label: Label
+var _name_dialog: NameDialog
+var _name_dialog_player: int = -1
 
 
 func get_backdrop() -> Backdrop:
@@ -75,6 +77,7 @@ func _build() -> void:
 	_build_net_panel()
 	MenuKit.add_hints(self, [
 		[InputPrompts.Prompt.ACCEPT, tr("Liity / valmis")], [InputPrompts.Prompt.SECONDARY, tr("Auto / tekoäly")],
+		[InputPrompts.Prompt.TERTIARY, tr("Nimi")],
 		[InputPrompts.Prompt.TABS, tr("Välilehti")], [InputPrompts.Prompt.START, tr("Aloita")],
 		[InputPrompts.Prompt.BACK, tr("Takaisin")],
 	])
@@ -110,6 +113,9 @@ func _get_initial_focus() -> Control:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	# The name dialog handles its own input while it is open.
+	if _name_dialog != null:
+		return
 	if event.is_action_pressed(InputManager.ACTION_TAB_PREVIOUS):
 		get_viewport().set_input_as_handled()
 		_select_tab(wrapi(_tab - 1, 0, Tab.size()) as Tab)
@@ -118,6 +124,47 @@ func _unhandled_input(event: InputEvent) -> void:
 		_select_tab(wrapi(_tab + 1, 0, Tab.size()) as Tab)
 	else:
 		super._unhandled_input(event)
+
+
+## Y / N: choose your name.
+func _on_tertiary() -> void:
+	var player: int = _cards.find(get_viewport().gui_get_focus_owner() as ChamferButton)
+	if player < 0 or not _cards_grid.visible:
+		return
+	var setup: PlayerSetup = GameState.players[player]
+	if not setup.joined or setup.is_ai:
+		return
+	# Online, only your own name is yours to change.
+	if _is_online() and player != Network.local_slot:
+		return
+	_name_dialog_player = player
+	_name_dialog = NameDialog.create(tr("PELAAJA %d") % (player + 1), setup.display_name)
+	_name_dialog.confirmed.connect(_on_name_confirmed)
+	_name_dialog.cancelled.connect(_close_name_dialog)
+	add_child(_name_dialog)
+
+
+func _on_name_confirmed(player_name: String) -> void:
+	var player: int = _name_dialog_player
+	if _is_online():
+		# This machine's name lives in slot 1's setting, whatever slot it plays in.
+		Settings.set_player_name(0, player_name)
+		GameState.players[player].display_name = player_name
+		Network.submit_local_setup()
+	else:
+		Settings.set_player_name(player, player_name)
+	_close_name_dialog()
+	_refresh()
+
+
+func _close_name_dialog() -> void:
+	if _name_dialog == null:
+		return
+	_name_dialog.queue_free()
+	_name_dialog = null
+	if _name_dialog_player >= 0:
+		_cards[_name_dialog_player].grab_focus.call_deferred()
+	_name_dialog_player = -1
 
 
 ## X: change your car, or (for whoever runs the lobby) add or remove a computer driver.
@@ -637,7 +684,7 @@ func _refresh_cards() -> void:
 			_device_labels[i].text = tr("Tietokone")
 			MenuKit.set_chip(_status_chips[i], tr("TEKOÄLY"), UiStyle.INFO)
 			continue
-		_name_labels[i].text = tr("Pelaaja %d") % (i + 1)
+		_name_labels[i].text = GameState.get_player_name(i)
 		_device_labels[i].text = _get_device_text(i, setup)
 		if setup.is_ready:
 			MenuKit.set_chip(_status_chips[i], tr("VALMIS"), UiStyle.SUCCESS)
@@ -689,7 +736,7 @@ func _get_first_unready() -> String:
 	for i: int in GameState.MAX_PLAYERS:
 		var setup: PlayerSetup = GameState.players[i]
 		if setup.joined and not setup.is_ai and not setup.is_ready:
-			return tr("Pelaaja %d") % (i + 1)
+			return GameState.get_player_name(i)
 	return ""
 
 

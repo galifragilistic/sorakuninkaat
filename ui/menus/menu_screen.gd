@@ -50,6 +50,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("menu_secondary"):
 		get_viewport().set_input_as_handled()
 		_on_secondary()
+	elif event.is_action_pressed("menu_tertiary"):
+		get_viewport().set_input_as_handled()
+		_on_tertiary()
 	elif event.is_action_pressed("menu_start"):
 		get_viewport().set_input_as_handled()
 		_on_start()
@@ -75,6 +78,11 @@ func _on_back() -> void:
 
 ## X on a gamepad.
 func _on_secondary() -> void:
+	pass
+
+
+## Y on a gamepad, N on the keyboard.
+func _on_tertiary() -> void:
 	pass
 
 

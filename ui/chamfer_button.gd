@@ -73,7 +73,6 @@ func _init() -> void:
 	add_child(row)
 	focus_entered.connect(_on_focus_changed)
 	focus_exited.connect(_on_focus_changed)
-	mouse_entered.connect(_on_mouse_entered)
 	_update_style()
 
 
@@ -109,17 +108,16 @@ func add_glyph(kind: UiGlyph.Kind, glyph_size: float = 28.0) -> UiGlyph:
 func _gui_input(event: InputEvent) -> void:
 	if disabled:
 		return
+	# Hover focuses only when the mouse really moves, so a screen that opens
+	# under a parked cursor does not steal focus from a gamepad player.
+	if event is InputEventMouseMotion and not has_focus():
+		grab_focus()
 	var mouse: InputEventMouseButton = event as InputEventMouseButton
 	var clicked: bool = mouse != null and mouse.pressed and mouse.button_index == MOUSE_BUTTON_LEFT
 	if clicked or event.is_action_pressed("ui_accept"):
 		accept_event()
 		SoundBank.play(self, SoundBank.Sound.UI_ACCEPT, UI_SOUND_DB)
 		pressed.emit()
-
-
-func _on_mouse_entered() -> void:
-	if not disabled:
-		grab_focus()
 
 
 func _on_focus_changed() -> void:

@@ -4,13 +4,14 @@ extends RefCounted
 ## button hints and for texts that name a button. The style comes from
 ## InputManager.prompt_style (the device used last).
 
-enum Prompt { ACCEPT, BACK, SECONDARY, TABS, START, LEFT_RIGHT, UP_DOWN }
+enum Prompt { ACCEPT, BACK, SECONDARY, TERTIARY, TABS, START, LEFT_RIGHT, UP_DOWN }
 
 ## Gamepad labels (Xbox layout, as in the mockups).
 const GAMEPAD_LABELS: Dictionary = {
 	Prompt.ACCEPT: "A",
 	Prompt.BACK: "B",
 	Prompt.SECONDARY: "X",
+	Prompt.TERTIARY: "Y",
 	Prompt.TABS: "LB RB",
 	Prompt.START: "START",
 	Prompt.LEFT_RIGHT: "◀ ▶",
@@ -23,6 +24,7 @@ const KEYBOARD_LABELS: Dictionary = {
 	Prompt.ACCEPT: "Enter",
 	Prompt.BACK: "Esc",
 	Prompt.SECONDARY: "X",
+	Prompt.TERTIARY: "N",
 	Prompt.TABS: "Q E",
 	Prompt.START: "",
 	# Triangles, not ← →: the UI fonts lack arrow glyphs and the fallback draws them tiny.

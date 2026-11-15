@@ -33,12 +33,31 @@ var volume: int = 8:
 		_apply_volume()
 		_on_changed()
 
+## Names chosen for player slots 1-4 on this machine ("" = default name).
+## Slot 1's name is also this machine's name in network games.
+var player_names: PackedStringArray = PackedStringArray(["", "", "", ""])
+
 var _loading: bool = false
 
 
 func _ready() -> void:
 	_load()
 	_apply_volume()
+	for i: int in player_names.size():
+		GameState.players[i].display_name = player_names[i]
+
+
+func get_player_name(slot: int) -> String:
+	return player_names[slot] if slot < player_names.size() else ""
+
+
+## Remembers a player's name and shows it in the lobby straight away.
+func set_player_name(slot: int, player_name: String) -> void:
+	if slot >= player_names.size():
+		return
+	player_names[slot] = GameState.sanitize_name(player_name)
+	GameState.players[slot].display_name = player_names[slot]
+	_on_changed()
 
 
 func _on_changed() -> void:
@@ -70,6 +89,9 @@ func _load() -> void:
 	damage_enabled = config.get_value(SECTION, "damage_enabled", damage_enabled)
 	fullscreen = config.get_value(SECTION, "fullscreen", fullscreen)
 	volume = config.get_value(SECTION, "volume", volume)
+	var names: PackedStringArray = config.get_value(SECTION, "player_names", player_names)
+	for i: int in mini(names.size(), player_names.size()):
+		player_names[i] = GameState.sanitize_name(names[i])
 	_loading = false
 
 
@@ -79,4 +101,5 @@ func _save() -> void:
 	config.set_value(SECTION, "damage_enabled", damage_enabled)
 	config.set_value(SECTION, "fullscreen", fullscreen)
 	config.set_value(SECTION, "volume", volume)
+	config.set_value(SECTION, "player_names", player_names)
 	config.save(SAVE_PATH)

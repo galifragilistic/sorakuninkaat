@@ -75,7 +75,9 @@ func _spawn_cars() -> Array[RacerState]:
 		_cars.append(car)
 		slot += 1
 
-		var racer_name: String = tr("Pelaaja %d") % (player + 1)
+		var racer_name: String = setup.display_name
+		if racer_name.is_empty():
+			racer_name = tr("Pelaaja %d") % (player + 1)
 		if setup.is_ai:
 			ai_number += 1
 			racer_name = tr("Tekoäly %d") % ai_number

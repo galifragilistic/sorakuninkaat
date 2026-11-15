@@ -50,6 +50,8 @@ const PROMPT_MOUSE_THRESHOLD: float = 4.0
 const ACTION_SECONDARY: StringName = &"menu_secondary"
 const ACTION_START: StringName = &"menu_start"
 const ACTION_PAUSE: StringName = &"pause"
+## Y on a gamepad, N on the keyboard: edit your name in the lobby.
+const ACTION_TERTIARY: StringName = &"menu_tertiary"
 ## Lobby tabs (LB / RB on a gamepad, Q / E on the keyboard).
 const ACTION_TAB_PREVIOUS: StringName = &"menu_tab_previous"
 const ACTION_TAB_NEXT: StringName = &"menu_tab_next"
@@ -111,6 +113,7 @@ func get_device_name(player_index: int) -> String:
 
 func _register_actions() -> void:
 	_add_action(ACTION_SECONDARY, [KEY_X], [JOY_BUTTON_X])
+	_add_action(ACTION_TERTIARY, [KEY_N], [JOY_BUTTON_Y])
 	_add_action(ACTION_START, [], [JOY_BUTTON_START])
 	_add_action(ACTION_PAUSE, [KEY_ESCAPE], [JOY_BUTTON_START])
 	_add_action(ACTION_TAB_PREVIOUS, [KEY_Q], [JOY_BUTTON_LEFT_SHOULDER])

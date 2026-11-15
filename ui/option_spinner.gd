@@ -49,13 +49,7 @@ func _init() -> void:
 	_add_arrow(UiGlyph.Kind.CHEVRON_RIGHT)
 	focus_entered.connect(_update_style)
 	focus_exited.connect(_update_style)
-	mouse_entered.connect(_on_mouse_entered)
 	_update_style()
-
-
-func _on_mouse_entered() -> void:
-	if editable:
-		grab_focus()
 
 
 func step(direction: int) -> void:
@@ -77,6 +71,10 @@ func _add_arrow(kind: UiGlyph.Kind) -> void:
 
 
 func _gui_input(event: InputEvent) -> void:
+	# Hover focuses only on real mouse movement (see ChamferButton).
+	if event is InputEventMouseMotion and editable and not has_focus():
+		grab_focus()
+		return
 	if event.is_action_pressed("ui_left", true):
 		accept_event()
 		step(-1)

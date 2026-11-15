@@ -7,6 +7,8 @@ enum SplitLayout { VERTICAL, HORIZONTAL }
 enum Mode { SINGLE, MULTI, NET }
 
 const MAX_PLAYERS: int = 4
+## Longest player name; fits the standings list and the results table.
+const MAX_NAME_LENGTH: int = 12
 
 const MENU_SCENE: String = "res://ui/menus/menu_root.tscn"
 const RACE_SCENE: String = "res://race/race.tscn"
@@ -63,6 +65,22 @@ func _init() -> void:
 		players.append(setup)
 		points.append(0)
 	selected_track = Catalog.get_default_track()
+
+
+## Cleans up a typed or received name: no control characters, no outer
+## spaces, at most MAX_NAME_LENGTH characters.
+static func sanitize_name(raw: String) -> String:
+	var cleaned: String = ""
+	for character: String in raw:
+		if character.unicode_at(0) >= 32:
+			cleaned += character
+	return cleaned.strip_edges().left(MAX_NAME_LENGTH).strip_edges()
+
+
+## The name to show for a player slot: the chosen one, or "Pelaaja N".
+func get_player_name(slot: int) -> String:
+	var chosen: String = players[slot].display_name if slot < players.size() else ""
+	return chosen if not chosen.is_empty() else tr("Pelaaja %d") % (slot + 1)
 
 
 func get_player_color(player_index: int) -> Color:

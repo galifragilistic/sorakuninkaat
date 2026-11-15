@@ -103,12 +103,14 @@ func _address_rank(address: String) -> int:
 
 # --- Session -------------------------------------------------------------
 
-func host_game(session_kind: Kind) -> Error:
+## port: another port lets two hosts run on one machine (players then join
+## with "address:port").
+func host_game(session_kind: Kind, port: int = DEFAULT_PORT) -> Error:
 	leave()
 	var peer: ENetMultiplayerPeer = ENetMultiplayerPeer.new()
-	var error: Error = peer.create_server(DEFAULT_PORT, MAX_CLIENTS)
+	var error: Error = peer.create_server(port, MAX_CLIENTS)
 	if error != OK:
-		last_error = tr("Pelin luominen epäonnistui (portti %d varattu?)") % DEFAULT_PORT
+		last_error = tr("Pelin luominen epäonnistui (portti %d varattu?)") % port
 		return error
 	multiplayer.multiplayer_peer = peer
 	stop_discovery()
@@ -119,6 +121,7 @@ func host_game(session_kind: Kind) -> Error:
 	GameState.mode = GameState.Mode.NET
 	_reset_slots()
 	GameState.players[0].peer_id = HOST_PEER_ID
+	GameState.players[0].display_name = Settings.get_player_name(0)
 	if kind == Kind.LAN:
 		_announcer = PacketPeerUDP.new()
 		_announcer.set_broadcast_enabled(true)
@@ -169,6 +172,8 @@ func _reset_slots() -> void:
 		setup.is_ai = false
 		setup.is_ready = false
 		setup.peer_id = 0
+		# Back to this machine's own names for split screen.
+		setup.display_name = Settings.get_player_name(i)
 
 
 # --- Discovery -----------------------------------------------------------
@@ -247,6 +252,7 @@ func serialize_lobby() -> Dictionary:
 		slots.append({
 			"joined": setup.joined, "ai": setup.is_ai, "ready": setup.is_ready, "peer": setup.peer_id,
 			"car": Catalog.CARS.find(setup.stats), "color": setup.color.to_html(), "pattern": setup.pattern,
+			"name": setup.display_name,
 		})
 	return {
 		"slots": slots, "track": Catalog.TRACKS.find(GameState.selected_track), "laps": GameState.lap_count,
@@ -267,6 +273,7 @@ func _apply_lobby(state: Dictionary) -> void:
 		setup.stats = Catalog.CARS[clampi(data["car"], 0, Catalog.CARS.size() - 1)]
 		setup.color = Color.html(data["color"])
 		setup.pattern = data["pattern"]
+		setup.display_name = GameState.sanitize_name(str(data.get("name", "")))
 		if setup.joined and setup.peer_id == multiplayer.get_unique_id():
 			local_slot = i
 	GameState.selected_track = Catalog.TRACKS[clampi(state["track"], 0, Catalog.TRACKS.size() - 1)]
@@ -299,7 +306,9 @@ func submit_local_setup() -> void:
 	if role == Role.HOST:
 		broadcast_lobby()
 	elif role == Role.CLIENT:
-		_request_setup.rpc_id(HOST_PEER_ID, Catalog.CARS.find(setup.stats), setup.color.to_html(), setup.pattern)
+		_request_setup.rpc_id(
+			HOST_PEER_ID, Catalog.CARS.find(setup.stats), setup.color.to_html(), setup.pattern, setup.display_name
+		)
 
 
 func set_local_ready(is_ready: bool) -> void:
@@ -331,10 +340,11 @@ func set_slot_ai(slot: int, enabled: bool) -> void:
 
 
 @rpc("any_peer", "call_remote", "reliable")
-func _request_setup(car_index: int, color_html: String, pattern: int) -> void:
+func _request_setup(car_index: int, color_html: String, pattern: int, player_name: String) -> void:
 	var slot: int = _get_sender_slot()
 	if slot < 0:
 		return
+	GameState.players[slot].display_name = GameState.sanitize_name(player_name)
 	var setup: PlayerSetup = GameState.players[slot]
 	setup.stats = Catalog.CARS[clampi(car_index, 0, Catalog.CARS.size() - 1)]
 	setup.color = Color.html(color_html)
@@ -457,12 +467,12 @@ func _on_connected_to_server() -> void:
 	connecting = false
 	GameState.mode = GameState.Mode.NET
 	session_changed.emit()
-	_register.rpc_id(HOST_PEER_ID)
+	_register.rpc_id(HOST_PEER_ID, Settings.get_player_name(0))
 
 
 ## Host: a client introduces itself and gets the first free slot.
 @rpc("any_peer", "call_remote", "reliable")
-func _register() -> void:
+func _register(player_name: String) -> void:
 	var peer_id: int = multiplayer.get_remote_sender_id()
 	if in_race:
 		_reject(peer_id, tr("Kisa on käynnissä, yritä hetken päästä uudelleen"))
@@ -476,6 +486,7 @@ func _register() -> void:
 			setup.peer_id = peer_id
 			setup.stats = Catalog.get_default_car()
 			setup.color = GameState.get_player_color(i)
+			setup.display_name = GameState.sanitize_name(player_name)
 			broadcast_lobby()
 			return
 	_reject(peer_id, tr("Peli on täynnä"))

@@ -5,6 +5,8 @@ extends RefCounted
 enum Pattern { STRIPE, PLAIN }
 
 var stats: CarStats
+## Name the player chose ("" = the default "Pelaaja N"). See GameState.get_player_name().
+var display_name: String = ""
 var color: Color = Color.WHITE
 var pattern: Pattern = Pattern.STRIPE
 ## Whether this player slot takes part in the next race.

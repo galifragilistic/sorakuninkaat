@@ -25,10 +25,13 @@ func _init() -> void:
 	custom_minimum_size = Vector2.ONE * (swatch_size + (ring_gap + ring_width) * 2.0)
 	focus_entered.connect(queue_redraw)
 	focus_exited.connect(queue_redraw)
-	mouse_entered.connect(grab_focus)
 
 
 func _gui_input(event: InputEvent) -> void:
+	# Hover focuses only on real mouse movement (see ChamferButton).
+	if event is InputEventMouseMotion and not has_focus():
+		grab_focus()
+		return
 	var mouse: InputEventMouseButton = event as InputEventMouseButton
 	var clicked: bool = mouse != null and mouse.pressed and mouse.button_index == MOUSE_BUTTON_LEFT
 	if clicked or event.is_action_pressed("ui_accept"):

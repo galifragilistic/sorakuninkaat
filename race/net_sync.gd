@@ -50,6 +50,8 @@ var _snapshots: Array = []
 var _clock_offset: float = 0.0
 var _has_clock: bool = false
 var _puppet_inputs: Array[PlayerInput] = []
+## True once anything has arrived from the host's race scene.
+var _host_heard: bool = false
 
 
 ## cars and slots are in the same order on every machine (grid order).
@@ -58,6 +60,7 @@ func setup(manager: RaceManager, cars: Array[Car], slots: Array[int]) -> void:
 	_cars = cars
 	_slots = slots
 	_is_host = Network.is_host()
+	Network.race_sync = self
 	if _is_host:
 		_setup_host()
 	else:
@@ -88,6 +91,10 @@ func _setup_host() -> void:
 	_manager.overtake.connect(func(a: RacerState, b: RacerState) -> void:
 		_send("_rx_overtake", [a.player_index, b.player_index]))
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
+	# Clients faster than this machine have already reported in.
+	for peer: int in Network.get_loaded_peers():
+		_on_peer_loaded(peer)
+	Network.race_loaded.connect(_on_peer_loaded)
 	_check_start()
 
 
@@ -141,8 +148,11 @@ func _build_snapshot() -> PackedFloat32Array:
 ## Sends an RPC to every client that has the race loaded. Reliability comes
 ## from the receiving method's @rpc annotation.
 func _send(method: StringName, args: Array) -> void:
+	# A client that just vanished stays listed until ENet notices; skip it.
+	var connected: PackedInt32Array = multiplayer.get_peers()
 	for peer: int in _ready_peers:
-		callv("rpc_id", [peer, method] + args)
+		if connected.has(peer):
+			callv("rpc_id", [peer, method] + args)
 
 
 func _send_damage(index: int) -> void:
@@ -170,21 +180,21 @@ func _drop_peer(peer_id: int) -> void:
 			remote_player_left.emit(_slots[i])
 
 
-@rpc("any_peer", "call_remote", "reliable")
-func _client_ready() -> void:
-	var peer: int = multiplayer.get_remote_sender_id()
-	if not _ready_peers.has(peer):
-		_ready_peers.append(peer)
+## A client has the race loaded (reported through Network, which exists even
+## while this machine is still loading). From now on it gets race updates.
+func _on_peer_loaded(peer: int) -> void:
+	if _ready_peers.has(peer):
+		return
+	_ready_peers.append(peer)
 	# A late joiner still needs the current state and damage.
 	callv("rpc_id", [peer, "_rx_state", _manager.state])
 	for i: int in _cars.size():
 		callv("rpc_id", [peer, "_rx_damage", i, _cars[i].damage.get_zones()])
 
 
-## A client went back to the lobby; the computer takes over its car.
-@rpc("any_peer", "call_remote", "reliable")
-func _client_left() -> void:
-	var peer: int = multiplayer.get_remote_sender_id()
+## Host: a client went back to the lobby; the computer takes over its car.
+## Called by Network, which receives the message.
+func receive_left(peer: int) -> void:
 	var slot: int = Network.get_slot_of_peer(peer)
 	if slot >= 0:
 		GameState.players[slot].is_ai = true
@@ -192,9 +202,9 @@ func _client_left() -> void:
 	_drop_peer(peer)
 
 
-@rpc("any_peer", "call_remote", "unreliable_ordered")
-func _rx_input(throttle: float, brake: float, steer: float, handbrake: bool, reset_held: bool) -> void:
-	var slot: int = Network.get_slot_of_peer(multiplayer.get_remote_sender_id())
+## Host: one tick of a client's driving input, passed on by Network.
+func receive_input(peer: int, throttle: float, brake: float, steer: float, handbrake: bool, reset_held: bool) -> void:
+	var slot: int = Network.get_slot_of_peer(peer)
 	if not _remote_inputs.has(slot):
 		return
 	var input: PlayerInput = _remote_inputs[slot]
@@ -213,20 +223,20 @@ func _setup_client() -> void:
 		var input: PlayerInput = PlayerInput.new()
 		_puppet_inputs.append(input)
 		car.make_puppet(input)
-	_client_ready.rpc_id(Network.HOST_PEER_ID)
+	Network.report_race_loaded()
 
 
 ## Client: leave the race while it goes on; the host hands the car to the computer.
 func leave_race() -> void:
 	if not _is_host and Network.is_online():
-		_client_left.rpc_id(Network.HOST_PEER_ID)
+		Network.send_left_race()
 
 
 func _client_tick() -> void:
-	if not Network.is_online():
+	# Until the host has spoken, its race scene may not exist yet to receive inputs.
+	if not Network.is_online() or not _host_heard:
 		return
-	var input: PlayerInput = InputManager.get_input(0)
-	_rx_input.rpc_id(Network.HOST_PEER_ID, input.throttle, input.brake, input.steer, input.handbrake, input.is_reset_held())
+	Network.send_race_input(InputManager.get_input(0))
 	_apply_snapshots()
 
 
@@ -271,6 +281,7 @@ func _quat(data: PackedFloat32Array, index: int) -> Quaternion:
 
 @rpc("authority", "call_remote", "unreliable_ordered")
 func _rx_snapshot(host_time: float, data: PackedFloat32Array) -> void:
+	_host_heard = true
 	var offset: float = host_time - _clock
 	_clock_offset = lerpf(_clock_offset, offset, clock_smoothing) if _has_clock else offset
 	_has_clock = true
@@ -286,6 +297,8 @@ func _rx_race_state(race_time: float, data: PackedFloat32Array) -> void:
 
 @rpc("authority", "call_remote", "reliable")
 func _rx_state(state: int) -> void:
+	# The host sends its state first thing after hearing we have loaded.
+	_host_heard = true
 	_manager.apply_remote_state(state as RaceManager.State)
 
 

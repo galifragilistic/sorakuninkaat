@@ -12,6 +12,8 @@ signal lobby_updated
 signal servers_changed
 ## Host only: a client left; its slot is now free (or computer driven in a race).
 signal peer_left(slot: int)
+## Host only: a client has the race scene loaded and can receive race updates.
+signal race_loaded(peer_id: int)
 
 enum Role { OFFLINE, HOST, CLIENT }
 ## Which lobby tab the session belongs to.
@@ -49,6 +51,12 @@ var last_error: String = ""
 ## Games heard on the LAN: "address:port" -> {address, port, name, players, racing, expires}.
 var servers: Dictionary = {}
 
+## The running race's NetSync on this machine, or null (set by NetSync itself).
+var race_sync: NetSync
+
+## Host: clients that have loaded the current race. Kept here rather than in
+## the race scene, because a client can finish loading before the host does.
+var _loaded_peers: Array[int] = []
 var _announcer: PacketPeerUDP
 var _listener: PacketPeerUDP
 var _announce_timer: float = 0.0
@@ -362,8 +370,55 @@ func start_race() -> void:
 	if role != Role.HOST:
 		return
 	in_race = true
+	_loaded_peers.clear()
 	_begin_race.rpc(serialize_lobby())
 	GameState.start_race()
+
+
+## Host: clients that have reported the current race as loaded.
+func get_loaded_peers() -> Array[int]:
+	return _loaded_peers
+
+
+## Client: tells the host this machine has the race loaded.
+func report_race_loaded() -> void:
+	if role == Role.CLIENT:
+		_race_loaded.rpc_id(HOST_PEER_ID)
+
+
+## Client: this tick's driving input for the host's race. Goes through this
+## autoload so a packet still in flight when the host leaves the race lands
+## somewhere instead of on a missing node.
+func send_race_input(input: PlayerInput) -> void:
+	if role == Role.CLIENT and not connecting:
+		_race_input.rpc_id(HOST_PEER_ID, input.throttle, input.brake, input.steer, input.handbrake, input.is_reset_held())
+
+
+## Client: leaving the race for the lobby while it goes on.
+func send_left_race() -> void:
+	if role == Role.CLIENT and not connecting:
+		_left_race.rpc_id(HOST_PEER_ID)
+
+
+@rpc("any_peer", "call_remote", "unreliable_ordered")
+func _race_input(throttle: float, brake: float, steer: float, handbrake: bool, reset_held: bool) -> void:
+	if race_sync != null and is_instance_valid(race_sync):
+		race_sync.receive_input(multiplayer.get_remote_sender_id(), throttle, brake, steer, handbrake, reset_held)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _left_race() -> void:
+	if race_sync != null and is_instance_valid(race_sync):
+		race_sync.receive_left(multiplayer.get_remote_sender_id())
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _race_loaded() -> void:
+	var peer_id: int = multiplayer.get_remote_sender_id()
+	if role != Role.HOST or not in_race or _loaded_peers.has(peer_id):
+		return
+	_loaded_peers.append(peer_id)
+	race_loaded.emit(peer_id)
 
 
 ## Host: everyone back to the lobby, ready flags cleared.

@@ -68,6 +68,12 @@ const DEFAULT_ROAD_WIDTH: float = 10.0
 const SPAN_RANGE: Vector2 = Vector2(20.0, 90.0)
 const SPAN_STEP: float = 5.0
 const DEFAULT_SPAN: float = 40.0
+## Raised or lowered road lifts or sinks the land around it: one hill every
+## HILL_SPACING metres along the road, reaching HILL_RADIUS_BASE plus
+## HILL_RADIUS_PER_METRE for each metre of height past the road edge.
+const HILL_SPACING: float = 8.0
+const HILL_RADIUS_BASE: float = 12.0
+const HILL_RADIUS_PER_METRE: float = 3.0
 ## Ground reaches this far past the edge of the map area.
 const GROUND_BORDER: float = 35.0
 ## Bridges and tunnels keep this far from the start line (metres).
@@ -365,7 +371,8 @@ func build_track() -> Track:
 	var busy: Array[Vector2] = []
 	var jumps: PackedFloat32Array = PackedFloat32Array()
 	# Track bridge entries are (point index, start, end) relative to that point.
-	for span: Vector2 in get_bridge_ranges(curve, offsets):
+	var bridge_ranges: Array[Vector2] = get_bridge_ranges(curve, offsets)
+	for span: Vector2 in bridge_ranges:
 		var base: int = 0
 		for i: int in points.size():
 			if offsets[i] <= span.x:
@@ -386,6 +393,7 @@ func build_track() -> Track:
 				busy.append(Vector2(fraction - JUMP_CLEARANCE, fraction + JUMP_CLEARANCE))
 	track.bridges = bridges
 	track.tunnels = tunnels
+	track.road_hills = _make_road_hills(curve, bridge_ranges)
 	# One road section per run of stretches with the same surface.
 	var sections: Array[SurfaceData] = []
 	var starts: PackedFloat32Array = PackedFloat32Array()
@@ -493,6 +501,30 @@ static func from_dict(data: Dictionary) -> TrackDesign:
 				var kind: int = clampi(int(values[0]), 0, Prop.size() - 1)
 				design.add_prop(kind as Prop, float(values[1]), float(values[2]), float(values[3]))
 	return design
+
+
+## Land follows the road: wherever the road is raised or lowered (and not on
+## a bridge), a wide hill or hollow of the same height is placed under it.
+## Bigger height differences spread further so the slopes stay gentle.
+func _make_road_hills(curve: Curve3D, bridge_ranges: Array[Vector2]) -> PackedVector4Array:
+	var hills: PackedVector4Array = PackedVector4Array()
+	var length: float = curve.get_baked_length()
+	var count: int = maxi(1, ceili(length / HILL_SPACING))
+	for i: int in count:
+		var offset: float = length * float(i) / float(count)
+		var on_bridge: bool = false
+		for span: Vector2 in bridge_ranges:
+			if offset >= span.x and offset <= span.y:
+				on_bridge = true
+				break
+		if on_bridge:
+			continue
+		var sample: Vector3 = curve.sample_baked(offset)
+		if absf(sample.y) < HEIGHT_STEP:
+			continue
+		var radius: float = road_width * 0.5 + HILL_RADIUS_BASE + absf(sample.y) * HILL_RADIUS_PER_METRE
+		hills.append(Vector4(sample.x, sample.z, radius, sample.y))
+	return hills
 
 
 func _is_busy(fraction: float, busy: Array[Vector2]) -> bool:

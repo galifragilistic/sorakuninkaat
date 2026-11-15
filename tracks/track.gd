@@ -45,6 +45,11 @@ const CHECKER_SHADER: Shader = preload("res://tracks/shaders/checker.gdshader")
 ## Hills and hollows: x, z = centre, z of the vector = radius, w = height
 ## (negative for a hollow).
 @export var terrain_features: PackedVector4Array = PackedVector4Array()
+## Like terrain_features (x, z, radius, height), but overlapping ones take
+## the highest rise and the deepest dip instead of adding up. Tracks made in
+## the editor use these to lift the land under raised road and sink it under
+## lowered road.
+@export var road_hills: PackedVector4Array = PackedVector4Array()
 ## Gentle random rolling on top of the features (m).
 @export var terrain_noise_height: float = 1.2
 @export var terrain_height_frequency: float = 0.012
@@ -374,6 +379,17 @@ func _natural_height(x: float, z: float, noise: FastNoiseLite) -> float:
 		var distance: float = Vector2(x - feature.x, z - feature.y).length()
 		if distance < feature.z:
 			height += feature.w * smoothstep(feature.z, 0.0, distance)
+	# Overlapping road hills do not stack: the highest hill and the deepest
+	# hollow win, so a raised stretch of road becomes one even ridge.
+	var rise: float = 0.0
+	var dip: float = 0.0
+	for hill: Vector4 in road_hills:
+		var distance: float = Vector2(x - hill.x, z - hill.y).length()
+		if distance < hill.z:
+			var shaped: float = hill.w * smoothstep(hill.z, 0.0, distance)
+			rise = maxf(rise, shaped)
+			dip = minf(dip, shaped)
+	height += rise + dip
 	var half: Vector2 = ground_size * 0.5
 	var to_edge: float = minf(half.x - absf(x), half.y - absf(z))
 	return height * smoothstep(0.0, terrain_edge_falloff, to_edge)

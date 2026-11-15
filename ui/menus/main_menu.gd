@@ -11,7 +11,8 @@ extends MenuScreen
 @export var logo_font_size: int = 62
 @export var menu_position: Vector2 = Vector2(64.0, 236.0)
 @export var item_width: float = 340.0
-@export var item_height: float = 50.0
+@export var item_height: float = 46.0
+@export var item_gap: int = 6
 ## Size of the item that has focus.
 @export var focused_item_size: Vector2 = Vector2(372.0, 76.0)
 @export var controllers_box_width: float = 400.0
@@ -33,13 +34,14 @@ func _draw() -> void:
 func _build() -> void:
 	resized.connect(queue_redraw)
 	_build_logo()
-	var column: VBoxContainer = MenuKit.make_vbox(10)
+	var column: VBoxContainer = MenuKit.make_vbox(item_gap)
 	column.position = menu_position
 	add_child(column)
 	_first_item = _add_item(column, tr("YKSINPELI"), tr("Aja kisa yksin kelloa vastaan"), _on_single_player)
 	_add_item(column, tr("MONINPELI"), tr("Jaettu ruutu tai verkko · 1–4 pelaajaa"), go_to.bind(LOBBY))
 	_add_item(column, tr("AUTOTALLI"), tr("Autot, värit ja kuviot"), go_to.bind(CAR_SELECT, {"player": 0}))
 	_add_item(column, tr("RADAT"), tr("Selaa ja valitse rata"), go_to.bind(TRACK_SELECT))
+	_add_item(column, tr("RATAEDITORI"), tr("Piirrä oma rata"), go_to.bind(TRACK_EDITOR))
 	_add_item(column, tr("ASETUKSET"), tr("Grafiikka ja pelisäännöt"), go_to.bind(SETTINGS))
 	_add_item(column, tr("LOPETA"), tr("Sulje peli"), _on_quit)
 	_build_controllers_box()

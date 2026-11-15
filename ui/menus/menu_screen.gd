@@ -14,6 +14,7 @@ const LOBBY: StringName = &"lobby"
 const CAR_SELECT: StringName = &"car_select"
 const TRACK_SELECT: StringName = &"track_select"
 const SETTINGS: StringName = &"settings"
+const TRACK_EDITOR: StringName = &"track_editor"
 
 ## Values passed by the screen that opened this one.
 var context: Dictionary = {}

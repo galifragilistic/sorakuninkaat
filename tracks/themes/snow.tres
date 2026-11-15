@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="TrackTheme" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://tracks/track_theme.gd" id="1"]
+[ext_resource type="Resource" path="res://tracks/surfaces/snow.tres" id="2"]
+[ext_resource type="Resource" path="res://tracks/surfaces/snow_ground.tres" id="3"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Lumi"
+surface_label = "LUMI"
+road_surface = ExtResource("2")
+ground_surface = ExtResource("3")
+terrain_noise_height = 1.2
+tree_count = 150
+tree_color = Color(0.34, 0.5, 0.42, 1)
+tree_top_color = Color(0.88, 0.93, 0.97, 1)

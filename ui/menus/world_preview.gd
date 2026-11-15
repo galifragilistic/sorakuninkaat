@@ -67,7 +67,7 @@ func show_track(track: TrackInfo) -> void:
 	_viewport.add_child(world_environment)
 	var sun: DirectionalLight3D = DirectionalLight3D.new()
 	_viewport.add_child(sun)
-	_track = track.scene.instantiate() as Track
+	_track = track.instantiate_track()
 	_viewport.add_child(_track)
 	var controller: EnvironmentController = EnvironmentController.new()
 	controller.preset = env_preset

@@ -60,6 +60,8 @@ var _loaded_peers: Array[int] = []
 var _announcer: PacketPeerUDP
 var _listener: PacketPeerUDP
 var _announce_timer: float = 0.0
+## Client: the custom track design last received from the host, as JSON.
+var _received_design: String = ""
 
 
 func _ready() -> void:
@@ -255,10 +257,14 @@ func serialize_lobby() -> Dictionary:
 			"car": Catalog.CARS.find(setup.stats), "color": setup.color.to_html(), "pattern": setup.pattern,
 			"name": setup.display_name,
 		})
-	return {
+	var state: Dictionary = {
 		"slots": slots, "track": Catalog.TRACKS.find(GameState.selected_track), "laps": GameState.lap_count,
 		"weather": GameState.weather, "time": GameState.time_of_day, "damage": Settings.damage_enabled,
 	}
+	# A track made in the track editor travels as its design.
+	if GameState.selected_track != null and GameState.selected_track.is_custom():
+		state["design"] = GameState.selected_track.design.to_dict()
+	return state
 
 
 func _apply_lobby(state: Dictionary) -> void:
@@ -277,12 +283,30 @@ func _apply_lobby(state: Dictionary) -> void:
 		setup.display_name = GameState.sanitize_name(str(data.get("name", "")))
 		if setup.joined and setup.peer_id == multiplayer.get_unique_id():
 			local_slot = i
-	GameState.selected_track = Catalog.TRACKS[clampi(state["track"], 0, Catalog.TRACKS.size() - 1)]
+	_apply_lobby_track(state)
 	GameState.lap_count = state["laps"]
 	GameState.weather = state["weather"]
 	GameState.time_of_day = state["time"]
 	remote_damage = state["damage"]
 	lobby_updated.emit()
+
+
+func _apply_lobby_track(state: Dictionary) -> void:
+	var design_data: Variant = state.get("design")
+	if not design_data is Dictionary:
+		_received_design = ""
+		GameState.selected_track = Catalog.TRACKS[clampi(state["track"], 0, Catalog.TRACKS.size() - 1)]
+		return
+	# The lobby is sent often; only rebuild the track when the design changed.
+	var key: String = JSON.stringify(design_data)
+	if key == _received_design and GameState.selected_track != null and GameState.selected_track.is_custom():
+		return
+	var design: TrackDesign = TrackDesign.from_dict(design_data)
+	if design == null:
+		GameState.selected_track = Catalog.get_default_track()
+		return
+	_received_design = key
+	GameState.selected_track = design.make_info()
 
 
 ## Host: sends the current lobby to every client.

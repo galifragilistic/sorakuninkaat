@@ -6,13 +6,16 @@ extends MenuScreen
 @export_group("Layout")
 @export var filters_position: Vector2 = Vector2(56.0, 110.0)
 @export var grid_position: Vector2 = Vector2(56.0, 172.0)
+## Visible part of the scrolling card grid.
+@export var grid_view_size: Vector2 = Vector2(740.0, 470.0)
 @export var card_size: Vector2 = Vector2(232.0, 206.0)
 @export var card_gap: int = 14
 @export var panel_position: Vector2 = Vector2(826.0, 110.0)
 @export var panel_width: float = 398.0
 @export var preview_height: float = 196.0
 
-## Filter label -> surface kinds it shows (empty = everything).
+## Filter label -> surface kinds it shows (empty = everything), and
+## optionally true to show only tracks made in the track editor.
 var _filters: Array = []
 var _filter_buttons: Array[ChamferButton] = []
 var _cards: Array[ChamferButton] = []
@@ -34,6 +37,7 @@ func _build() -> void:
 		[tr("Asfaltti"), [SurfaceData.Kind.ASPHALT]],
 		[tr("Lumi"), [SurfaceData.Kind.SNOW]],
 		[tr("Jää"), [SurfaceData.Kind.ICE]],
+		[tr("Omat"), [], true],
 	]
 	MenuKit.add_header(self, tr("VALITSE RATA"))
 	_build_filters()
@@ -74,9 +78,19 @@ func _build_grid() -> void:
 	grid.columns = 3
 	grid.add_theme_constant_override("h_separation", card_gap)
 	grid.add_theme_constant_override("v_separation", card_gap)
-	grid.position = grid_position
-	add_child(grid)
-	for track: TrackInfo in Catalog.TRACKS:
+	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	# Tracks made in the editor can fill more rows than fit on screen.
+	var scroll: ScrollContainer = ScrollContainer.new()
+	scroll.position = grid_position
+	scroll.custom_minimum_size = grid_view_size
+	scroll.size = grid_view_size
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.follow_focus = true
+	add_child(scroll)
+	scroll.add_child(grid)
+	var tracks: Array[TrackInfo] = Catalog.TRACKS.duplicate()
+	tracks.append_array(CustomTracks.get_tracks())
+	for track: TrackInfo in tracks:
 		var card: ChamferButton = ChamferButton.new()
 		card.outline_focus = true
 		card.chamfer = 14.0
@@ -217,10 +231,15 @@ func _get_surface_color(kind: SurfaceData.Kind) -> Color:
 
 func _apply_filter(filter_index: int) -> void:
 	var kinds: Array = _filters[filter_index][1]
+	var custom_only: bool = _filters[filter_index].size() > 2 and _filters[filter_index][2]
 	for i: int in _filter_buttons.size():
 		_filter_buttons[i].selected = i == filter_index
 	for i: int in _cards.size():
-		_cards[i].visible = kinds.is_empty() or kinds.has(_card_tracks[i].surface)
+		var track: TrackInfo = _card_tracks[i]
+		if custom_only:
+			_cards[i].visible = track.is_custom()
+		else:
+			_cards[i].visible = kinds.is_empty() or kinds.has(track.surface)
 
 
 func _show_track(track: TrackInfo) -> void:

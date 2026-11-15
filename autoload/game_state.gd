@@ -32,6 +32,8 @@ var split_layout: SplitLayout = SplitLayout.VERTICAL
 var menu_start_screen: StringName = &""
 ## Context handed to that screen.
 var menu_start_context: Dictionary = {}
+## A test drive from the track editor: leaving the race goes back to the editor.
+var test_drive: bool = false
 ## Computer opponents in a single player race (0..MAX_PLAYERS - 1).
 var ai_opponents: int = 3
 ## Indices into Catalog.WEATHERS and Catalog.TIME_PRESETS.

@@ -9,6 +9,7 @@ const SCREENS: Dictionary = {
 	MenuScreen.CAR_SELECT: preload("res://ui/menus/car_select.tscn"),
 	MenuScreen.TRACK_SELECT: preload("res://ui/menus/track_select.tscn"),
 	MenuScreen.SETTINGS: preload("res://ui/menus/settings_screen.tscn"),
+	MenuScreen.TRACK_EDITOR: preload("res://ui/editor/track_editor.tscn"),
 }
 
 ## Sideways shift of the backdrop so the road stays clear of the main menu column (m).

@@ -31,7 +31,7 @@ func _rebuild() -> void:
 	_points.clear()
 	if track != null and track.is_available():
 		# Only the exported layout is needed, so the scene never enters the tree.
-		var instance: Track = track.scene.instantiate() as Track
+		var instance: Track = track.instantiate_track()
 		var curve: Curve3D = Track.make_curve(instance.control_points, instance.tangent_scale, sample_spacing * 0.25)
 		instance.free()
 		var length: float = curve.get_baked_length()

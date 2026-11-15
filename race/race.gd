@@ -29,7 +29,7 @@ var _is_server: bool = true
 func _ready() -> void:
 	_is_net = GameState.mode == GameState.Mode.NET and Network.is_online()
 	_is_server = not _is_net or Network.is_host()
-	_track = GameState.selected_track.scene.instantiate() as Track
+	_track = GameState.selected_track.instantiate_track()
 	_track.name = "Track"
 	add_child(_track)
 
@@ -231,11 +231,17 @@ func _leave_race() -> void:
 			_net_sync.leave_race()
 			Network.go_to_lobby()
 		return
+	if GameState.test_drive:
+		GameState.go_to_menu(MenuScreen.TRACK_EDITOR)
+		return
 	var is_multi: bool = GameState.mode == GameState.Mode.MULTI
 	GameState.go_to_menu(MenuScreen.LOBBY if is_multi else MenuScreen.MAIN)
 
 
 func _change_track() -> void:
+	if GameState.test_drive:
+		GameState.go_to_menu(MenuScreen.TRACK_EDITOR)
+		return
 	var is_multi: bool = GameState.mode == GameState.Mode.MULTI
 	GameState.go_to_menu(MenuScreen.TRACK_SELECT, {
 		"start_race": true, "return_to": MenuScreen.LOBBY if is_multi else MenuScreen.MAIN,

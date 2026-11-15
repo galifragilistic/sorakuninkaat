@@ -1,14 +1,17 @@
 class_name UiGlyph
 extends Control
-## Small vector icons drawn in code: button prompts (a letter in a ring or
-## pill), chevrons, a plus and a padlock.
+## Small vector icons drawn in code: gamepad prompts (a letter in a ring or
+## pill), keyboard keys (a keycap), chevrons, a plus and a padlock.
 
-enum Kind { BUTTON, CHEVRON_LEFT, CHEVRON_RIGHT, PLUS, LOCK }
+enum Kind { BUTTON, CHEVRON_LEFT, CHEVRON_RIGHT, PLUS, LOCK, KEY }
+
+## Corner radius of a keycap as a share of its height.
+const KEY_CORNER: float = 0.22
 
 @export var kind: Kind = Kind.BUTTON:
 	set(value):
 		kind = value
-		queue_redraw()
+		_update_size()
 ## Letter(s) inside a BUTTON glyph, e.g. "A" or "LB RB".
 @export var text: String = "":
 	set(value):
@@ -42,7 +45,10 @@ func _init() -> void:
 
 func _update_size() -> void:
 	var width: float = glyph_size
-	if kind == Kind.BUTTON and text.length() > 1:
+	if kind == Kind.KEY:
+		var key_text_width: float = UiStyle.FONT_BOLD.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+		width = maxf(glyph_size, key_text_width + glyph_size * 0.6)
+	elif kind == Kind.BUTTON and text.length() > 1:
 		# Wide pill for prompts like "LB RB" or "START".
 		var text_width: float = UiStyle.FONT_BOLD.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
 		width = text_width + glyph_size * 0.8
@@ -56,6 +62,8 @@ func _draw() -> void:
 	match kind:
 		Kind.BUTTON:
 			_draw_button(center, unit)
+		Kind.KEY:
+			_draw_key()
 		Kind.CHEVRON_LEFT, Kind.CHEVRON_RIGHT:
 			var direction: float = -1.0 if kind == Kind.CHEVRON_LEFT else 1.0
 			var reach: Vector2 = Vector2(unit * 0.16 * direction, unit * 0.26)
@@ -72,6 +80,24 @@ func _draw() -> void:
 			var body: Rect2 = Rect2(center + Vector2(-unit * 0.25, -unit * 0.05), Vector2(unit * 0.5, unit * 0.4))
 			draw_rect(body, color, false, line_width)
 			draw_arc(body.position + Vector2(body.size.x * 0.5, 0.0), unit * 0.16, PI, TAU, 12, color, line_width, true)
+
+
+## Keycap: rounded rectangle with a thicker bottom edge.
+func _draw_key() -> void:
+	var inset: float = line_width * 0.5
+	var rect: Rect2 = Rect2(Vector2.ONE * inset, size - Vector2.ONE * line_width)
+	var radius: float = rect.size.y * KEY_CORNER
+	var box: StyleBoxFlat = StyleBoxFlat.new()
+	box.draw_center = false
+	box.border_color = color
+	box.set_border_width_all(roundi(line_width))
+	box.border_width_bottom = roundi(line_width * 2.0)
+	box.set_corner_radius_all(roundi(radius))
+	box.anti_aliasing = true
+	draw_style_box(box, rect)
+	var font: Font = UiStyle.FONT_BOLD
+	var baseline: float = size.y * 0.5 + (font.get_ascent(font_size) - font.get_descent(font_size)) * 0.5 - line_width * 0.5
+	draw_string(font, Vector2(0.0, baseline), text, HORIZONTAL_ALIGNMENT_CENTER, size.x, font_size, color)
 
 
 func _draw_button(center: Vector2, unit: float) -> void:

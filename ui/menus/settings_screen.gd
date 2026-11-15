@@ -40,8 +40,8 @@ func _build() -> void:
 	controls_column.add_child(grid)
 	var rows: Array = [
 		["", tr("P1"), tr("P2"), tr("Ohjain")],
-		[tr("Kaasu / jarru"), "W / S", "↑ / ↓", "RT / LT"],
-		[tr("Ohjaus"), "A / D", "← / →", tr("Vasen tikku")],
+		[tr("Kaasu / jarru"), "W / S", "▲ / ▼", "RT / LT"],
+		[tr("Ohjaus"), "A / D", "◀ / ▶", tr("Vasen tikku")],
 		[tr("Käsijarru"), tr("Välilyönti"), "Shift", "X"],
 		[tr("Pyörilleen"), "R", "Enter", "Back"],
 		[tr("Tauko"), "Esc", "Esc", "Start"],
@@ -60,7 +60,7 @@ func _build() -> void:
 		tr("Yksin ajaessa käyvät näppäimistö ja ohjain. Kaksinpelissä ohjain on pelaaja 2."),
 		UiStyle.FONT_MEDIUM, 14, UiStyle.TEXT_SECONDARY
 	))
-	MenuKit.add_hints(self, [["◀ ▶", tr("Muuta")], ["B", tr("Takaisin")]])
+	MenuKit.add_hints(self, [[InputPrompts.Prompt.LEFT_RIGHT, tr("Muuta")], [InputPrompts.Prompt.BACK, tr("Takaisin")]])
 
 
 func _get_initial_focus() -> Control:

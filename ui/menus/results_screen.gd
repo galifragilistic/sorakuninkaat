@@ -49,7 +49,7 @@ func setup(manager: RaceManager, track: TrackInfo) -> void:
 	_build_podium(standings)
 	_build_table(standings)
 	_build_buttons()
-	MenuKit.add_hints(self, [["A", tr("Valitse")]])
+	MenuKit.add_hints(self, [[InputPrompts.Prompt.ACCEPT, tr("Valitse")]])
 	_first_button.grab_focus.call_deferred()
 
 

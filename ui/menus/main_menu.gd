@@ -43,7 +43,7 @@ func _build() -> void:
 	_add_item(column, tr("ASETUKSET"), tr("Grafiikka ja pelisäännöt"), go_to.bind(SETTINGS))
 	_add_item(column, tr("LOPETA"), tr("Sulje peli"), _on_quit)
 	_build_controllers_box()
-	MenuKit.add_hints(self, [["A", tr("Valitse")]])
+	MenuKit.add_hints(self, [[InputPrompts.Prompt.ACCEPT, tr("Valitse")]])
 
 
 func _enter() -> void:

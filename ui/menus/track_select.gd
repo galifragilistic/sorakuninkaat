@@ -39,7 +39,7 @@ func _build() -> void:
 	_build_filters()
 	_build_grid()
 	_build_panel()
-	MenuKit.add_hints(self, [["A", tr("Valitse")], ["B", tr("Takaisin")]])
+	MenuKit.add_hints(self, [[InputPrompts.Prompt.ACCEPT, tr("Valitse")], [InputPrompts.Prompt.BACK, tr("Takaisin")]])
 
 
 func _enter() -> void:

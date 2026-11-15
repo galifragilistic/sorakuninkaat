@@ -74,8 +74,9 @@ func _build() -> void:
 	_build_settings()
 	_build_net_panel()
 	MenuKit.add_hints(self, [
-		["A", tr("Liity / valmis")], ["X", tr("Auto / tekoäly")], ["LB RB", tr("Välilehti")],
-		["START", tr("Aloita")], ["B", tr("Takaisin")],
+		[InputPrompts.Prompt.ACCEPT, tr("Liity / valmis")], [InputPrompts.Prompt.SECONDARY, tr("Auto / tekoäly")],
+		[InputPrompts.Prompt.TABS, tr("Välilehti")], [InputPrompts.Prompt.START, tr("Aloita")],
+		[InputPrompts.Prompt.BACK, tr("Takaisin")],
 	])
 
 
@@ -84,6 +85,8 @@ func _enter() -> void:
 	Network.lobby_updated.connect(_refresh)
 	Network.servers_changed.connect(_rebuild_server_list)
 	InputManager.device_changed.connect(_on_device_changed)
+	# Texts on the cards name buttons, so they follow the device in use.
+	InputManager.prompt_style_changed.connect(_refresh.unbind(1))
 	if Network.role != Network.Role.OFFLINE:
 		_tab = (int(Network.kind) + 1) as Tab
 	else:
@@ -184,8 +187,9 @@ func _select_tab(tab: Tab) -> void:
 		return
 	if Network.role != Network.Role.OFFLINE:
 		# A network game keeps its tab until it is left.
-		_net_status_label.text = tr("Poistu ensin pelistä (B)")
-		_status_label.text = tr("Poistu ensin pelistä (B)")
+		var message: String = tr("Poistu ensin pelistä (%s)") % InputPrompts.get_button_name(InputPrompts.Prompt.BACK)
+		_net_status_label.text = message
+		_status_label.text = message
 		_status_label.add_theme_color_override("font_color", UiStyle.WARNING)
 		return
 	_tab = tab
@@ -581,7 +585,7 @@ func _refresh_session_label() -> void:
 		var address: String = addresses[0] if not addresses.is_empty() else "127.0.0.1"
 		_session_label.text = tr("Isäntä · %s : %d") % [address, Network.DEFAULT_PORT]
 	else:
-		_session_label.text = tr("Yhdistetty isäntään · B poistuu")
+		_session_label.text = tr("Yhdistetty isäntään · %s poistuu") % InputPrompts.get_button_name(InputPrompts.Prompt.BACK)
 
 
 func _refresh_net_panel() -> void:
@@ -613,11 +617,16 @@ func _refresh_cards() -> void:
 		_joined_views[i].visible = setup.joined
 		_empty_views[i].visible = not setup.joined
 		if not setup.joined:
-			_empty_titles[i].text = (tr("P%d · Vapaa paikka") if online else tr("P%d · Paina A liittyäksesi")) % (i + 1)
+			var accept: String = InputPrompts.get_button_name(InputPrompts.Prompt.ACCEPT)
+			var secondary: String = InputPrompts.get_button_name(InputPrompts.Prompt.SECONDARY)
+			if online:
+				_empty_titles[i].text = tr("P%d · Vapaa paikka") % (i + 1)
+			else:
+				_empty_titles[i].text = tr("P%d · Paina %s liittyäksesi") % [i + 1, accept]
 			if not online:
-				_empty_notes[i].text = tr("tai lisää tekoälykuski painamalla X")
+				_empty_notes[i].text = tr("tai lisää tekoälykuski painamalla %s") % secondary
 			elif Network.is_host():
-				_empty_notes[i].text = tr("Odotetaan pelaajaa · X lisää tekoälykuskin")
+				_empty_notes[i].text = tr("Odotetaan pelaajaa · %s lisää tekoälykuskin") % secondary
 			else:
 				_empty_notes[i].text = tr("Odotetaan pelaajaa")
 			continue

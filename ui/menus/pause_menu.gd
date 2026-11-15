@@ -57,7 +57,7 @@ func _ready() -> void:
 	_settings_view.add_child(_settings)
 	_add_button(_settings_view, tr("TAKAISIN")).pressed.connect(_show_settings.bind(false))
 
-	MenuKit.add_hints(self, [["A", tr("Valitse")], ["B", tr("Jatka")]])
+	MenuKit.add_hints(self, [[InputPrompts.Prompt.ACCEPT, tr("Valitse")], [InputPrompts.Prompt.BACK, tr("Jatka")]])
 	_first_button.grab_focus.call_deferred()
 
 

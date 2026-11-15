@@ -36,7 +36,10 @@ func _build() -> void:
 	_build_preview()
 	_build_stats_panel()
 	_build_confirm()
-	MenuKit.add_hints(self, [["▲ ▼", tr("Vaihda autoa")], ["A", tr("Vahvista")], ["B", tr("Takaisin")]])
+	MenuKit.add_hints(self, [
+		[InputPrompts.Prompt.UP_DOWN, tr("Vaihda autoa")], [InputPrompts.Prompt.ACCEPT, tr("Vahvista")],
+		[InputPrompts.Prompt.BACK, tr("Takaisin")],
+	])
 
 
 func _enter() -> void:

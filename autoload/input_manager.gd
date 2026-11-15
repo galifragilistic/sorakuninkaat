@@ -6,6 +6,11 @@ extends Node
 ## arrow-key player slot.
 
 signal device_changed(player_index: int)
+## The kind of device last used changed; button prompts follow it.
+signal prompt_style_changed(style: PromptStyle)
+
+## Which button prompts the menus show.
+enum PromptStyle { KEYBOARD, GAMEPAD }
 
 enum Device { NONE, KEYBOARD_WASD, KEYBOARD_ARROWS, JOYPAD }
 
@@ -36,6 +41,10 @@ const FIRST_JOYPAD_SLOT: int = 1
 const JOY_HANDBRAKE_BUTTON: JoyButton = JOY_BUTTON_X
 const JOY_RESET_BUTTON: JoyButton = JOY_BUTTON_BACK
 const JOY_STEER_DEADZONE: float = 0.15
+## A stick has to move this far before prompts switch to the gamepad.
+const PROMPT_STICK_THRESHOLD: float = 0.5
+## Mouse movement (pixels per event) that switches prompts back to the keyboard.
+const PROMPT_MOUSE_THRESHOLD: float = 4.0
 
 ## Extra menu and race actions on top of Godot's built-in ui_* actions.
 const ACTION_SECONDARY: StringName = &"menu_secondary"
@@ -52,6 +61,8 @@ const ALL_DEVICES: int = -1
 var solo_mode: bool = false
 ## Lets unassigned gamepads claim a player slot with the A button.
 var join_enabled: bool = false
+## Keyboard and mouse until a gamepad is used.
+var prompt_style: PromptStyle = PromptStyle.KEYBOARD
 
 var _devices: Array[Device] = []
 var _joy_ids: Array[int] = []
@@ -137,6 +148,7 @@ func get_input(player_index: int) -> PlayerInput:
 
 
 func _input(event: InputEvent) -> void:
+	_update_prompt_style(event)
 	if not join_enabled:
 		return
 	var button: InputEventJoypadButton = event as InputEventJoypadButton
@@ -144,6 +156,23 @@ func _input(event: InputEvent) -> void:
 		if _join_joypad(button.device):
 			# The press joined the game; it should not also click a menu button.
 			get_viewport().set_input_as_handled()
+
+
+func _update_prompt_style(event: InputEvent) -> void:
+	var style: PromptStyle = prompt_style
+	if event is InputEventJoypadButton and event.is_pressed():
+		style = PromptStyle.GAMEPAD
+	elif event is InputEventJoypadMotion and absf((event as InputEventJoypadMotion).axis_value) > PROMPT_STICK_THRESHOLD:
+		style = PromptStyle.GAMEPAD
+	elif event is InputEventKey and event.is_pressed():
+		style = PromptStyle.KEYBOARD
+	elif event is InputEventMouseButton and event.is_pressed():
+		style = PromptStyle.KEYBOARD
+	elif event is InputEventMouseMotion and (event as InputEventMouseMotion).relative.length() > PROMPT_MOUSE_THRESHOLD:
+		style = PromptStyle.KEYBOARD
+	if style != prompt_style:
+		prompt_style = style
+		prompt_style_changed.emit(style)
 
 
 ## Gives an unassigned gamepad to the first slot that has no device or uses

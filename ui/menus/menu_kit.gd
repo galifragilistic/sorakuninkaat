@@ -11,7 +11,8 @@ const HINT_FONT_SIZE: int = 15
 const BLUR_SHADER: Shader = preload("res://ui/shaders/backdrop_blur.gdshader")
 
 
-## "(B) Takaisin   TITLE" row at the top-left of a screen.
+## "(B) Takaisin   TITLE" row at the top-left of a screen. The prompt follows
+## the device in use (Esc on the keyboard).
 static func add_header(screen: Control, title: String, with_back_hint: bool = true) -> HBoxContainer:
 	var row: HBoxContainer = HBoxContainer.new()
 	row.add_theme_constant_override("separation", 28)
@@ -19,12 +20,12 @@ static func add_header(screen: Control, title: String, with_back_hint: bool = tr
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	screen.add_child(row)
 	if with_back_hint:
-		row.add_child(make_hint("B", screen.tr("Takaisin")))
+		row.add_child(make_hint(InputPrompts.Prompt.BACK, screen.tr("Takaisin")))
 	row.add_child(UiStyle.make_label(title, UiStyle.title_font(), TITLE_FONT_SIZE))
 	return row
 
 
-## Row of button prompts along the bottom edge. hints = [[glyph, text], ...].
+## Row of button prompts along the bottom edge. hints = [[InputPrompts.Prompt, text], ...].
 static func add_hints(screen: Control, hints: Array) -> HBoxContainer:
 	var row: HBoxContainer = HBoxContainer.new()
 	row.add_theme_constant_override("separation", 30)
@@ -40,13 +41,8 @@ static func add_hints(screen: Control, hints: Array) -> HBoxContainer:
 	return row
 
 
-static func make_hint(glyph_text: String, text: String) -> HBoxContainer:
-	var hint: HBoxContainer = HBoxContainer.new()
-	hint.add_theme_constant_override("separation", 9)
-	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	hint.add_child(UiGlyph.create(UiGlyph.Kind.BUTTON, glyph_text))
-	hint.add_child(UiStyle.make_label(text, UiStyle.FONT_MEDIUM, HINT_FONT_SIZE, UiStyle.TEXT_SECONDARY))
-	return hint
+static func make_hint(prompt: InputPrompts.Prompt, text: String) -> PromptHint:
+	return PromptHint.create(prompt, text, HINT_FONT_SIZE)
 
 
 ## Small filled tag such as "P1", "VALMIS" or "SORA".

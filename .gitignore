@@ -1,7 +1,9 @@
 # Godot 4
 .godot/
 *.translation
-export_presets.cfg
+
+# Exported builds (export_presets.cfg itself is shared: it holds no credentials)
+build/
 
 # OS
 Thumbs.db

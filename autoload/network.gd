@@ -172,6 +172,7 @@ func _reset_slots() -> void:
 		setup.is_ai = false
 		setup.is_ready = false
 		setup.peer_id = 0
+		setup.stand_in = false
 		# Back to this machine's own names for split screen.
 		setup.display_name = Settings.get_player_name(i)
 
@@ -437,7 +438,12 @@ func return_to_lobby() -> void:
 		return
 	in_race = false
 	for setup: PlayerSetup in GameState.players:
-		if not setup.is_ai:
+		if setup.stand_in:
+			# A computer driver that only finished the race for a player who dropped out.
+			setup.joined = false
+			setup.is_ai = false
+			setup.stand_in = false
+		elif not setup.is_ai:
 			setup.is_ready = false
 	_end_race.rpc()
 	broadcast_lobby()
@@ -519,8 +525,10 @@ func _on_peer_disconnected(peer_id: int) -> void:
 		return
 	var setup: PlayerSetup = GameState.players[slot]
 	if in_race:
-		# The car stays on the track with the computer at the wheel.
+		# The car stays on the track with the computer at the wheel until the
+		# race is over; then the slot is freed for whoever joins next.
 		setup.is_ai = true
+		setup.stand_in = true
 		setup.peer_id = 0
 	else:
 		setup.joined = false

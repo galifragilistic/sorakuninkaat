@@ -194,11 +194,8 @@ func _on_peer_loaded(peer: int) -> void:
 
 ## Host: a client went back to the lobby; the computer takes over its car.
 ## Called by Network, which receives the message.
+## The player keeps their lobby slot: only this race's car changes driver.
 func receive_left(peer: int) -> void:
-	var slot: int = Network.get_slot_of_peer(peer)
-	if slot >= 0:
-		GameState.players[slot].is_ai = true
-		GameState.players[slot].peer_id = 0
 	_drop_peer(peer)
 
 

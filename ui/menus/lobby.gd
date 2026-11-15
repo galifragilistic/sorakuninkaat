@@ -729,6 +729,9 @@ func _refresh_settings() -> void:
 		_status_label.text = tr("Kaikki valmiina")
 	else:
 		_status_label.text = tr("%d/%d valmiina · odotetaan: %s") % [counts.x, counts.y, waiting_for]
+	# A client that left the race early waits here while the others finish.
+	if online and Network.is_client() and Network.in_race:
+		_status_label.text = tr("Muut ajavat vielä kisaa loppuun")
 
 
 ## Name of the first human player who is not ready, or "".

@@ -14,5 +14,8 @@ var joined: bool = false
 var is_ready: bool = false
 ## Driven by the computer instead of a person.
 var is_ai: bool = false
+## Network game: a computer driver finishing the race for a player who
+## disconnected. The slot is freed when the host returns to the lobby.
+var stand_in: bool = false
 ## Network game: the peer that controls this slot (0 = nobody / local play).
 var peer_id: int = 0

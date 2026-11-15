@@ -14,12 +14,38 @@ signal remote_player_left(slot: int)
 ## Pos (3), rotation (4), velocity (3), throttle, steer.
 const FLOATS_PER_CAR: int = 12
 
-## Physics ticks between car snapshots (2 = 30 per second at 60 Hz).
-@export var snapshot_interval_ticks: int = 2
+## Physics ticks between car snapshots (1 = 60 per second at 60 Hz).
+@export var snapshot_interval_ticks: int = 1
 ## Seconds between race state updates (positions, lap times).
 @export var race_state_interval: float = 0.1
-## How far in the past clients show the cars (s). Covers network jitter.
-@export var interpolation_delay: float = 0.1
+## How far in the past clients show the other cars (s). Covers network jitter.
+@export var interpolation_delay: float = 0.06
+
+@export_group("Own car prediction")
+## Client: drive this machine's own car locally so steering answers at once;
+## the host's view of it then pulls it back gently.
+@export var predict_own_car: bool = true
+## Further than this from the host's (extrapolated) position, the car jumps there (m).
+@export var correction_snap_distance: float = 5.0
+## Same for heading: a bigger difference, e.g. after a crash or reset, jumps (degrees).
+@export var correction_snap_degrees: float = 50.0
+## Position differences this small are left alone; extrapolating the host's
+## position along a straight line is never exact in a bend (m).
+@export var correction_dead_zone: float = 0.6
+## Share of the remaining position difference removed per second.
+@export var correction_position_rate: float = 4.0
+## Share of the velocity difference removed per second.
+@export var correction_velocity_rate: float = 1.5
+## Heading differences smaller than this are left to the driver (degrees).
+@export var correction_rotation_dead_zone: float = 12.0
+## Share of the remaining heading difference removed per second.
+@export var correction_rotation_rate: float = 2.0
+## The host's state is carried forward at most this far to meet the prediction (s).
+@export var max_prediction_lead: float = 0.4
+## A position difference over stuck_distance that lasts this long (e.g. the
+## two copies wedged on different sides of a post) also jumps (s, m).
+@export var correction_stuck_seconds: float = 1.0
+@export var correction_stuck_distance: float = 2.5
 ## Host: a remote input older than this counts as released (s).
 @export var input_timeout: float = 0.5
 ## Host: start without players who have not loaded the race by then (s).
@@ -52,6 +78,16 @@ var _has_clock: bool = false
 var _puppet_inputs: Array[PlayerInput] = []
 ## True once anything has arrived from the host's race scene.
 var _host_heard: bool = false
+## Index into _cars of this machine's own, locally driven car (-1 = none).
+var _predicted_index: int = -1
+## Newest snapshot and the local clock when it arrived.
+var _latest_snapshot: PackedFloat32Array = PackedFloat32Array()
+var _latest_arrival: float = 0.0
+## Times the own car had to jump to the host's position (for tuning).
+var correction_jumps: int = 0
+var _stuck_time: float = 0.0
+## Distance to the host's extrapolated position on the last tick (for tuning).
+var last_correction_error: float = 0.0
 
 
 ## cars and slots are in the same order on every machine (grid order).
@@ -216,10 +252,16 @@ func receive_input(peer: int, throttle: float, brake: float, steer: float, handb
 # --- Client --------------------------------------------------------------
 
 func _setup_client() -> void:
-	for car: Car in _cars:
+	if predict_own_car:
+		_predicted_index = _slots.find(Network.local_slot)
+	for i: int in _cars.size():
 		var input: PlayerInput = PlayerInput.new()
 		_puppet_inputs.append(input)
-		car.make_puppet(input)
+		if i == _predicted_index:
+			# Keeps its physics and this machine's input (set up by Race).
+			_cars[i].apply_local_damage = false
+		else:
+			_cars[i].make_puppet(input)
 	Network.report_race_loaded()
 
 
@@ -235,6 +277,7 @@ func _client_tick() -> void:
 		return
 	Network.send_race_input(InputManager.get_input(0))
 	_apply_snapshots()
+	_correct_predicted_car(get_physics_process_delta_time())
 
 
 func _apply_snapshots() -> void:
@@ -255,6 +298,8 @@ func _apply_snapshots() -> void:
 	var b: PackedFloat32Array = newer[1]
 	var car_count: int = mini(_cars.size(), mini(a.size(), b.size()) / FLOATS_PER_CAR)
 	for i: int in car_count:
+		if i == _predicted_index:
+			continue
 		var base: int = i * FLOATS_PER_CAR
 		var origin: Vector3 = _vec3(a, base).lerp(_vec3(b, base), weight)
 		var rotation_quat: Quaternion = _quat(a, base + 3).slerp(_quat(b, base + 3), weight)
@@ -266,6 +311,57 @@ func _apply_snapshots() -> void:
 	# Snapshots older than the one in use are no longer needed.
 	while _snapshots.size() > 2 and _snapshots[1][0] < render_time:
 		_snapshots.pop_front()
+
+
+## Client: keeps the locally driven car close to where the host has it.
+## The host's newest state is a round trip behind this machine's inputs, so
+## it is carried forward along its velocity before comparing.
+func _correct_predicted_car(delta: float) -> void:
+	if _predicted_index < 0 or _latest_snapshot.size() < (_predicted_index + 1) * FLOATS_PER_CAR:
+		return
+	var car: Car = _cars[_predicted_index]
+	var racer: RacerState = _manager.find_racer_by_slot(_slots[_predicted_index])
+	car.controls_enabled = _manager.state == RaceManager.State.RACING and (racer == null or not racer.finished)
+
+	var base: int = _predicted_index * FLOATS_PER_CAR
+	var host_velocity: Vector3 = _vec3(_latest_snapshot, base + 7)
+	var host_rotation: Quaternion = _quat(_latest_snapshot, base + 3)
+	var lead: float = minf(_clock - _latest_arrival + _get_round_trip(), max_prediction_lead)
+	var target: Vector3 = _vec3(_latest_snapshot, base) + host_velocity * lead
+	var error: Vector3 = target - car.global_position
+	var current_rotation: Quaternion = car.global_basis.get_rotation_quaternion()
+	var angle_error: float = rad_to_deg(current_rotation.angle_to(host_rotation))
+
+	last_correction_error = error.length()
+	_stuck_time = _stuck_time + delta if error.length() > correction_stuck_distance else 0.0
+	if error.length() > correction_snap_distance or angle_error > correction_snap_degrees \
+			or _stuck_time > correction_stuck_seconds:
+		_stuck_time = 0.0
+		car.global_transform = Transform3D(Basis(host_rotation), target)
+		car.linear_velocity = host_velocity
+		car.angular_velocity = Vector3.ZERO
+		car.reset_physics_interpolation()
+		correction_jumps += 1
+		return
+	var excess: float = error.length() - correction_dead_zone
+	if excess > 0.0:
+		car.global_position += error.normalized() * excess * minf(1.0, correction_position_rate * delta)
+	car.linear_velocity = car.linear_velocity.lerp(host_velocity, minf(1.0, correction_velocity_rate * delta))
+	if angle_error > correction_rotation_dead_zone:
+		var share: float = (angle_error - correction_rotation_dead_zone) / angle_error
+		var turn: float = minf(1.0, correction_rotation_rate * delta) * share
+		car.global_basis = Basis(current_rotation.slerp(host_rotation, turn))
+
+
+## Client: round trip time to the host in seconds (0 if unknown).
+func _get_round_trip() -> float:
+	var enet: ENetMultiplayerPeer = multiplayer.multiplayer_peer as ENetMultiplayerPeer
+	if enet == null:
+		return 0.0
+	var host: ENetPacketPeer = enet.get_peer(Network.HOST_PEER_ID)
+	if host == null:
+		return 0.0
+	return host.get_statistic(ENetPacketPeer.PEER_ROUND_TRIP_TIME) / 1000.0
 
 
 func _vec3(data: PackedFloat32Array, index: int) -> Vector3:
@@ -285,6 +381,8 @@ func _rx_snapshot(host_time: float, data: PackedFloat32Array) -> void:
 	_snapshots.append([host_time, data])
 	if _snapshots.size() > max_snapshots:
 		_snapshots.pop_front()
+	_latest_snapshot = data
+	_latest_arrival = _clock
 
 
 @rpc("authority", "call_remote", "unreliable_ordered")

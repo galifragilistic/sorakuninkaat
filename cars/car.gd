@@ -28,6 +28,9 @@ var weather_grip: float = 1.0
 var is_puppet: bool = false
 ## Velocity reported by the host while this car is a puppet.
 var puppet_velocity: Vector3 = Vector3.ZERO
+## False on a network client's own predicted car: crashes still make their
+## sound, but the damage comes from the host so it is not counted twice.
+var apply_local_damage: bool = true
 
 @export_group("Stat ranges (stat 1 .. stat 10)")
 ## Top speed in m/s.
@@ -300,7 +303,8 @@ func _detect_impact() -> void:
 	_previous_velocity = linear_velocity
 	var speed_change: float = change.length()
 	if speed_change >= damage.impact_threshold:
-		damage.apply_impact(global_basis.inverse() * change, speed_change, stats.durability)
+		if apply_local_damage:
+			damage.apply_impact(global_basis.inverse() * change, speed_change, stats.durability)
 		impact.emit(speed_change)
 
 

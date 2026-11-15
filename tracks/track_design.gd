@@ -74,6 +74,10 @@ const DEFAULT_SPAN: float = 40.0
 const HILL_SPACING: float = 8.0
 const HILL_RADIUS_BASE: float = 12.0
 const HILL_RADIUS_PER_METRE: float = 3.0
+## Ground under the road sits this far below it. A little more than on the
+## built-in tracks, since drawn tracks can dip more sharply and the ground
+## must not poke through the road in a hollow.
+const ROAD_SINK: float = 0.15
 ## Ground reaches this far past the edge of the map area.
 const GROUND_BORDER: float = 35.0
 ## Bridges and tunnels keep this far from the start line (metres).
@@ -358,6 +362,7 @@ func build_track() -> Track:
 	track.ground_surface = theme.ground_surface
 	track.terrain_noise_height = theme.terrain_noise_height
 	track.second_half_extra_lift = CROSSING_LIFT
+	track.road_sink = ROAD_SINK
 	track.ground_size = get_ground_size()
 	var look_seed: int = absi(display_name.hash()) % SEED_RANGE
 	track.look_seed = look_seed

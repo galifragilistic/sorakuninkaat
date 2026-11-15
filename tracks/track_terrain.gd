@@ -10,6 +10,9 @@ var cell: Vector2 = Vector2.ONE
 var columns: int = 1
 var rows: int = 1
 var heights: PackedFloat32Array = PackedFloat32Array()
+## Road points this much lower than the nearest road belong to another road
+## (one passing underneath), not to the same road sloping away.
+var other_road_rise: float = 2.0
 
 
 ## natural: Callable(x, z) -> float, the height without the road.
@@ -112,14 +115,17 @@ func _make_buckets(road_points: PackedVector3Array, pulls: PackedByteArray, buck
 
 
 ## x = pull weight (0..1), y = road height to pull towards. The strongest pull
-## wins; on a tie (two roads at once) the lower road, so the ground never
-## covers a road underneath another.
+## wins. On a tie the closest point of the road wins, so the ground follows
+## a sloping road exactly; but where another road lies more than
+## other_road_rise lower (a crossing), the lower road wins so the ground
+## never covers a road underneath another.
 func _road_pull(
 	x: float, z: float, road_points: PackedVector3Array, buckets: Dictionary, inner: float, outer: float
 ) -> Vector2:
 	var bucket: float = buckets["size"]
 	var home: Vector2i = Vector2i(floori(x / bucket), floori(z / bucket))
 	var best: Vector2 = Vector2(0.0, 0.0)
+	var best_distance: float = INF
 	for dx: int in range(-1, 2):
 		for dz: int in range(-1, 2):
 			var key: Vector2i = home + Vector2i(dx, dz)
@@ -131,8 +137,13 @@ func _road_pull(
 				if distance >= outer:
 					continue
 				var weight: float = 1.0 if distance <= inner else 1.0 - smoothstep(inner, outer, distance)
-				var stronger: bool = weight > best.x + 0.0001
-				var lower_tie: bool = absf(weight - best.x) <= 0.0001 and point.y < best.y
-				if stronger or lower_tie:
+				var take: bool = weight > best.x + 0.0001
+				if not take and absf(weight - best.x) <= 0.0001:
+					if point.y < best.y - other_road_rise:
+						take = true
+					elif absf(point.y - best.y) <= other_road_rise and distance < best_distance:
+						take = true
+				if take:
 					best = Vector2(weight, point.y)
+					best_distance = distance
 	return best

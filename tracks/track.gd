@@ -60,7 +60,7 @@ const CHECKER_SHADER: Shader = preload("res://tracks/shaders/checker.gdshader")
 ## ...and blends back to its own shape over this distance (m).
 @export var road_blend_width: float = 12.0
 ## The ground sits this far below the road surface next to it.
-@export var road_sink: float = 0.2
+@export var road_sink: float = 0.12
 ## Side skirts hide the gap between the road edge and lower ground (m).
 @export var road_skirt_depth: float = 2.0
 ## Lower = larger light and dark areas.

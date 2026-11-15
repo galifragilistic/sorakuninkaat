@@ -7,6 +7,22 @@ extends RefCounted
 ## What a control point carries. Bridges and tunnels span `spans[i]` metres
 ## centred on the point; a jump sits on the point.
 enum Feature { NONE, BRIDGE, TUNNEL, JUMP }
+## Objects placed by hand in the editor.
+enum Prop { TREE, BALE, CONTAINER, HOUSE, ROCK, TIRES }
+
+const PROP_NAMES: Array[String] = ["Puu", "Heinäpaali", "Kontti", "Talo", "Kivi", "Rengaspino"]
+## Size of each prop in metres (width, height, depth); TrackScenery builds them
+## at this size and the editor draws their footprint.
+const PROP_SIZES: Array[Vector3] = [
+	Vector3(3.0, 6.0, 3.0), Vector3(1.9, 1.1, 1.2), Vector3(6.1, 2.6, 2.4),
+	Vector3(8.0, 5.0, 6.0), Vector3(3.2, 1.8, 3.2), Vector3(1.0, 1.05, 1.0),
+]
+const MAX_PROPS: int = 250
+const PROP_ROTATION_STEP: float = PI / 12.0
+## Amount of randomly placed trees, as a share of the theme's tree count.
+const FOREST_LEVELS: Array[float] = [0.0, 0.4, 1.0, 1.6]
+const FOREST_NAMES: Array[String] = ["Ei puita", "Vähän", "Normaali", "Paljon"]
+const DEFAULT_FOREST: int = 2
 
 const THEMES: Array[TrackTheme] = [
 	preload("res://tracks/themes/gravel.tres"),
@@ -38,9 +54,7 @@ const CROSSING_LIFT: float = 0.02
 ## Track lights: first one at this share of the lap, then every LAMP_SPACING.
 const LAMP_START: float = 0.02
 const LAMP_SPACING: float = 0.16
-## Hay bale rows (share of the lap) on the left side.
-const BALE_ROWS: Array[float] = [0.3, 0.55, 0.8]
-## Bales and lights keep this share of the lap away from jumps.
+## Lights keep this share of the lap away from jumps.
 const JUMP_CLEARANCE: float = 0.03
 const SEED_RANGE: int = 100000
 
@@ -51,6 +65,10 @@ var road_width: float = DEFAULT_ROAD_WIDTH
 var points: PackedVector3Array = PackedVector3Array()
 var features: PackedByteArray = PackedByteArray()
 var spans: PackedFloat32Array = PackedFloat32Array()
+## Placed objects: (Prop, x, z, yaw in radians).
+var props: PackedVector4Array = PackedVector4Array()
+## Index into FOREST_LEVELS.
+var forest: int = DEFAULT_FOREST
 ## File in CustomTracks.DIRECTORY this design was loaded from or saved to.
 var file_name: String = ""
 
@@ -94,6 +112,23 @@ func remove_point(index: int) -> void:
 	points.remove_at(index)
 	features.remove_at(index)
 	spans.remove_at(index)
+
+
+## Adds a prop and returns its index, or -1 when there are too many.
+func add_prop(kind: Prop, x: float, z: float, yaw: float) -> int:
+	if props.size() >= MAX_PROPS:
+		return -1
+	props.append(clamp_prop(Vector4(kind, x, z, yaw)))
+	return props.size() - 1
+
+
+func clamp_prop(prop: Vector4) -> Vector4:
+	return Vector4(
+		clampi(roundi(prop.x), 0, Prop.size() - 1),
+		clampf(prop.y, -HALF_AREA.x, HALF_AREA.x),
+		clampf(prop.z, -HALF_AREA.y, HALF_AREA.y),
+		fposmod(prop.w, TAU)
+	)
 
 
 func clamp_point(point: Vector3) -> Vector3:
@@ -216,7 +251,8 @@ func build_track() -> Track:
 	scenery.name = "Scenery"
 	scenery.scenery_seed = look_seed
 	scenery.lake_enabled = false
-	scenery.tree_count = theme.tree_count
+	scenery.tree_count = roundi(float(theme.tree_count) * FOREST_LEVELS[clampi(forest, 0, FOREST_LEVELS.size() - 1)])
+	scenery.props = props
 	scenery.tree_color = theme.tree_color
 	scenery.tree_top_color = theme.tree_top_color
 	scenery.jumps = jumps
@@ -229,11 +265,7 @@ func build_track() -> Track:
 			side = -side
 		lamp += LAMP_SPACING
 	scenery.lamps = lamps
-	var bale_rows: PackedVector2Array = PackedVector2Array()
-	for row: float in BALE_ROWS:
-		if not _is_busy(row, busy):
-			bale_rows.append(Vector2(row, -1.0))
-	scenery.bale_rows = bale_rows
+	# Hay bales are placed by hand in the editor.
 	track.add_child(scenery)
 	return track
 
@@ -256,9 +288,13 @@ func to_dict() -> Dictionary:
 	var point_list: Array = []
 	for point: Vector3 in points:
 		point_list.append([point.x, point.y, point.z])
+	var prop_list: Array = []
+	for prop: Vector4 in props:
+		prop_list.append([roundi(prop.x), prop.y, prop.z, prop.w])
 	return {
 		"version": FORMAT_VERSION, "name": display_name, "theme": theme_index, "road_width": road_width,
 		"points": point_list, "features": Array(features), "spans": Array(spans),
+		"props": prop_list, "forest": forest,
 	}
 
 
@@ -287,6 +323,14 @@ static func from_dict(data: Dictionary) -> TrackDesign:
 	if design.points.size() < MIN_POINTS:
 		return null
 	design.features[0] = Feature.NONE
+	design.forest = clampi(int(data.get("forest", DEFAULT_FOREST)), 0, FOREST_LEVELS.size() - 1)
+	var prop_list: Variant = data.get("props", [])
+	if prop_list is Array:
+		for raw: Variant in prop_list:
+			if raw is Array and (raw as Array).size() == 4:
+				var values: Array = raw
+				var kind: int = clampi(int(values[0]), 0, Prop.size() - 1)
+				design.add_prop(kind as Prop, float(values[1]), float(values[2]), float(values[3]))
 	return design
 
 

@@ -76,6 +76,35 @@ extends Node3D
 @export_range(0.0, 1.0, 0.01) var jump_lighten: float = 0.25
 @export var jump_stripe_color: Color = Color(1.0, 0.48, 0.1)
 
+@export_group("Placed objects")
+## Objects placed in the track editor: (TrackDesign.Prop, x, z, yaw).
+## Sizes come from TrackDesign.PROP_SIZES.
+@export var props: PackedVector4Array = PackedVector4Array()
+## Containers take these colours in turn.
+@export var container_colors: Array[Color] = [
+	Color(0.62, 0.62, 0.72), Color(0.78, 0.36, 0.24), Color(0.25, 0.45, 0.62), Color(0.36, 0.55, 0.32),
+]
+@export var container_rib_color: Color = Color(0.12, 0.13, 0.19)
+@export var container_rib_count: int = 5
+@export var container_rib_width: float = 0.12
+@export var house_wall_color: Color = Color(0.86, 0.8, 0.68)
+@export var house_roof_color: Color = Color(0.55, 0.2, 0.17)
+@export var house_door_color: Color = Color(0.32, 0.22, 0.15)
+@export var house_window_color: Color = Color(0.2, 0.26, 0.38)
+## Share of the house height taken by the walls; the roof is the rest.
+@export_range(0.2, 0.9, 0.01) var house_wall_share: float = 0.55
+@export var rock_color: Color = Color(0.5, 0.5, 0.52)
+@export var rock_top_color: Color = Color(0.62, 0.62, 0.64)
+@export var rock_sides: int = 7
+@export var tire_color: Color = Color(0.08, 0.08, 0.1)
+@export var tire_band_color: Color = Color(0.92, 0.92, 0.9)
+@export var tire_count: int = 3
+@export var tire_sides: int = 10
+## Buildings reach this far below the ground so slopes show no gap.
+@export var foundation_depth: float = 0.8
+## Random trees keep this far from placed objects.
+@export var prop_tree_clearance: float = 2.0
+
 @export_group("Exclusion zones")
 ## No trees this close to the road on bridges and in tunnels (m beyond the road edge).
 @export var structure_clearance: float = 13.0
@@ -94,6 +123,7 @@ func build(track: Track) -> void:
 	_build_lamps(track)
 	_build_bales(track)
 	_build_jumps(track)
+	_build_props(track)
 	_build_trees(track)
 
 
@@ -123,8 +153,15 @@ func _build_trees(track: Track) -> void:
 	var half: Vector2 = track.ground_size * 0.5 - Vector2.ONE * tree_border_margin
 	var min_road_distance: float = track.road_width * 0.5 + tree_road_margin
 	var positions: Array[Vector3] = []
+	# Trees placed in the editor stand exactly where they were put.
+	for prop: Vector4 in props:
+		if roundi(prop.x) == TrackDesign.Prop.TREE:
+			var placed: Vector3 = Vector3(prop.y, 0.0, prop.z)
+			placed.y = track.get_ground_height(to_global(placed))
+			positions.append(placed)
+	var target: int = positions.size() + tree_count
 	var attempts: int = tree_count * 30
-	while positions.size() < tree_count and attempts > 0:
+	while positions.size() < target and attempts > 0:
 		attempts -= 1
 		var point: Vector3 = Vector3(_rng.randf_range(-half.x, half.x), 0.0, _rng.randf_range(-half.y, half.y))
 		if track.get_distance_to_centerline(to_global(point)) < min_road_distance:
@@ -180,7 +217,18 @@ func _is_excluded(point: Vector3) -> bool:
 	for zone: Vector3 in tree_exclusions:
 		if _flat_distance(point, Vector3(zone.x, 0.0, zone.z)) < zone.y:
 			return true
+	for prop: Vector4 in props:
+		var size: Vector3 = TrackDesign.PROP_SIZES[roundi(prop.x)]
+		var reach: float = Vector2(size.x, size.z).length() * 0.5 + prop_tree_clearance
+		if _flat_distance(point, Vector3(prop.y, 0.0, prop.z)) < reach:
+			return true
 	return false
+
+
+## True if something placed at global_point would stand on a road (closer to
+## any road centre line than half the road width plus clearance).
+func _blocks_road(track: Track, global_point: Vector3, clearance: float) -> bool:
+	return track.get_distance_to_ground_road(global_point) < track.road_width * 0.5 + clearance * 0.5
 
 
 func _flat_distance(a: Vector3, b: Vector3) -> float:
@@ -289,13 +337,17 @@ func _build_lamps(track: Track) -> void:
 	pole_shape.size = Vector3(lamp_pole_width * 2.0, lamp_height, lamp_pole_width * 2.0)
 
 	for lamp: Vector2 in lamps:
-		var body: StaticBody3D = StaticBody3D.new()
-		body.name = "Lamp_%d" % get_child_count()
-		add_child(body)
 		var lamp_offset: float = lamp.x * track.get_length()
 		var lamp_base: Vector3 = track.get_roadside_position(lamp_offset, lamp.y, lamp_margin)
 		if not track.is_on_bridge(lamp_offset):
+			# On a tight bend or where the track passes close by, the roadside
+			# can be on another stretch of road.
+			if _blocks_road(track, lamp_base, lamp_margin):
+				continue
 			lamp_base.y = track.get_ground_height(lamp_base)
+		var body: StaticBody3D = StaticBody3D.new()
+		body.name = "Lamp_%d" % get_child_count()
+		add_child(body)
 		body.global_position = lamp_base
 
 		var pole: MeshInstance3D = MeshInstance3D.new()
@@ -406,10 +458,12 @@ func _build_bales(track: Track) -> void:
 	for row: Vector2 in bale_rows:
 		for i: int in bales_per_row:
 			var offset: float = row.x * track.get_length() + float(i) * bale_spacing
+			var origin: Vector3 = track.get_roadside_position(offset, row.y, bale_margin + bale_size.z * 0.5)
+			if _blocks_road(track, origin, bale_margin):
+				continue
 			var body: StaticBody3D = StaticBody3D.new()
 			body.name = "Bale_%d" % get_child_count()
 			add_child(body)
-			var origin: Vector3 = track.get_roadside_position(offset, row.y, bale_margin + bale_size.z * 0.5)
 			origin.y = track.get_ground_height(origin)
 			# Long side along the road.
 			var facing: Basis = Basis.looking_at(track.get_right_at(offset), Vector3.UP)
@@ -424,3 +478,116 @@ func _build_bales(track: Track) -> void:
 			collision.shape = shape
 			collision.position = Vector3.UP * bale_size.y * 0.5
 			body.add_child(collision)
+
+
+# --- Placed objects ------------------------------------------------------
+
+## Builds the hay bales, containers, houses, rocks and tyre stacks placed in
+## the track editor. Trees are part of _build_trees().
+func _build_props(track: Track) -> void:
+	if props.is_empty():
+		return
+	var material: StandardMaterial3D = LowPoly.vertex_color_material()
+	var meshes: Dictionary = {}
+	var container_index: int = 0
+	for prop: Vector4 in props:
+		var kind: int = roundi(prop.x)
+		if kind == TrackDesign.Prop.TREE:
+			continue
+		var size: Vector3 = TrackDesign.PROP_SIZES[kind]
+		var key: String = str(kind)
+		var paint: Color = Color.WHITE
+		if kind == TrackDesign.Prop.CONTAINER:
+			paint = container_colors[container_index % container_colors.size()]
+			container_index += 1
+			key += paint.to_html()
+		if not meshes.has(key):
+			meshes[key] = _build_prop_mesh(kind, size, paint)
+
+		var body: StaticBody3D = StaticBody3D.new()
+		body.name = "Prop_%d" % get_child_count()
+		add_child(body)
+		var base: Vector3 = Vector3(prop.y, 0.0, prop.z)
+		base.y = track.get_ground_height(to_global(base))
+		body.position = base
+		body.rotation.y = prop.w
+
+		var mesh_instance: MeshInstance3D = MeshInstance3D.new()
+		mesh_instance.mesh = meshes[key]
+		mesh_instance.material_override = material
+		body.add_child(mesh_instance)
+		var collision: CollisionShape3D = CollisionShape3D.new()
+		collision.position = Vector3.UP * size.y * 0.5
+		if kind == TrackDesign.Prop.ROCK or kind == TrackDesign.Prop.TIRES:
+			var cylinder: CylinderShape3D = CylinderShape3D.new()
+			cylinder.radius = size.x * 0.5
+			cylinder.height = size.y
+			collision.shape = cylinder
+		else:
+			var box: BoxShape3D = BoxShape3D.new()
+			box.size = size
+			collision.shape = box
+		body.add_child(collision)
+
+
+func _build_prop_mesh(kind: int, size: Vector3, paint: Color) -> ArrayMesh:
+	var tool: SurfaceTool = LowPoly.begin()
+	var half: Vector3 = size * 0.5
+	match kind:
+		TrackDesign.Prop.BALE:
+			LowPoly.add_box(tool, Vector3.UP * half.y, size, bale_color)
+		TrackDesign.Prop.CONTAINER:
+			var body_size: Vector3 = size + Vector3.UP * foundation_depth
+			LowPoly.add_box(tool, Vector3.UP * (size.y - body_size.y * 0.5), body_size, paint)
+			# Corrugation ribs along both long sides.
+			for i: int in container_rib_count:
+				var x: float = lerpf(-half.x, half.x, (float(i) + 0.5) / float(container_rib_count))
+				for side: float in [-1.0, 1.0]:
+					LowPoly.add_box(
+						tool, Vector3(x, half.y, side * half.z),
+						Vector3(container_rib_width, size.y * 0.9, container_rib_width), paint.darkened(0.25)
+					)
+			LowPoly.add_box(tool, Vector3(half.x, half.y, 0.0), Vector3(container_rib_width, size.y, size.z), container_rib_color)
+		TrackDesign.Prop.HOUSE:
+			_add_house(tool, size)
+		TrackDesign.Prop.ROCK:
+			var radius: float = half.x
+			LowPoly.add_prism(tool, Vector3.DOWN * foundation_depth, radius, size.y * 0.45 + foundation_depth, rock_sides, rock_color)
+			LowPoly.add_cone(tool, Vector3.UP * size.y * 0.45, radius * 0.95, size.y * 0.55, rock_sides, rock_top_color, PI / float(rock_sides))
+		TrackDesign.Prop.TIRES:
+			var tire_height: float = size.y / float(tire_count)
+			for i: int in tire_count:
+				var color: Color = tire_band_color if i % 2 == 1 else tire_color
+				LowPoly.add_prism(tool, Vector3.UP * tire_height * float(i), half.x, tire_height, tire_sides, color)
+	return tool.commit()
+
+
+## Walls with a door and windows, under a pitched roof running along x.
+func _add_house(tool: SurfaceTool, size: Vector3) -> void:
+	var half: Vector3 = size * 0.5
+	var wall_height: float = size.y * house_wall_share
+	var wall_size: Vector3 = Vector3(size.x, wall_height + foundation_depth, size.z)
+	LowPoly.add_box(tool, Vector3.UP * (wall_height - wall_size.y * 0.5), wall_size, house_wall_color)
+	var door: Vector3 = Vector3(size.x * 0.14, wall_height * 0.62, 0.1)
+	LowPoly.add_box(tool, Vector3(0.0, door.y * 0.5, half.z), door, house_door_color)
+	var window: Vector3 = Vector3(size.x * 0.14, wall_height * 0.3, 0.1)
+	for x: float in [-size.x * 0.3, size.x * 0.3]:
+		for side: float in [-1.0, 1.0]:
+			LowPoly.add_box(tool, Vector3(x, wall_height * 0.58, side * half.z), window, house_window_color)
+	# Roof: two slopes meeting at the ridge, with a little overhang.
+	var overhang: float = size.z * 0.06
+	var eave: float = wall_height
+	var ridge: Vector3 = Vector3(0.0, size.y, 0.0)
+	var reach_x: float = half.x + overhang
+	var reach_z: float = half.z + overhang
+	for side: float in [-1.0, 1.0]:
+		LowPoly.add_quad(
+			tool, Vector3(-reach_x, eave, side * reach_z), Vector3(reach_x, eave, side * reach_z),
+			Vector3(reach_x, ridge.y, 0.0), Vector3(-reach_x, ridge.y, 0.0),
+			house_roof_color, Vector3(0.0, 1.0, side)
+		)
+		# Gable ends in the wall colour.
+		LowPoly.add_triangle(
+			tool, Vector3(side * half.x, eave, -half.z), Vector3(side * half.x, eave, half.z),
+			Vector3(side * half.x, ridge.y, 0.0), house_wall_color, Vector3(side, 0.0, 0.0)
+		)

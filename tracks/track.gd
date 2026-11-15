@@ -189,6 +189,18 @@ func get_distance_to_road_below(global_point: Vector3) -> float:
 	return nearest
 
 
+## Horizontal distance to the nearest road that lies on the ground (bridges
+## are left out, since things may stand under them).
+func get_distance_to_ground_road(global_point: Vector3) -> float:
+	var nearest: float = INF
+	for i: int in _samples.size():
+		if _sample_on_bridge[i] == 1:
+			continue
+		var sample: Vector3 = _samples[i]
+		nearest = minf(nearest, Vector2(sample.x - global_point.x, sample.z - global_point.z).length())
+	return nearest
+
+
 ## True if a point is within margin metres of the road on a bridge or in a tunnel.
 func is_near_structure(global_point: Vector3, margin: float) -> bool:
 	for i: int in _samples.size():

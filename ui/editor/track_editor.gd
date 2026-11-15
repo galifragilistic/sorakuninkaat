@@ -12,6 +12,8 @@ extends MenuScreen
 @export var spinner_value_width: float = 108.0
 @export var open_list_size: Vector2 = Vector2(460.0, 360.0)
 @export var help_font_size: int = 13
+## KIERRÄ turns the selected object by this many rotation steps.
+@export var prop_rotate_steps: int = 3
 ## Seconds a status message stays on screen.
 @export var status_seconds: float = 3.0
 
@@ -36,6 +38,15 @@ var _name_dialog: NameDialog
 var _after_naming: Callable = Callable()
 var _open_overlay: Control
 var _delete_armed: String = ""
+var _road_button: ChamferButton
+var _props_button: ChamferButton
+var _point_section: VBoxContainer
+var _prop_section: VBoxContainer
+var _prop_caption: Label
+var _kind_spinner: OptionSpinner
+var _forest_spinner: OptionSpinner
+var _prop_buttons: Array[ChamferButton] = []
+var _help_label: Label
 
 
 func get_backdrop() -> Backdrop:
@@ -47,7 +58,7 @@ func _build() -> void:
 	_build_map()
 	_build_panel()
 	MenuKit.add_hints(self, [
-		[InputPrompts.Prompt.TABS, tr("Vaihda pistettä")], [InputPrompts.Prompt.BACK, tr("Takaisin")],
+		[InputPrompts.Prompt.TABS, tr("Vaihda valintaa")], [InputPrompts.Prompt.BACK, tr("Takaisin")],
 	])
 
 
@@ -76,12 +87,11 @@ func _build_map() -> void:
 	_canvas.size = map_rect.size
 	add_child(_canvas)
 	_canvas.selection_changed.connect(_on_selection_changed)
+	_canvas.prop_selection_changed.connect(_on_prop_selection_changed.unbind(1))
 	_canvas.design_changed.connect(_on_design_changed)
 
-	var help: Label = UiStyle.make_label(
-		tr("Vasen: lisää ja siirrä · Oikea: poista · Rulla pisteen päällä: korkeus (Shift nopeasti) · Rulla: zoomaa · Keskinappi: siirrä"),
-		UiStyle.FONT_MEDIUM, help_font_size, UiStyle.TEXT_SECONDARY
-	)
+	var help: Label = UiStyle.make_label("", UiStyle.FONT_MEDIUM, help_font_size, UiStyle.TEXT_SECONDARY)
+	_help_label = help
 	help.position = Vector2(10.0, 8.0)
 	help.size.x = map_rect.size.x - 20.0
 	help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -109,6 +119,11 @@ func _build_panel() -> void:
 	var column: VBoxContainer = MenuKit.make_vbox(6)
 	panel.add_child(column)
 
+	var mode_row: HBoxContainer = MenuKit.make_hbox(6)
+	column.add_child(mode_row)
+	_road_button = _add_button(mode_row, tr("TIE"), _set_mode.bind(TrackEditorCanvas.Mode.ROAD))
+	_props_button = _add_button(mode_row, tr("ESINEET"), _set_mode.bind(TrackEditorCanvas.Mode.PROPS))
+
 	column.add_child(UiStyle.make_caption(tr("RATA")))
 	_name_button = ChamferButton.create("", 17, Vector4(14.0, 8.0, 14.0, 8.0))
 	_name_button.add_glyph(UiGlyph.Kind.CHEVRON_RIGHT)
@@ -131,6 +146,11 @@ func _build_panel() -> void:
 		_canvas.refresh()
 		_on_design_changed())
 
+	_build_prop_section(column)
+	# Point controls; swapped for the object controls in object mode.
+	_point_section = MenuKit.make_vbox(6)
+	column.add_child(_point_section)
+	column = _point_section
 	_point_caption = UiStyle.make_caption("")
 	column.add_child(_point_caption)
 	var heights: PackedStringArray = PackedStringArray()
@@ -158,6 +178,7 @@ func _build_panel() -> void:
 	_add_button(point_row, tr("KÄÄNNÄ"), _on_reverse)
 	_delete_button = _add_button(point_row, tr("POISTA"), func() -> void: _canvas.remove_point(_canvas.selected))
 
+	column = _point_section.get_parent() as VBoxContainer
 	column.add_child(UiStyle.make_caption(tr("TIEDOSTO")))
 	var file_row: HBoxContainer = MenuKit.make_hbox(6)
 	column.add_child(file_row)
@@ -172,6 +193,51 @@ func _build_panel() -> void:
 	drive.custom_minimum_size.y = 50.0
 	drive.pressed.connect(_on_test_drive)
 	column.add_child(drive)
+
+
+func _build_prop_section(column: VBoxContainer) -> void:
+	_prop_section = MenuKit.make_vbox(6)
+	column.add_child(_prop_section)
+	_prop_caption = UiStyle.make_caption("")
+	_prop_section.add_child(_prop_caption)
+	var kinds: PackedStringArray = PackedStringArray()
+	for prop_name: String in TrackDesign.PROP_NAMES:
+		kinds.append(tr(prop_name))
+	_kind_spinner = _add_spinner(_prop_section, tr("Esine"), kinds)
+	_kind_spinner.value_changed.connect(func(index: int) -> void: _canvas.prop_kind = index)
+	var forests: PackedStringArray = PackedStringArray()
+	for forest_name: String in TrackDesign.FOREST_NAMES:
+		forests.append(tr(forest_name))
+	_forest_spinner = _add_spinner(_prop_section, tr("Puusto"), forests)
+	_forest_spinner.value_changed.connect(func(index: int) -> void:
+		_design.forest = index
+		_on_design_changed())
+	var row: HBoxContainer = MenuKit.make_hbox(6)
+	_prop_section.add_child(row)
+	_prop_buttons.append(_add_button(row, tr("KIERRÄ"), func() -> void:
+		_canvas.rotate_prop(_canvas.selected_prop, prop_rotate_steps)))
+	_prop_buttons.append(_add_button(row, tr("POISTA"), func() -> void:
+		_canvas.remove_prop(_canvas.selected_prop)))
+
+
+func _set_mode(mode: TrackEditorCanvas.Mode) -> void:
+	_canvas.mode = mode
+	var props: bool = mode == TrackEditorCanvas.Mode.PROPS
+	_road_button.selected = not props
+	_props_button.selected = props
+	_point_section.visible = not props
+	_prop_section.visible = props
+	if props:
+		_help_label.text = tr("Vasen: lisää ja siirrä esinettä · Oikea: poista · Rulla esineen päällä: kierrä (Shift nopeasti) · Rulla: zoomaa · Keskinappi: siirrä")
+	else:
+		_help_label.text = tr("Vasen: lisää ja siirrä · Oikea: poista · Rulla pisteen päällä: korkeus (Shift nopeasti) · Rulla: zoomaa · Keskinappi: siirrä")
+	_on_prop_selection_changed()
+
+
+func _on_prop_selection_changed() -> void:
+	_prop_caption.text = tr("ESINEET %d / %d") % [_design.props.size(), TrackDesign.MAX_PROPS]
+	for button: ChamferButton in _prop_buttons:
+		button.disabled = _canvas.selected_prop < 0
 
 
 func _add_spinner(column: VBoxContainer, title: String, options: PackedStringArray) -> OptionSpinner:
@@ -199,8 +265,11 @@ func _set_design(design: TrackDesign) -> void:
 	_canvas.fit_view()
 	_theme_spinner.index = design.theme_index
 	_width_spinner.index = roundi(design.road_width - TrackDesign.ROAD_WIDTH_RANGE.x)
+	_forest_spinner.index = design.forest
+	_canvas.select_prop(-1)
 	_update_name()
 	_on_selection_changed(0)
+	_set_mode(_canvas.mode)
 
 
 func _update_name() -> void:
@@ -226,6 +295,7 @@ func _on_selection_changed(index: int) -> void:
 
 func _on_design_changed() -> void:
 	_on_selection_changed(_canvas.selected)
+	_on_prop_selection_changed()
 	CustomTracks.save_draft(_design)
 
 
@@ -315,7 +385,11 @@ func _on_back() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if _name_dialog != null:
 		return
-	if _open_overlay == null:
+	if _open_overlay == null and _canvas.mode == TrackEditorCanvas.Mode.PROPS:
+		if _handle_prop_input(event):
+			get_viewport().set_input_as_handled()
+			return
+	elif _open_overlay == null:
 		if event.is_action_pressed(InputManager.ACTION_TAB_PREVIOUS):
 			get_viewport().set_input_as_handled()
 			_canvas.select(wrapi(_canvas.selected - 1, 0, _design.points.size()))
@@ -336,6 +410,29 @@ func _unhandled_input(event: InputEvent) -> void:
 					_canvas.change_height(_canvas.selected, 1 if key.keycode == KEY_PAGEUP else -1)
 					return
 	super._unhandled_input(event)
+
+
+## Object mode keys: LB/RB (Q/E) pick an object, Delete removes it,
+## PgUp/PgDn turn it. Returns true if the event was used.
+func _handle_prop_input(event: InputEvent) -> bool:
+	var count: int = _design.props.size()
+	if event.is_action_pressed(InputManager.ACTION_TAB_PREVIOUS) or event.is_action_pressed(InputManager.ACTION_TAB_NEXT):
+		if count > 0:
+			var step: int = -1 if event.is_action_pressed(InputManager.ACTION_TAB_PREVIOUS) else 1
+			var current: int = _canvas.selected_prop if _canvas.selected_prop >= 0 else (count - 1 if step > 0 else 0)
+			_canvas.select_prop(wrapi(current + step, 0, count))
+		return true
+	var key: InputEventKey = event as InputEventKey
+	if key == null or not key.pressed or key.echo:
+		return false
+	match key.keycode:
+		KEY_DELETE:
+			_canvas.remove_prop(_canvas.selected_prop)
+			return true
+		KEY_PAGEUP, KEY_PAGEDOWN:
+			_canvas.rotate_prop(_canvas.selected_prop, 1 if key.keycode == KEY_PAGEUP else -1)
+			return true
+	return false
 
 
 func _show_status(text: String) -> void:

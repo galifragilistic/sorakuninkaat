@@ -10,8 +10,13 @@ extends Control
 ## elsewhere zooms. The middle button pans.
 
 signal selection_changed(index: int)
-## Something in the design changed (shape, height or point count).
+## The selected placed object changed (-1 = none).
+signal prop_selection_changed(index: int)
+## Something in the design changed (shape, height, points or objects).
 signal design_changed
+
+## ROAD edits the control points, PROPS places objects.
+enum Mode { ROAD, PROPS }
 
 @export_group("View")
 @export var zoom_range: Vector2 = Vector2(1.2, 12.0)
@@ -54,6 +59,31 @@ signal design_changed
 @export var label_color: Color = Color("#f2f4fa")
 @export var road_edge_width: float = 2.0
 @export var label_font_size: int = 13
+## Map colour of each TrackDesign.Prop.
+@export var prop_colors: Array[Color] = [
+	Color("#4f9a3a"), Color("#dba845"), Color("#8a5ad8"), Color("#e8dcc0"), Color("#9aa0a8"), Color("#2a2d38"),
+]
+@export var prop_outline_color: Color = Color("#0e1220")
+## Placed objects are drawn this faint while editing the road.
+@export_range(0.0, 1.0, 0.01) var inactive_prop_alpha: float = 0.55
+## Objects smaller than this on screen are still easy to grab (pixels).
+@export var min_prop_pick_radius: float = 9.0
+## Smallest size an object is drawn at (pixels, half width).
+@export var min_prop_draw_radius: float = 4.0
+
+var mode: Mode = Mode.ROAD:
+	set(value):
+		mode = value
+		_dragging = -1
+		_dragging_prop = -1
+		_hovered = -1
+		queue_redraw()
+## TrackDesign.Prop added by a click in PROPS mode.
+var prop_kind: int = TrackDesign.Prop.TREE
+var selected_prop: int = -1
+var _dragging_prop: int = -1
+## Where the dragged object was grabbed, relative to its centre (metres).
+var _grab_offset: Vector2 = Vector2.ZERO
 
 var design: TrackDesign:
 	set(value):
@@ -168,6 +198,9 @@ func _gui_input(event: InputEvent) -> void:
 
 
 func _on_mouse_button(event: InputEventMouseButton) -> void:
+	if mode == Mode.PROPS and event.button_index != MOUSE_BUTTON_MIDDLE:
+		_on_prop_mouse_button(event)
+		return
 	match event.button_index:
 		MOUSE_BUTTON_LEFT:
 			if event.pressed:
@@ -199,13 +232,19 @@ func _on_mouse_motion(event: InputEventMouseMotion) -> void:
 		_view_center -= event.relative / _zoom
 		queue_redraw()
 		return
+	if _dragging_prop >= 0:
+		var target: Vector2 = to_world(event.position) - _grab_offset
+		var prop: Vector4 = design.props[_dragging_prop]
+		design.props[_dragging_prop] = design.clamp_prop(Vector4(prop.x, target.x, target.y, prop.w))
+		queue_redraw()
+		return
 	if _dragging >= 0:
 		var world: Vector2 = to_world(event.position)
 		var point: Vector3 = design.points[_dragging]
 		design.points[_dragging] = design.clamp_point(Vector3(world.x, point.y, world.y))
 		refresh()
 		return
-	var hovered: int = _pick_point(event.position)
+	var hovered: int = _pick_prop(event.position) if mode == Mode.PROPS else _pick_point(event.position)
 	if hovered != _hovered:
 		_hovered = hovered
 		queue_redraw()
@@ -285,6 +324,86 @@ func _zoom_at(position_on_canvas: Vector2, factor: float) -> void:
 	queue_redraw()
 
 
+# --- Placed objects ----------------------------------------------------------
+
+func _on_prop_mouse_button(event: InputEventMouseButton) -> void:
+	match event.button_index:
+		MOUSE_BUTTON_LEFT:
+			if not event.pressed:
+				if _dragging_prop >= 0:
+					_dragging_prop = -1
+					design_changed.emit()
+				return
+			var index: int = _pick_prop(event.position)
+			var world: Vector2 = to_world(event.position)
+			if index < 0:
+				index = design.add_prop(prop_kind as TrackDesign.Prop, world.x, world.y, 0.0)
+				if index < 0:
+					return
+				design_changed.emit()
+			var prop: Vector4 = design.props[index]
+			_grab_offset = world - Vector2(prop.y, prop.z)
+			_dragging_prop = index
+			select_prop(index)
+		MOUSE_BUTTON_RIGHT:
+			if event.pressed:
+				var index: int = _pick_prop(event.position)
+				if index >= 0:
+					remove_prop(index)
+		MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN:
+			if not event.pressed:
+				return
+			var direction: int = 1 if event.button_index == MOUSE_BUTTON_WHEEL_UP else -1
+			var index: int = _pick_prop(event.position)
+			if index >= 0:
+				rotate_prop(index, direction * (fast_height_multiplier if event.shift_pressed else 1))
+			else:
+				_zoom_at(event.position, zoom_step if direction > 0 else 1.0 / zoom_step)
+
+
+func select_prop(index: int) -> void:
+	selected_prop = index if index >= 0 and index < design.props.size() else -1
+	prop_selection_changed.emit(selected_prop)
+	queue_redraw()
+
+
+func remove_prop(index: int) -> void:
+	if index < 0 or index >= design.props.size():
+		return
+	design.props.remove_at(index)
+	_hovered = -1
+	select_prop(mini(index, design.props.size() - 1))
+	design_changed.emit()
+
+
+## Turns an object by steps of TrackDesign.PROP_ROTATION_STEP.
+func rotate_prop(index: int, steps: int) -> void:
+	if index < 0 or index >= design.props.size():
+		return
+	var prop: Vector4 = design.props[index]
+	prop.w += float(steps) * TrackDesign.PROP_ROTATION_STEP
+	design.props[index] = design.clamp_prop(prop)
+	if index != selected_prop:
+		select_prop(index)
+	queue_redraw()
+	design_changed.emit()
+
+
+## Topmost object under the cursor, or -1.
+func _pick_prop(position_on_canvas: Vector2) -> int:
+	var world: Vector2 = to_world(position_on_canvas)
+	for i: int in range(design.props.size() - 1, -1, -1):
+		var prop: Vector4 = design.props[i]
+		var center: Vector2 = Vector2(prop.y, prop.z)
+		if to_screen(Vector3(center.x, 0.0, center.y)).distance_to(position_on_canvas) <= min_prop_pick_radius:
+			return i
+		var size: Vector3 = TrackDesign.PROP_SIZES[roundi(prop.x)]
+		var local: Vector2 = (world - center).rotated(prop.w)
+		if absf(local.x) <= size.x * 0.5 and absf(local.y) <= size.z * 0.5:
+			return i
+	return -1
+
+
 # --- Drawing ---------------------------------------------------------------
 
 func _draw() -> void:
@@ -295,7 +414,43 @@ func _draw() -> void:
 	_draw_road()
 	_draw_start_line()
 	_draw_arrows()
+	_draw_props()
 	_draw_points()
+
+
+func _draw_props() -> void:
+	var alpha: float = 1.0 if mode == Mode.PROPS else inactive_prop_alpha
+	for i: int in design.props.size():
+		var prop: Vector4 = design.props[i]
+		var kind: int = roundi(prop.x)
+		var size: Vector3 = TrackDesign.PROP_SIZES[kind]
+		var center: Vector2 = to_screen(Vector3(prop.y, 0.0, prop.z))
+		var fill: Color = Color(prop_colors[kind], alpha)
+		var outline: Color = Color(prop_outline_color, alpha)
+		var width: float = road_edge_width
+		if mode == Mode.PROPS and i == selected_prop:
+			outline = selected_color
+			width *= 2.0
+		elif mode == Mode.PROPS and i == _hovered:
+			outline = selected_color
+		if kind == TrackDesign.Prop.TREE or kind == TrackDesign.Prop.ROCK or kind == TrackDesign.Prop.TIRES:
+			var radius: float = maxf(size.x * 0.5 * _zoom, min_prop_draw_radius)
+			draw_circle(center, radius + width, outline)
+			draw_circle(center, radius, fill)
+			continue
+		# Corners of the rotated footprint; the yaw turns -Z (front) like in 3D.
+		var corners: PackedVector2Array = PackedVector2Array()
+		# Tiny objects are drawn a little bigger so they stay visible when zoomed out.
+		var grow: float = maxf(1.0, min_prop_draw_radius * 2.0 / (minf(size.x, size.z) * _zoom))
+		for corner: Vector2 in [Vector2(-1, -1), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1)]:
+			var local: Vector2 = Vector2(corner.x * size.x, corner.y * size.z) * 0.5 * grow
+			corners.append(center + local.rotated(-prop.w) * _zoom)
+		draw_colored_polygon(corners, fill)
+		corners.append(corners[0])
+		draw_polyline(corners, outline, width)
+		if kind == TrackDesign.Prop.HOUSE:
+			# Ridge line along the house.
+			draw_line((corners[0] + corners[3]) * 0.5, (corners[1] + corners[2]) * 0.5, outline, width)
 
 
 func _draw_grid() -> void:
@@ -385,7 +540,9 @@ func _draw_points() -> void:
 		var at: Vector2 = to_screen(point)
 		var color: Color = start_color if i == 0 else point_color
 		var radius: float = point_radius
-		if i == selected:
+		if mode == Mode.PROPS:
+			radius *= 0.6
+		elif i == selected:
 			radius = selected_point_radius
 			draw_circle(at, radius + road_edge_width * 2.0, selected_color)
 		elif i == _hovered:
@@ -397,7 +554,8 @@ func _draw_points() -> void:
 				at + Vector2(0.0, -radius * 2.2), at + Vector2(radius, -radius * 1.2),
 				at + Vector2(-radius, -radius * 1.2),
 			]), jump_color)
-		if i == selected or i == _hovered or not is_zero_approx(point.y):
+		var picked: bool = mode == Mode.ROAD and (i == selected or i == _hovered)
+		if picked or not is_zero_approx(point.y):
 			var text: String = tr("%+.1f m") % point.y
 			draw_string(
 				font, at + Vector2(radius + 4.0, -radius), text, HORIZONTAL_ALIGNMENT_LEFT, -1.0,

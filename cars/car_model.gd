@@ -13,6 +13,13 @@ const MIN_SECTION_GAP: float = 0.05
 ## Chamfers never take more than these shares of a section's height.
 const MAX_SHOULDER_SHARE: float = 0.4
 const MAX_SILL_SHARE: float = 0.3
+## Names used in the Blender models (tools/blender/build_cars.py).
+const MODEL_WHEEL: String = "Wheel"
+const MODEL_PATTERN: String = "Pattern_"
+const MODEL_HEADLAMP: String = "Headlamp"
+const MODEL_PAINT: String = "Paint"
+const MODEL_HEAD_LIGHT: String = "HeadLight"
+const MODEL_TAIL_LIGHT: String = "TailLight"
 
 ## Painted decals and glass sit this far off the surface they are drawn on.
 @export var decal_offset: float = 0.012
@@ -96,6 +103,13 @@ var _detail_mesh: MeshInstance3D
 var _head_mesh: MeshInstance3D
 var _tail_mesh: MeshInstance3D
 
+# Blender model (CarLook.model)
+var _model_root: Node3D
+var _model_wheel: ArrayMesh
+## Pattern name (PlayerSetup.Pattern key) -> its decal mesh.
+var _pattern_nodes: Dictionary = {}
+var _decal_material: StandardMaterial3D
+
 
 ## One cross-section of the body loft.
 class Section:
@@ -115,6 +129,10 @@ class Section:
 func build(look: CarLook, wheel_mounts: Array[Vector3], radius: float) -> void:
 	_look = look
 	_ensure_nodes()
+	_clear_model()
+	if look.model != null:
+		_build_from_model(look.model)
+		return
 	_sections = _make_sections()
 
 	var paint: SurfaceTool = LowPoly.begin()
@@ -138,11 +156,17 @@ func set_paint(color: Color, pattern: PlayerSetup.Pattern) -> void:
 	_pattern = pattern
 	_ensure_nodes()
 	_paint_material.albedo_color = color
-	_rebuild_pattern()
+	if _model_root != null:
+		_update_model_pattern()
+	else:
+		_rebuild_pattern()
 
 
 ## A tyre with rims and hubs, its axle along Y (the wheel node turns it sideways).
+## A Blender model brings its own wheel.
 func build_wheel_mesh(look: CarLook, radius: float) -> ArrayMesh:
+	if _model_wheel != null:
+		return _model_wheel
 	var tool: SurfaceTool = LowPoly.begin()
 	_add_cylinder(tool, Vector3.ZERO, Vector3.UP, radius, look.wheel_width, WHEEL_SIDES, look.tire_color)
 	for side: float in [-1.0, 1.0]:
@@ -153,8 +177,90 @@ func build_wheel_mesh(look: CarLook, radius: float) -> ArrayMesh:
 	return tool.commit()
 
 
+## Null for a model's wheel, which keeps its own materials.
 func make_wheel_material() -> StandardMaterial3D:
+	if _model_wheel != null:
+		return null
 	return LowPoly.vertex_color_material(detail_roughness)
+
+
+# --- Blender models -------------------------------------------------------------
+
+func _clear_model() -> void:
+	if _model_root != null:
+		remove_child(_model_root)
+		_model_root.free()
+		_model_root = null
+	_model_wheel = null
+	_pattern_nodes.clear()
+
+
+## Shows an imported model. Surfaces made of "Paint" take the player's colour,
+## "HeadLight" and "TailLight" glow, the "Wheel" mesh goes on the wheels and the
+## "Pattern_<name>" decals show one at a time (see build_cars.py).
+func _build_from_model(scene: PackedScene) -> void:
+	_sections.clear()
+	for node: MeshInstance3D in [_paint_mesh, _pattern_mesh, _detail_mesh, _head_mesh, _tail_mesh]:
+		node.mesh = null
+	_model_root = scene.instantiate() as Node3D
+	_model_root.name = "Model"
+	add_child(_model_root)
+	head_lamp_positions = PackedVector3Array()
+	var lamps: Array[Node3D] = []
+	for node: Node in _model_root.find_children("*", "", true, false):
+		var node_name: String = String(node.name)
+		var mesh_node: MeshInstance3D = node as MeshInstance3D
+		if node_name.begins_with(MODEL_WHEEL):
+			if mesh_node != null:
+				_model_wheel = mesh_node.mesh as ArrayMesh
+				mesh_node.visible = false
+		elif node_name.begins_with(MODEL_PATTERN):
+			var key: String = _pattern_key(node_name.trim_prefix(MODEL_PATTERN))
+			if mesh_node != null and not key.is_empty():
+				mesh_node.material_override = _decal_material
+				_pattern_nodes[key] = mesh_node
+		elif mesh_node != null:
+			_recolour(mesh_node)
+		elif node_name.begins_with(MODEL_HEADLAMP):
+			lamps.append(node as Node3D)
+	# Left lamp first, like the spotlights.
+	lamps.sort_custom(func(a: Node3D, b: Node3D) -> bool: return a.position.x < b.position.x)
+	for lamp: Node3D in lamps:
+		head_lamp_positions.append(_model_root.transform * lamp.position + Vector3.FORWARD * spotlight_lead)
+	_update_model_pattern()
+
+
+## The PlayerSetup.Pattern key a decal node name starts with ("SIDE_BAND" for
+## "SIDE_BAND_001"), or "" if none. The longest match wins.
+func _pattern_key(rest: String) -> String:
+	var best: String = ""
+	for key: String in PlayerSetup.Pattern.keys():
+		if rest.begins_with(key) and key.length() > best.length():
+			best = key
+	return best
+
+
+func _recolour(mesh_node: MeshInstance3D) -> void:
+	if mesh_node.mesh == null:
+		return
+	for i: int in mesh_node.mesh.get_surface_count():
+		var material: Material = mesh_node.mesh.surface_get_material(i)
+		if material == null:
+			continue
+		match material.resource_name:
+			MODEL_PAINT:
+				mesh_node.set_surface_override_material(i, _paint_material)
+			MODEL_HEAD_LIGHT:
+				mesh_node.set_surface_override_material(i, _head_mesh.material_override)
+			MODEL_TAIL_LIGHT:
+				mesh_node.set_surface_override_material(i, _tail_mesh.material_override)
+
+
+func _update_model_pattern() -> void:
+	_decal_material.albedo_color = pattern_dark if _paint_color.get_luminance() > light_paint_luminance else pattern_light
+	var shown: String = PlayerSetup.Pattern.keys()[_pattern]
+	for pattern_name: String in _pattern_nodes:
+		(_pattern_nodes[pattern_name] as MeshInstance3D).visible = pattern_name == shown
 
 
 func _ensure_nodes() -> void:
@@ -163,6 +269,10 @@ func _ensure_nodes() -> void:
 	_paint_material = StandardMaterial3D.new()
 	_paint_material.roughness = paint_roughness
 	_paint_material.albedo_color = _paint_color
+	_decal_material = StandardMaterial3D.new()
+	_decal_material.roughness = paint_roughness
+	# Decals are single sheets; show them from either side.
+	_decal_material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_paint_mesh = _add_mesh_node("Paint", _paint_material)
 	_pattern_mesh = _add_mesh_node("Pattern", LowPoly.vertex_color_material(paint_roughness))
 	_detail_mesh = _add_mesh_node("Detail", LowPoly.vertex_color_material(detail_roughness))

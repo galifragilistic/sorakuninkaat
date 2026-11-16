@@ -5,6 +5,10 @@ extends Resource
 ## Lengths are metres in the car's space: forward is -Z, the origin is between the axles.
 
 enum Spoiler { NONE, LIP, WING }
+
+## A model made in Blender (tools/blender/build_cars.py). When set, the car is
+## shown with it and the shape numbers below are not used.
+@export var model: PackedScene
 enum Lamps { RECT, ROUND }
 
 @export_group("Body")

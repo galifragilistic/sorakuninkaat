@@ -18,6 +18,11 @@ extends MenuScreen
 @export var prop_rotate_steps: int = 3
 ## Seconds a status message stays on screen.
 @export var status_seconds: float = 3.0
+@export_group("Undo")
+## Most changes kept for undo.
+@export var undo_limit: int = 100
+## Changes this close together (s) undo as one, e.g. a turn of the mouse wheel.
+@export var undo_merge_seconds: float = 0.4
 
 const FEATURE_NAMES: Array[String] = ["Ei mitään", "Silta", "Tunneli", "Hyppyri"]
 
@@ -51,6 +56,14 @@ var _prop_buttons: Array[ChamferButton] = []
 var _help_label: Label
 var _area_spinner: OptionSpinner
 var _surface_spinner: OptionSpinner
+## Design snapshots (TrackDesign.to_dict()) to go back and forward to.
+var _undo_stack: Array[Dictionary] = []
+var _redo_stack: Array[Dictionary] = []
+## Snapshot of the design as it is now.
+var _current_snapshot: Dictionary = {}
+var _last_change_msec: int = -1
+var _undo_button: ChamferButton
+var _redo_button: ChamferButton
 
 
 func get_backdrop() -> Backdrop:
@@ -201,6 +214,10 @@ func _build_panel() -> void:
 	_add_button(file_row, tr("UUSI"), _on_new)
 	_add_button(file_row, tr("AVAA"), _show_open_list)
 	_add_button(file_row, tr("TALLENNA"), _on_save)
+	var history_row: HBoxContainer = MenuKit.make_hbox(6)
+	column.add_child(history_row)
+	_undo_button = _add_button(history_row, tr("KUMOA"), _undo)
+	_redo_button = _add_button(history_row, tr("TOISTA"), _redo)
 
 	var drive: ChamferButton = ChamferButton.create(tr("KOEAJA"), 20, Vector4(20.0, 0.0, 16.0, 0.0))
 	drive.primary = true
@@ -274,18 +291,29 @@ func _add_button(row: HBoxContainer, text: String, action: Callable) -> ChamferB
 
 # --- State -----------------------------------------------------------------
 
+## Opens a design. A new or opened design starts a fresh undo history.
 func _set_design(design: TrackDesign) -> void:
+	_show_design(design, 0, true)
+	_undo_stack.clear()
+	_redo_stack.clear()
+	_current_snapshot = design.to_dict()
+	_last_change_msec = -1
+	_update_history_buttons()
+
+
+func _show_design(design: TrackDesign, selected: int, fit: bool) -> void:
 	_design = design
-	_canvas.selected = 0
+	_canvas.selected = selected
 	_canvas.design = design
-	_canvas.fit_view()
+	if fit:
+		_canvas.fit_view()
 	_theme_spinner.index = design.theme_index
 	_width_spinner.index = roundi(design.road_width - TrackDesign.ROAD_WIDTH_RANGE.x)
 	_forest_spinner.index = design.forest
 	_area_spinner.index = design.area
 	_canvas.select_prop(-1)
 	_update_name()
-	_on_selection_changed(0)
+	_on_selection_changed(_canvas.selected)
 	_set_mode(_canvas.mode)
 
 
@@ -312,12 +340,82 @@ func _on_selection_changed(index: int) -> void:
 
 
 func _on_design_changed() -> void:
+	_record_change()
 	_on_selection_changed(_canvas.selected)
 	_on_prop_selection_changed()
 	CustomTracks.save_draft(_design)
 	var low: int = _canvas.get_low_crossing_count()
 	if low > 0:
 		_show_status(tr("Risteys on liian matala: nosta ylempää tietä vähintään %.1f m alemman yläpuolelle.") % TrackDesign.BRIDGE_CLEARANCE)
+
+
+# --- Undo ------------------------------------------------------------------
+
+## Remembers the design as it was before this change. Quick runs of changes
+## (mouse wheel, held keys) are kept as one step.
+func _record_change() -> void:
+	var snapshot: Dictionary = _design.to_dict()
+	if snapshot == _current_snapshot:
+		return
+	var now: int = Time.get_ticks_msec()
+	var merge: bool = _last_change_msec >= 0 and not _undo_stack.is_empty() \
+		and float(now - _last_change_msec) / 1000.0 < undo_merge_seconds
+	if not merge:
+		_undo_stack.append(_current_snapshot)
+		if _undo_stack.size() > undo_limit:
+			_undo_stack.pop_front()
+	_redo_stack.clear()
+	_current_snapshot = snapshot
+	_last_change_msec = now
+	_update_history_buttons()
+
+
+func _undo() -> void:
+	_step_history(_undo_stack, _redo_stack)
+
+
+func _redo() -> void:
+	_step_history(_redo_stack, _undo_stack)
+
+
+func _step_history(from: Array[Dictionary], to: Array[Dictionary]) -> void:
+	if from.is_empty() or _name_dialog != null or _open_overlay != null:
+		return
+	var snapshot: Dictionary = from.pop_back()
+	var restored: TrackDesign = TrackDesign.from_dict(snapshot)
+	if restored == null:
+		return
+	to.append(_current_snapshot)
+	_current_snapshot = snapshot
+	_last_change_msec = -1
+	# The name and file belong to the track, not to an editing step.
+	restored.display_name = _design.display_name
+	restored.file_name = _design.file_name
+	_show_design(restored, _canvas.selected, false)
+	CustomTracks.save_draft(_design)
+	_update_history_buttons()
+
+
+func _update_history_buttons() -> void:
+	_undo_button.disabled = _undo_stack.is_empty()
+	_redo_button.disabled = _redo_stack.is_empty()
+
+
+## Ctrl+Z (Cmd+Z on macOS) undoes; Ctrl+Shift+Z or Ctrl+Y redoes.
+func _handle_history_input(event: InputEvent) -> bool:
+	var key: InputEventKey = event as InputEventKey
+	if key == null or not key.pressed or not key.is_command_or_control_pressed():
+		return false
+	if key.keycode == KEY_Z:
+		if key.shift_pressed:
+			_redo()
+		else:
+			_undo()
+		return true
+	if key.keycode == KEY_Y:
+		_redo()
+		return true
+	return false
 
 
 ## A bigger map is always fine; a smaller one only if the track fits in it.
@@ -417,6 +515,9 @@ func _on_back() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if _name_dialog != null:
+		return
+	if _open_overlay == null and _handle_history_input(event):
+		get_viewport().set_input_as_handled()
 		return
 	if _open_overlay == null and _canvas.mode == TrackEditorCanvas.Mode.PROPS:
 		if _handle_prop_input(event):

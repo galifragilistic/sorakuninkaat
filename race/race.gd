@@ -23,6 +23,9 @@ var _is_server: bool = true
 ## Car tuned by the debug panel (the first local player's), and the panel.
 var _tuning_car: Car
 var _tuning_panel: CarTuningPanel
+## Every car's sound, and the audio tuning panel (F2).
+var _audios: Array[CarAudio] = []
+var _audio_panel: AudioTuningPanel
 
 @onready var _split_screen: SplitScreen = $ViewLayer/SplitScreen
 @onready var _environment: EnvironmentController = $EnvironmentController
@@ -134,6 +137,8 @@ func _add_car_audio(humans: Array[RacerState]) -> void:
 		audio.name = "Audio"
 		car.add_child(audio)
 		audio.setup(car, listeners)
+		_audios.append(audio)
+	AudioTuningPanel.apply_session(_audios)
 
 
 func _start_network() -> void:
@@ -183,6 +188,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed(InputManager.ACTION_DEBUG_TUNING):
 		get_viewport().set_input_as_handled()
 		_toggle_tuning_panel()
+	elif event.is_action_pressed(InputManager.ACTION_DEBUG_AUDIO):
+		get_viewport().set_input_as_handled()
+		_toggle_audio_panel()
 
 
 ## Debug: the car tuning panel (F1). Not in network games, where only the
@@ -192,11 +200,32 @@ func _toggle_tuning_panel() -> void:
 		_tuning_panel.queue_free()
 		_tuning_panel = null
 		return
+	_close_audio_panel()
 	if _is_net or _tuning_car == null:
 		return
 	_tuning_panel = CarTuningPanel.new()
 	_tuning_panel.setup(_tuning_car, _cars)
 	_overlay.add_child(_tuning_panel)
+
+
+## Debug: the audio tuning panel (F2). Works online too: sound is local.
+func _toggle_audio_panel() -> void:
+	if _audio_panel != null:
+		_close_audio_panel()
+		return
+	if _tuning_panel != null:
+		_tuning_panel.queue_free()
+		_tuning_panel = null
+	var own: CarAudio = _tuning_car.get_node_or_null("Audio") as CarAudio if _tuning_car != null else null
+	_audio_panel = AudioTuningPanel.new()
+	_audio_panel.setup(own, _audios)
+	_overlay.add_child(_audio_panel)
+
+
+func _close_audio_panel() -> void:
+	if _audio_panel != null:
+		_audio_panel.queue_free()
+		_audio_panel = null
 
 
 func _can_pause() -> bool:

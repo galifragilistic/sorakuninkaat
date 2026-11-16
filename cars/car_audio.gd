@@ -118,6 +118,8 @@ var _armed_for_lift: bool = false
 var _shift_left: float = 0.0
 var _pops_left: int = 0
 var _pop_timer: float = 0.0
+## Every looping player and the sound it plays, for reload_streams().
+var _loops: Dictionary = {}
 var _wander: FastNoiseLite
 var _time: float = 0.0
 
@@ -155,10 +157,28 @@ func _add_loop(sound: SoundBank.Sound) -> AudioStreamPlayer:
 	player.stream = SoundBank.get_stream(sound)
 	player.volume_db = silent_db
 	add_child(player)
+	_loops[player] = sound
 	# Every car starts its loops at a different point, so two cars side by
 	# side do not play the same clip in step.
 	player.play(randf() * player.stream.get_length())
 	return player
+
+
+## One line for the audio debug panel: what the engine and tyres are doing.
+func get_debug_text() -> String:
+	var surface: SurfaceData = _car.get_current_surface() if _car != null else null
+	return tr("kierrokset %d %% · kaasu %d %% · vaihde %d · %s") % [
+		roundi(_revs * 100.0), roundi(_load * 100.0), _gear, surface.display_name if surface != null else "–",
+	]
+
+
+## Hands every loop its newly built stream (after SoundBank.rebuild()),
+## carrying on from about the same point.
+func reload_streams() -> void:
+	for player: AudioStreamPlayer in _loops:
+		var position: float = player.get_playback_position()
+		player.stream = SoundBank.get_stream(_loops[player])
+		player.play(fmod(position, player.stream.get_length()))
 
 
 func _process(delta: float) -> void:

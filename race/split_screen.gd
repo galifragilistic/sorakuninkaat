@@ -51,6 +51,7 @@ func setup(manager: RaceManager, track: Track, racers: Array[RacerState], layout
 	for racer: RacerState in racers:
 		var view: PlayerView = PlayerView.new()
 		view.name = "View%d" % (racer.player_index + 1)
+		view.view_index = views.size()
 		add_child(view)
 		views.append(view)
 	if racers.size() == 3:

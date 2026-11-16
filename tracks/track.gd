@@ -6,6 +6,11 @@ extends Node3D
 ## road heights. A TrackScenery child, if present, is built afterwards.
 
 const CHECKER_SHADER: Shader = preload("res://tracks/shaders/checker.gdshader")
+## Render layers (1-based) of the glowing gate parts. Cameras outside a race
+## see the shared layer; race view n sees only its own layer, where the gates
+## show that player's progress around the lap.
+const GATE_SHARED_LAYER: int = 11
+const GATE_FIRST_VIEW_LAYER: int = 12
 ## Defaults of sample_spacing and tangent_scale. Custom tracks always use these;
 ## script default values cannot be read at runtime in exported builds.
 const DEFAULT_SAMPLE_SPACING: float = 2.0
@@ -95,8 +100,8 @@ const DEFAULT_TANGENT_SCALE: float = 0.167
 @export_group("Checkpoints")
 ## Evenly spaced gates around the lap; the first one is the start/finish line.
 @export var checkpoint_count: int = 6
-## Gate width as a multiple of the road width, so wide lines still count.
-@export var checkpoint_width_scale: float = 2.2
+## A checkpoint only counts between its posts: the gate is as wide as the gap
+## between them (see checkpoint_post_margin).
 @export var checkpoint_height: float = 6.0
 @export var checkpoint_depth: float = 1.5
 ## Length of the chequered start line along the road (m).
@@ -107,6 +112,8 @@ const DEFAULT_TANGENT_SCALE: float = 0.167
 @export_group("Checkpoint gates")
 ## Glow colour of the gates and the dashed line across the road.
 @export var checkpoint_marker_color: Color = Color("#3fd8ff")
+## Glow colour of a gate the player has already passed on this lap.
+@export var checkpoint_passed_color: Color = Color("#b6f03c")
 @export var checkpoint_post_color: Color = Color(0.12, 0.13, 0.19)
 @export var checkpoint_post_height: float = 2.6
 @export var checkpoint_post_width: float = 0.28
@@ -123,6 +130,8 @@ const DEFAULT_TANGENT_SCALE: float = 0.167
 
 var curve: Curve3D
 var path: Path3D
+## Per checkpoint index, per race view: [open glow meshes, passed glow meshes].
+var _gate_glows: Dictionary = {}
 var checkpoints: Array[Checkpoint] = []
 
 ## Centre line sampled every sample_spacing metres (global space), for fast local searches.
@@ -519,7 +528,8 @@ func _build_start_line() -> void:
 
 func _build_checkpoints() -> void:
 	var shape: BoxShape3D = BoxShape3D.new()
-	shape.size = Vector3(road_width * checkpoint_width_scale, checkpoint_height, checkpoint_depth)
+	var gap: float = road_width + (checkpoint_post_margin - checkpoint_post_width * 0.5) * 2.0
+	shape.size = Vector3(gap, checkpoint_height, checkpoint_depth)
 	for i: int in checkpoint_count:
 		var offset: float = get_length() * float(i) / float(checkpoint_count)
 		var checkpoint: Checkpoint = Checkpoint.new()
@@ -563,7 +573,7 @@ func _build_checkpoint_gate(offset: float, index: int) -> void:
 		var lamp: Vector3 = base + Vector3.UP * (checkpoint_post_height + checkpoint_light_size.y * 0.5)
 		LowPoly.add_box(lights, lamp, checkpoint_light_size, checkpoint_marker_color)
 	_add_gate_mesh(gate, posts.commit(), LowPoly.vertex_color_material())
-	_add_gate_mesh(gate, lights.commit(), LowPoly.emissive_material(checkpoint_marker_color, checkpoint_light_energy))
+	var lamp_mesh: ArrayMesh = lights.commit()
 
 	# Dashes across the driving lanes.
 	var half_width: float = road_width * 0.5 - shoulder_width
@@ -583,14 +593,63 @@ func _build_checkpoint_gate(offset: float, index: int) -> void:
 			dashes, back[i] + lift, front[i] + lift, front[i + 1] + lift, back[i + 1] + lift,
 			checkpoint_marker_color, Vector3.UP
 		)
-	_add_gate_mesh(gate, dashes.commit(), LowPoly.emissive_material(checkpoint_marker_color, checkpoint_dash_energy))
+	var dash_mesh: ArrayMesh = dashes.commit()
+
+	# The lamps and dashes exist once for cameras outside a race and once per
+	# race view in both colours; set_checkpoint_passed() picks the colour.
+	var glows: Array[Array] = []
+	for color: Color in [checkpoint_marker_color, checkpoint_passed_color]:
+		glows.append([
+			[lamp_mesh, LowPoly.emissive_material(color, checkpoint_light_energy)],
+			[dash_mesh, LowPoly.emissive_material(color, checkpoint_dash_energy)],
+		])
+	for glow: Array in glows[0]:
+		_add_gate_mesh(gate, glow[0], glow[1], 1 << (GATE_SHARED_LAYER - 1))
+	var per_view: Array[Array] = []
+	for view: int in GameState.MAX_PLAYERS:
+		var layer: int = 1 << (GATE_FIRST_VIEW_LAYER + view - 1)
+		var states: Array[Array] = []
+		for passed: int in 2:
+			var meshes: Array[MeshInstance3D] = []
+			for glow: Array in glows[passed]:
+				var mesh_instance: MeshInstance3D = _add_gate_mesh(gate, glow[0], glow[1], layer)
+				mesh_instance.visible = passed == 0
+				meshes.append(mesh_instance)
+			states.append(meshes)
+		per_view.append(states)
+	_gate_glows[index] = per_view
 
 
-func _add_gate_mesh(gate: Node3D, mesh: ArrayMesh, material: Material) -> void:
+func _add_gate_mesh(gate: Node3D, mesh: ArrayMesh, material: Material, layers: int = 1) -> MeshInstance3D:
 	var mesh_instance: MeshInstance3D = MeshInstance3D.new()
 	mesh_instance.mesh = mesh
 	mesh_instance.material_override = material
+	mesh_instance.layers = layers
 	gate.add_child(mesh_instance)
+	return mesh_instance
+
+
+## Cull mask for race view n: everything except the gate glows meant for
+## cameras outside a race and for the other views.
+static func get_view_cull_mask(view: int) -> int:
+	var mask: int = (1 << 20) - 1
+	mask &= ~(1 << (GATE_SHARED_LAYER - 1))
+	for other: int in GameState.MAX_PLAYERS:
+		if other != view:
+			mask &= ~(1 << (GATE_FIRST_VIEW_LAYER + other - 1))
+	return mask
+
+
+## Shows checkpoint index's gate in race view n as passed or still to pass.
+## The start line (index 0) has no gate.
+func set_checkpoint_passed(view: int, index: int, passed: bool) -> void:
+	if not _gate_glows.has(index) or view < 0 or view >= GameState.MAX_PLAYERS:
+		return
+	var states: Array = _gate_glows[index][view]
+	for mesh_instance: MeshInstance3D in states[0]:
+		mesh_instance.visible = not passed
+	for mesh_instance: MeshInstance3D in states[1]:
+		mesh_instance.visible = passed
 
 
 func _build_ground() -> void:

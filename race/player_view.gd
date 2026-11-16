@@ -20,6 +20,13 @@ const VIGNETTE_SHADER: Shader = preload("res://env/shaders/vignette.gdshader")
 var racer: RacerState
 var camera_rig: CameraRig
 var hud: RaceHud
+## Position of this pane among the split-screen panes (0-3). Set before setup().
+var view_index: int = 0
+
+var _track: Track
+## Next checkpoint and start-line state the gates were last coloured for.
+var _shown_checkpoint: int = -1
+var _shown_crossed_start: bool = false
 
 var _viewport: SubViewport
 var _vignette_material: ShaderMaterial
@@ -32,6 +39,7 @@ func setup(
 	compact: bool, show_frame: bool, own_minimap: bool = false
 ) -> void:
 	racer = view_racer
+	_track = track
 	clip_contents = true
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var main_viewport: Viewport = get_viewport()
@@ -53,6 +61,8 @@ func setup(
 	camera.near = camera_near
 	camera.far = camera_far
 	camera.current = true
+	# This pane sees only its own player's checkpoint gate colours.
+	camera.cull_mask = Track.get_view_cull_mask(view_index)
 	camera_rig.add_child(camera)
 	_viewport.add_child(camera_rig)
 
@@ -92,6 +102,19 @@ func setup(
 	resized.connect(_update_viewport_size)
 	get_window().size_changed.connect(_update_viewport_size)
 	_update_viewport_size()
+
+
+func _process(_delta: float) -> void:
+	if racer == null:
+		return
+	if racer.next_checkpoint == _shown_checkpoint and racer.crossed_start == _shown_crossed_start:
+		return
+	_shown_checkpoint = racer.next_checkpoint
+	_shown_crossed_start = racer.crossed_start
+	# Gates passed on this lap change colour; crossing the start line resets them.
+	for index: int in range(1, _track.checkpoint_count):
+		var passed: bool = racer.crossed_start and (racer.next_checkpoint == 0 or index < racer.next_checkpoint)
+		_track.set_checkpoint_passed(view_index, index, passed)
 
 
 func apply_preset(preset: EnvPreset) -> void:

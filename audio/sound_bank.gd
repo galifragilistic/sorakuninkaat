@@ -69,6 +69,8 @@ const CRUNCH_Q: float = 1.6
 ## Partials of the bent-metal clang, as ratios of its base frequency.
 const CLANG_RATIOS: Array[float] = [1.0, 2.76, 5.4, 8.93]
 const OUTPUT_PEAK: float = 0.9
+## Samples copied past the end of a loop (see _to_stream).
+const LOOP_TAIL: int = 64
 ## Average loudness (RMS) of the engine layers and of the tyre and surface loops.
 static var engine_rms: float = 0.3
 static var surface_rms: float = 0.25
@@ -460,11 +462,18 @@ static func _peak(samples: PackedFloat32Array) -> float:
 	return peak
 
 
+## A loop gets a copy of its first LOOP_TAIL samples after its end. When it
+## plays at another pitch, the resampler reads a few samples past the loop
+## end; without the copy those are the zero padding Godot adds after the data,
+## which gives a click every time round the loop (the engine's short loops at
+## high revs clicked several times a second).
 static func _to_stream(samples: PackedFloat32Array, looped: bool) -> AudioStreamWAV:
+	var loop_length: int = samples.size()
+	var total: int = loop_length + (LOOP_TAIL if looped else 0)
 	var bytes: PackedByteArray = PackedByteArray()
-	bytes.resize(samples.size() * 2)
-	for i: int in samples.size():
-		bytes.encode_s16(i * 2, roundi(clampf(samples[i], -1.0, 1.0) * 32767.0))
+	bytes.resize(total * 2)
+	for i: int in total:
+		bytes.encode_s16(i * 2, roundi(clampf(samples[i % loop_length], -1.0, 1.0) * 32767.0))
 	var stream: AudioStreamWAV = AudioStreamWAV.new()
 	stream.format = AudioStreamWAV.FORMAT_16_BITS
 	stream.mix_rate = MIX_RATE
@@ -473,5 +482,5 @@ static func _to_stream(samples: PackedFloat32Array, looped: bool) -> AudioStream
 	if looped:
 		stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
 		stream.loop_begin = 0
-		stream.loop_end = samples.size()
+		stream.loop_end = loop_length
 	return stream

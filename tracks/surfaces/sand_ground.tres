@@ -1,6 +1,7 @@
-[gd_resource type="Resource" script_class="SurfaceData" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="SurfaceData" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://tracks/surface_data.gd" id="1"]
+[ext_resource type="Texture2D" path="res://tracks/textures/sand_detail.png" id="detail"]
 
 [resource]
 script = ExtResource("1")
@@ -11,5 +12,10 @@ rolling_drag = 0.5
 color_a = Color(0.8, 0.7, 0.45, 1)
 color_b = Color(0.66, 0.6, 0.36, 1)
 edge_color = Color(0.6, 0.46, 0.28, 1)
+detail_texture = ExtResource("detail")
+detail_scale = 0.12
+detail_strength = 0.3
+roughness = 1.0
+rut_strength = 0.0
 dust_amount = 0.8
 dust_color = Color(0.85, 0.76, 0.56, 0.35)

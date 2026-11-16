@@ -6,6 +6,7 @@ extends Node3D
 ## road heights. A TrackScenery child, if present, is built afterwards.
 
 const CHECKER_SHADER: Shader = preload("res://tracks/shaders/checker.gdshader")
+const GROUND_SHADER: Shader = preload("res://tracks/shaders/ground_detail.gdshader")
 ## Render layers (1-based) of the glowing gate parts. Cameras outside a race
 ## see the shared layer; race view n sees only its own layer, where the gates
 ## show that player's progress around the lap.
@@ -46,6 +47,19 @@ const DEFAULT_TANGENT_SCALE: float = 0.167
 ## road_surface and alt_surface are not used for the road.
 @export var road_sections: Array[SurfaceData] = []
 @export var road_section_starts: PackedFloat32Array = PackedFloat32Array()
+
+@export_group("Ground look")
+## Rock shown on steep slopes of the ground (see ground_detail.gdshader).
+@export var slope_texture: Texture2D = preload("res://tracks/textures/rock_detail.png")
+@export var slope_color: Color = Color(0.45, 0.4, 0.34)
+## Steepness (1 - |normal.y|) where the rock starts and where it covers the ground.
+@export var slope_range: Vector2 = Vector2(0.16, 0.36)
+@export_range(0.0, 1.0, 0.01) var slope_strength: float = 0.75
+## Rock texture repeats per metre.
+@export var slope_scale: float = 0.15
+## Distance of the tyre ruts from the road centre and their half width (m).
+@export var rut_offset: float = 0.8
+@export var rut_width: float = 0.45
 
 @export_group("Terrain")
 @export var ground_size: Vector2 = Vector2(280.0, 220.0)
@@ -468,10 +482,11 @@ func _build_ribbon(from_fraction: float, to_fraction: float, surface: SurfaceDat
 			var color: Color = surface.edge_color
 			if not is_shoulder:
 				color = surface.color_a.lerp(surface.color_b, _rng.randf())
-			LowPoly.add_quad(
-				tool, previous[strip], current[strip], current[strip + 1], previous[strip + 1],
-				color, Vector3.UP
-			)
+			# Alpha carries the position across the road (0 left .. 1 right) for the ruts.
+			var left: float = inverse_lerp(-half_width, half_width, laterals[strip])
+			var right_share: float = inverse_lerp(-half_width, half_width, laterals[strip + 1])
+			var corners: Array[Vector3] = [previous[strip], current[strip], current[strip + 1], previous[strip + 1]]
+			LowPoly.add_quad_alphas(tool, corners, PackedFloat32Array([left, left, right_share, right_share]), color, Vector3.UP)
 		previous = current
 	var mesh: ArrayMesh = tool.commit()
 
@@ -482,7 +497,7 @@ func _build_ribbon(from_fraction: float, to_fraction: float, surface: SurfaceDat
 
 	var mesh_instance: MeshInstance3D = MeshInstance3D.new()
 	mesh_instance.mesh = mesh
-	mesh_instance.material_override = LowPoly.vertex_color_material()
+	mesh_instance.material_override = _make_surface_material(surface, false)
 	mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	body.add_child(mesh_instance)
 	# Visual only: driving back up onto the road should not catch on the skirt.
@@ -679,7 +694,7 @@ func _build_ground() -> void:
 	var mesh: ArrayMesh = _terrain.make_mesh(_get_terrain_color.bind(color_noise))
 	var mesh_instance: MeshInstance3D = MeshInstance3D.new()
 	mesh_instance.mesh = mesh
-	mesh_instance.material_override = LowPoly.vertex_color_material()
+	mesh_instance.material_override = _make_surface_material(ground_surface, true)
 	# Hills now throw shadows on the road and on each other.
 	mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	body.add_child(mesh_instance)
@@ -729,3 +744,28 @@ func _add_wall(size: Vector3, wall_position: Vector3) -> void:
 	var collision: CollisionShape3D = CollisionShape3D.new()
 	collision.shape = box
 	body.add_child(collision)
+
+
+## Ground or road material: the surface's colours with its detail texture,
+## plus rock on steep ground or tyre ruts on the road.
+func _make_surface_material(surface: SurfaceData, is_ground: bool) -> Material:
+	if surface.detail_texture == null:
+		return LowPoly.vertex_color_material(surface.roughness)
+	var material: ShaderMaterial = ShaderMaterial.new()
+	material.shader = GROUND_SHADER
+	material.set_shader_parameter("detail_texture", surface.detail_texture)
+	material.set_shader_parameter("detail_scale", surface.detail_scale)
+	material.set_shader_parameter("detail_strength", surface.detail_strength)
+	material.set_shader_parameter("roughness_value", surface.roughness)
+	if is_ground:
+		material.set_shader_parameter("slope_texture", slope_texture)
+		material.set_shader_parameter("slope_scale", slope_scale)
+		material.set_shader_parameter("slope_color", slope_color)
+		material.set_shader_parameter("slope_range", slope_range)
+		material.set_shader_parameter("slope_strength", slope_strength)
+	else:
+		material.set_shader_parameter("road_width", road_width)
+		material.set_shader_parameter("rut_offset", rut_offset)
+		material.set_shader_parameter("rut_width", rut_width)
+		material.set_shader_parameter("rut_strength", surface.rut_strength)
+	return material

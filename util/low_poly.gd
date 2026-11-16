@@ -27,6 +27,26 @@ static func add_triangle(
 		tool.add_vertex(vertex)
 
 
+## Like add_quad, but each corner gets its own alpha (used to pass extra
+## per-vertex data, e.g. the position across a road, to a shader).
+static func add_quad_alphas(
+	tool: SurfaceTool, corners: Array[Vector3], alphas: PackedFloat32Array, color: Color, outward_hint: Vector3
+) -> void:
+	for triangle: Array in [[0, 1, 2], [0, 2, 3]]:
+		var a: int = triangle[0]
+		var b: int = triangle[1]
+		var c: int = triangle[2]
+		var normal: Vector3 = (corners[c] - corners[a]).cross(corners[b] - corners[a]).normalized()
+		var order: Array = [a, b, c]
+		if normal.dot(outward_hint) < 0.0:
+			normal = -normal
+			order = [a, c, b]
+		for index: int in order:
+			tool.set_color(Color(color, alphas[index]))
+			tool.set_normal(normal)
+			tool.add_vertex(corners[index])
+
+
 ## Corners are given around the perimeter.
 static func add_quad(
 	tool: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3,

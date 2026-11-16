@@ -1,6 +1,7 @@
-[gd_resource type="Resource" script_class="SurfaceData" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="SurfaceData" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://tracks/surface_data.gd" id="1"]
+[ext_resource type="Texture2D" path="res://tracks/textures/snow_detail.png" id="detail"]
 
 [resource]
 script = ExtResource("1")
@@ -11,5 +12,10 @@ rolling_drag = 0.07
 color_a = Color(0.72, 0.79, 0.9, 1)
 color_b = Color(0.65, 0.73, 0.87, 1)
 edge_color = Color(0.47, 0.56, 0.74, 1)
+detail_texture = ExtResource("detail")
+detail_scale = 0.12
+detail_strength = 0.25
+roughness = 0.9
+rut_strength = 0.3
 dust_amount = 0.7
 dust_color = Color(0.95, 0.97, 1, 0.45)

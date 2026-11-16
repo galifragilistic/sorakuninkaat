@@ -4,12 +4,17 @@ extends RefCounted
 
 ## Sent over the network as an int: only add new patterns at the end.
 enum Pattern { STRIPE, PLAIN, SIDE_BAND, TWO_TONE, CHECKER }
+## CLASSIC: left/right turns the wheel. DIRECTIONAL: the stick (or WASD)
+## points where the car should head on screen, and the car steers there.
+enum Steering { CLASSIC, DIRECTIONAL }
 
 var stats: CarStats
 ## Name the player chose ("" = the default "Pelaaja N"). See GameState.get_player_name().
 var display_name: String = ""
 var color: Color = Color.WHITE
 var pattern: Pattern = Pattern.STRIPE
+## How this player steers; only matters on the machine the player sits at.
+var steering: Steering = Steering.CLASSIC
 ## Whether this player slot takes part in the next race.
 var joined: bool = false
 var is_ready: bool = false

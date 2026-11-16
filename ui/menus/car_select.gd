@@ -27,6 +27,8 @@ var _stat_bars: Array[StatBar] = []
 var _stat_values: Array[Label] = []
 var _swatches: Array[ColorSwatch] = []
 var _pattern_spinner: OptionSpinner
+var _steering_spinner: OptionSpinner
+var _steering: PlayerSetup.Steering = PlayerSetup.Steering.CLASSIC
 
 
 func _build() -> void:
@@ -50,6 +52,8 @@ func _enter() -> void:
 	_pattern = setup.pattern
 	MenuKit.set_chip(_owner_chip, "P%d" % (_player + 1), GameState.get_player_color(_player))
 	_pattern_spinner.index = _pattern
+	_steering = setup.steering
+	_steering_spinner.index = _steering
 	_show_car(_car_index)
 	_update_paint()
 
@@ -168,6 +172,13 @@ func _build_stats_panel() -> void:
 	_pattern_spinner.value_changed.connect(_on_pattern_changed)
 	column.add_child(_pattern_spinner)
 
+	_steering_spinner = OptionSpinner.create(
+		tr("Ohjaus"), PackedStringArray([tr("Perinteinen"), tr("Suuntaohjaus")]), 0
+	)
+	_steering_spinner.value_width = 130.0
+	_steering_spinner.value_changed.connect(func(index: int) -> void: _steering = index as PlayerSetup.Steering)
+	column.add_child(_steering_spinner)
+
 
 func _build_confirm() -> void:
 	var button: ChamferButton = ChamferButton.create(tr("VAHVISTA"), 20, Vector4(24.0, 0.0, 16.0, 0.0))
@@ -221,6 +232,7 @@ func _confirm() -> void:
 	setup.stats = Catalog.CARS[_car_index]
 	setup.color = _color
 	setup.pattern = _pattern
+	Settings.set_steering(_player, _steering)
 	if context.has("next"):
 		# Remember how to come back here from the next screen.
 		var next_context: Dictionary = context.get("next_context", {}).duplicate()

@@ -36,6 +36,8 @@ var volume: int = 8:
 ## Names chosen for player slots 1-4 on this machine ("" = default name).
 ## Slot 1's name is also this machine's name in network games.
 var player_names: PackedStringArray = PackedStringArray(["", "", "", ""])
+## Steering mode (PlayerSetup.Steering) chosen for player slots 1-4 on this machine.
+var steering_modes: PackedInt32Array = PackedInt32Array([0, 0, 0, 0])
 
 var _loading: bool = false
 
@@ -45,6 +47,8 @@ func _ready() -> void:
 	_apply_volume()
 	for i: int in player_names.size():
 		GameState.players[i].display_name = player_names[i]
+	for i: int in steering_modes.size():
+		GameState.players[i].steering = steering_modes[i] as PlayerSetup.Steering
 
 
 func get_player_name(slot: int) -> String:
@@ -57,6 +61,15 @@ func set_player_name(slot: int, player_name: String) -> void:
 		return
 	player_names[slot] = GameState.sanitize_name(player_name)
 	GameState.players[slot].display_name = player_names[slot]
+	_on_changed()
+
+
+## Remembers how a player steers and applies it to their slot.
+func set_steering(slot: int, mode: PlayerSetup.Steering) -> void:
+	if slot >= steering_modes.size():
+		return
+	steering_modes[slot] = mode
+	GameState.players[slot].steering = mode
 	_on_changed()
 
 
@@ -92,6 +105,9 @@ func _load() -> void:
 	var names: PackedStringArray = config.get_value(SECTION, "player_names", player_names)
 	for i: int in mini(names.size(), player_names.size()):
 		player_names[i] = GameState.sanitize_name(names[i])
+	var modes: PackedInt32Array = config.get_value(SECTION, "steering_modes", steering_modes)
+	for i: int in mini(modes.size(), steering_modes.size()):
+		steering_modes[i] = clampi(modes[i], 0, PlayerSetup.Steering.size() - 1)
 	_loading = false
 
 
@@ -102,4 +118,5 @@ func _save() -> void:
 	config.set_value(SECTION, "fullscreen", fullscreen)
 	config.set_value(SECTION, "volume", volume)
 	config.set_value(SECTION, "player_names", player_names)
+	config.set_value(SECTION, "steering_modes", steering_modes)
 	config.save(SAVE_PATH)

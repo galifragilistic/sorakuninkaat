@@ -9,6 +9,11 @@ var brake: float = 0.0
 ## -1 (left) .. 1 (right)
 var steer: float = 0.0
 var handbrake: bool = false
+## Direction pushed on screen (x right, y up, length 0..1): the left stick,
+## or the direction keys when no stick is pushed. Used by directional steering.
+var aim: Vector2 = Vector2.ZERO
+## True when aim came from the keys rather than a stick.
+var aim_from_keys: bool = false
 ## True only on the tick the reset button went down.
 var reset_pressed: bool = false
 
@@ -29,4 +34,6 @@ func clear() -> void:
 	brake = 0.0
 	steer = 0.0
 	handbrake = false
+	aim = Vector2.ZERO
+	aim_from_keys = false
 	update_reset(false)

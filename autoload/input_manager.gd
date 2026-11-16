@@ -235,6 +235,8 @@ func _read_solo(input: PlayerInput) -> void:
 	input.steer = _key_strength(layout[Action.RIGHT]) - _key_strength(layout[Action.LEFT])
 	input.handbrake = Input.is_physical_key_pressed(layout[Action.HANDBRAKE])
 	var reset_held: bool = Input.is_physical_key_pressed(layout[Action.RESET])
+	input.aim = _key_aim(layout)
+	input.aim_from_keys = true
 	for joy_id: int in Input.get_connected_joypads():
 		input.throttle = maxf(input.throttle, Input.get_joy_axis(joy_id, JOY_AXIS_TRIGGER_RIGHT))
 		input.brake = maxf(input.brake, Input.get_joy_axis(joy_id, JOY_AXIS_TRIGGER_LEFT))
@@ -243,6 +245,10 @@ func _read_solo(input: PlayerInput) -> void:
 			input.steer = steer
 		input.handbrake = input.handbrake or Input.is_joy_button_pressed(joy_id, JOY_HANDBRAKE_BUTTON)
 		reset_held = reset_held or Input.is_joy_button_pressed(joy_id, JOY_RESET_BUTTON)
+		var stick: Vector2 = _stick_aim(joy_id)
+		if stick != Vector2.ZERO:
+			input.aim = stick
+			input.aim_from_keys = false
 	input.update_reset(reset_held)
 
 
@@ -252,6 +258,8 @@ func _read_keyboard(input: PlayerInput, layout: Dictionary) -> void:
 	input.steer = _key_strength(layout[Action.RIGHT]) - _key_strength(layout[Action.LEFT])
 	input.handbrake = Input.is_physical_key_pressed(layout[Action.HANDBRAKE])
 	input.update_reset(Input.is_physical_key_pressed(layout[Action.RESET]))
+	input.aim = _key_aim(layout)
+	input.aim_from_keys = true
 
 
 func _read_joypad(input: PlayerInput, joy_id: int) -> void:
@@ -261,6 +269,23 @@ func _read_joypad(input: PlayerInput, joy_id: int) -> void:
 	input.steer = 0.0 if absf(steer) < JOY_STEER_DEADZONE else steer
 	input.handbrake = Input.is_joy_button_pressed(joy_id, JOY_HANDBRAKE_BUTTON)
 	input.update_reset(Input.is_joy_button_pressed(joy_id, JOY_RESET_BUTTON))
+	input.aim = _stick_aim(joy_id)
+	input.aim_from_keys = false
+
+
+## Screen direction from the throttle, brake and turn keys (up = throttle key).
+func _key_aim(layout: Dictionary) -> Vector2:
+	var aim: Vector2 = Vector2(
+		_key_strength(layout[Action.RIGHT]) - _key_strength(layout[Action.LEFT]),
+		_key_strength(layout[Action.THROTTLE]) - _key_strength(layout[Action.BRAKE])
+	)
+	return aim.normalized()
+
+
+## Left stick direction on screen (y up), or zero inside the dead zone.
+func _stick_aim(joy_id: int) -> Vector2:
+	var stick: Vector2 = Vector2(Input.get_joy_axis(joy_id, JOY_AXIS_LEFT_X), -Input.get_joy_axis(joy_id, JOY_AXIS_LEFT_Y))
+	return Vector2.ZERO if stick.length() < JOY_STEER_DEADZONE else stick.limit_length(1.0)
 
 
 func _key_strength(key: Key) -> float:

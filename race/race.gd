@@ -96,7 +96,18 @@ func _spawn_cars() -> Array[RacerState]:
 			if _is_net:
 				# Online, this machine's player uses P1's devices whatever their slot.
 				car.input_source = InputManager.get_input(0)
+			if setup.steering == PlayerSetup.Steering.DIRECTIONAL:
+				_add_directional_steering(car, InputManager.get_input(0 if _is_net else player))
 	return humans
+
+
+func _add_directional_steering(car: Car, input: PlayerInput) -> void:
+	var steering: DirectionalSteering = DirectionalSteering.new()
+	steering.name = "DirectionalSteering"
+	# Every player's view looks the same way, so "up" on screen is the same for all.
+	var view_yaw: float = (CameraRig as Script).get_property_default_value("yaw_degrees")
+	steering.setup(car, input, view_yaw)
+	car.add_child(steering)
 
 
 func _is_local_player(slot: int, setup: PlayerSetup) -> bool:

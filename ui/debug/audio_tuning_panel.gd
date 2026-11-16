@@ -56,6 +56,9 @@ const PARAMETERS: Array = [
 	["car:other_car_offset_db", "Muut autot (dB)", -30.0, 0.0, 0.5],
 	["car:half_distance", "Puolittumismatka (m)", 2.0, 60.0, 0.5],
 	["#", "SYNTEESI · RAKENNA ÄÄNET"],
+	["bank:engine_attack_ms", "Sytytyksen pehmeys (ms)", 0.1, 10.0, 0.1],
+	["bank:engine_brightness", "Moottorin kirkkaus (Hz)", 200.0, 6000.0, 50.0],
+	["bank:engine_decay", "Sytytyksen sammuminen", 1.0, 12.0, 0.1],
 	["bank:exhaust_formants:0", "Pakoputken resonanssi 1 (Hz)", 40.0, 600.0, 5.0],
 	["bank:exhaust_formants:1", "Pakoputken resonanssi 2 (Hz)", 100.0, 1500.0, 10.0],
 	["bank:exhaust_formants:2", "Pakoputken resonanssi 3 (Hz)", 300.0, 4000.0, 10.0],
@@ -66,6 +69,11 @@ const PARAMETERS: Array = [
 	["bank:engine_rms", "Moottorin taso", 0.05, 0.7, 0.01],
 	["bank:surface_rms", "Alustaäänten taso", 0.05, 0.7, 0.01],
 	["bank:gravel_hits", "Kiviä sorassa (/s)", 50.0, 4000.0, 10.0],
+	["bank:gravel_bands:0", "Soran kivet, sävel 1 (Hz)", 100.0, 3000.0, 10.0],
+	["bank:gravel_bands:1", "Soran kivet, sävel 2 (Hz)", 100.0, 5000.0, 10.0],
+	["bank:gravel_bands:2", "Soran kivet, sävel 3 (Hz)", 100.0, 8000.0, 10.0],
+	["bank:gravel_rumble", "Soran jyrinä", 0.0, 4.0, 0.05],
+	["bank:surface_brightness", "Alustaäänten kirkkaus (Hz)", 300.0, 10000.0, 50.0],
 	["bank:snow_hits", "Narinaa lumessa (/s)", 20.0, 2000.0, 10.0],
 	["bank:scrub_hits", "Kiviä luistossa (/s)", 50.0, 4000.0, 10.0],
 	["bank:squeal_frequency", "Vinkunan sävel (Hz)", 200.0, 2500.0, 10.0],
@@ -110,6 +118,18 @@ static func _read_key(key: String, sample: CarAudio) -> float:
 	match parts[0]:
 		"exhaust_formants":
 			return SoundBank.exhaust_formants[int(parts[1])]
+		"engine_attack_ms":
+			return SoundBank.engine_attack * 1000.0
+		"engine_brightness":
+			return SoundBank.engine_brightness
+		"engine_decay":
+			return SoundBank.engine_decay
+		"gravel_bands":
+			return SoundBank.gravel_bands[int(parts[1])]
+		"gravel_rumble":
+			return SoundBank.gravel_rumble
+		"surface_brightness":
+			return SoundBank.surface_brightness
 		"layer_noise":
 			return SoundBank.layer_noise[int(parts[1])]
 		"cylinder_spread":
@@ -134,6 +154,18 @@ static func _write_bank(name_and_index: String, value: float) -> void:
 	match parts[0]:
 		"exhaust_formants":
 			SoundBank.exhaust_formants[int(parts[1])] = value
+		"engine_attack_ms":
+			SoundBank.engine_attack = value / 1000.0
+		"engine_brightness":
+			SoundBank.engine_brightness = value
+		"engine_decay":
+			SoundBank.engine_decay = value
+		"gravel_bands":
+			SoundBank.gravel_bands[int(parts[1])] = value
+		"gravel_rumble":
+			SoundBank.gravel_rumble = value
+		"surface_brightness":
+			SoundBank.surface_brightness = value
 		"layer_noise":
 			SoundBank.layer_noise[int(parts[1])] = value
 		"cylinder_spread":

@@ -42,13 +42,13 @@ enum Ground { ASPHALT, LOOSE, SNOW }
 @export_group("Backfire")
 ## Lifting off above these revs may make the exhaust pop.
 @export_range(0.0, 1.0, 0.01) var backfire_min_revs: float = 0.55
-@export_range(0.0, 1.0, 0.01) var backfire_chance: float = 0.55
+@export_range(0.0, 1.0, 0.01) var backfire_chance: float = 0.25
 ## Chance of a pop on an upshift.
-@export_range(0.0, 1.0, 0.01) var shift_backfire_chance: float = 0.3
+@export_range(0.0, 1.0, 0.01) var shift_backfire_chance: float = 0.15
 ## Pops per lift (min, max) and the gap between them (s).
 @export var backfire_count: Vector2i = Vector2i(1, 3)
 @export var backfire_gap: Vector2 = Vector2(0.05, 0.14)
-@export var backfire_volume_db: float = -9.0
+@export var backfire_volume_db: float = -13.0
 @export var backfire_pitch_range: Vector2 = Vector2(0.85, 1.2)
 ## Throttle above this and then below release_throttle counts as lifting off.
 @export var lift_throttle: Vector2 = Vector2(0.6, 0.1)

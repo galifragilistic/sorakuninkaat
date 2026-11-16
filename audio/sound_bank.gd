@@ -51,6 +51,21 @@ static var snow_hits: float = 260.0
 static var scrub_hits: float = 1100.0
 ## Pitch of the tyre squeal (Hz).
 static var squeal_frequency: float = 880.0
+## How each engine firing swells in (s) and how bright it is (low-pass, Hz).
+static var engine_attack: float = 0.003
+static var engine_brightness: float = 900.0
+## How much each firing dies away before the next (e^-engine_decay).
+static var engine_decay: float = 4.0
+## Stone resonances (Hz) and the low rumble under them on gravel.
+static var gravel_bands: PackedFloat32Array = PackedFloat32Array([550.0, 1150.0, 2300.0])
+static var gravel_rumble: float = 1.2
+## Low-pass (Hz) on the gravel, snow and scrub loops: lower is softer.
+static var surface_brightness: float = 2500.0
+## Rumble under the snow crunch and the loose-ground skid, and the width of
+## the stone resonances (lower Q = duller, wider ring).
+const SNOW_RUMBLE: float = 0.5
+const SCRUB_RUMBLE: float = 1.0
+const CRUNCH_Q: float = 1.6
 ## Partials of the bent-metal clang, as ratios of its base frequency.
 const CLANG_RATIOS: Array[float] = [1.0, 2.76, 5.4, 8.93]
 const OUTPUT_PEAK: float = 0.9
@@ -130,13 +145,13 @@ static func _build(sound: Sound) -> AudioStreamWAV:
 		Sound.ROLL_ASPHALT:
 			return _to_stream(_asphalt_roll(), true)
 		Sound.ROLL_GRAVEL:
-			return _to_stream(_crunch_loop(gravel_hits, [1300.0, 2600.0, 4300.0], 0.45, 1), true)
+			return _to_stream(_crunch_loop(gravel_hits, Array(gravel_bands), gravel_rumble, 1), true)
 		Sound.ROLL_SNOW:
-			return _to_stream(_crunch_loop(snow_hits, [420.0, 780.0, 1500.0], 0.3, 2), true)
+			return _to_stream(_crunch_loop(snow_hits, [420.0, 780.0, 1500.0], SNOW_RUMBLE, 2), true)
 		Sound.SKID_ASPHALT:
 			return _to_stream(_squeal(), true)
 		Sound.SKID_LOOSE:
-			return _to_stream(_crunch_loop(scrub_hits, [900.0, 1900.0, 3600.0], 0.8, 3), true)
+			return _to_stream(_crunch_loop(scrub_hits, [700.0, 1500.0, 2800.0], SCRUB_RUMBLE, 3), true)
 		Sound.CRASH, Sound.CRASH_2, Sound.CRASH_3:
 			return _to_stream(_crash(CRASH_VARIANTS.find(sound)), false)
 		Sound.SHIFT:
@@ -240,15 +255,27 @@ static func _engine(pulse: int, layer: int) -> PackedFloat32Array:
 	var mix: Array = LAYER_FORMANT_MIX[layer]
 	var noise_share: float = layer_noise[layer]
 	var force: float = LAYER_FORCE[layer]
-	# The kick decays within about a third of the firing interval.
-	var decay: float = 3.0 / float(pulse) * 3.0
+	# How far each firing has died away by the next one (e^-engine_decay):
+	# low values let the firings run into each other as one rumble.
+	var decay: float = engine_decay / float(pulse)
 	var body: Resonator = Resonator.new(float(MIX_RATE) / float(pulse), 1.2)
+	# Each firing swells in over engine_attack instead of starting at full
+	# strength (a sudden start is a click), and the pulse is low-passed at
+	# engine_brightness before it rings the exhaust resonances.
+	var attack: float = maxf(1.0, engine_attack * float(MIX_RATE))
+	var smooth: float = 1.0 - exp(-TAU * engine_brightness / float(MIX_RATE))
+	var filtered: Array[float] = [0.0, 0.0]
 	return _finish(_settled_loop(length, func(i: int) -> float:
 		var firing: int = int(float(i) / float(pulse))
 		var phase: int = i % pulse
 		var strength: float = (1.0 - (1.0 - CYLINDER_BALANCE[firing % CYLINDER_BALANCE.size()]) * cylinder_spread) * jitter[firing] * force
-		var kick: float = exp(-float(phase) * decay) * strength
-		var excitation: float = kick * (1.0 - noise_share + noise[i] * noise_share)
+		var swell: float = 1.0 - exp(-float(phase) / attack)
+		var kick: float = swell * exp(-float(phase) * decay) * strength
+		var raw: float = kick * (1.0 - noise_share + noise[i] * noise_share)
+		# Two gentle low-pass stages.
+		filtered[0] = lerpf(filtered[0], raw, smooth)
+		filtered[1] = lerpf(filtered[1], filtered[0], smooth)
+		var excitation: float = filtered[1]
 		var value: float = body.process(excitation) * 0.8
 		for f: int in formants.size():
 			value += formants[f].process(excitation) * float(mix[f]) * 4.0
@@ -297,14 +324,20 @@ static func _crunch_loop(hits: float, bands: Array, rumble: float, seed_offset: 
 			impulses[i] = size * size * (1.0 if rng.randf() < 0.5 else -1.0)
 	var resonators: Array[Resonator] = []
 	for frequency: float in bands:
-		resonators.append(Resonator.new(frequency, 2.5))
-	var low: Array[float] = [0.0]
+		resonators.append(Resonator.new(frequency, CRUNCH_Q))
+	# low: the rumble under the stones; soft: two low-pass stages that take the
+	# hiss off the top (surface_brightness).
+	var smooth: float = 1.0 - exp(-TAU * surface_brightness / float(MIX_RATE))
+	var state: Array[float] = [0.0, 0.0, 0.0]
 	return _finish(_settled_loop(length, func(i: int) -> float:
 		var value: float = 0.0
 		for r: Resonator in resonators:
 			value += r.process(impulses[i])
-		low[0] = lerpf(low[0], noise[i], 0.04)
-		return value * 6.0 + low[0] * rumble * 2.0), surface_rms)
+		state[0] = lerpf(state[0], noise[i], 0.04)
+		var mixed: float = value * 6.0 + state[0] * rumble * 2.0
+		state[1] = lerpf(state[1], mixed, smooth)
+		state[2] = lerpf(state[2], state[1], smooth)
+		return state[2]), surface_rms)
 
 
 ## Tyre squeal on tarmac: a wavering tone with a rough edge. Its wobble repeats

@@ -141,6 +141,12 @@ var _air_time: float = 0.0
 var _landing_dust_left: float = 0.0
 var _smoke: Dust
 var _idle_input: PlayerInput = PlayerInput.new()
+## Rolling angle of each wheel mesh, its resting orientation and which way its
+## axle points (the meshes are turned on their side in the scene).
+var _wheel_spin: PackedFloat32Array = PackedFloat32Array([0.0, 0.0, 0.0, 0.0])
+var _wheel_mesh_basis: Array[Basis] = []
+var _wheel_axle_sign: PackedFloat32Array = PackedFloat32Array()
+var _handbrake_held: bool = false
 
 @onready var _wheel_nodes: Array[Node3D] = [
 	$Wheels/FrontLeft, $Wheels/FrontRight, $Wheels/RearLeft, $Wheels/RearRight,
@@ -163,6 +169,9 @@ func _ready() -> void:
 	for i: int in WHEEL_COUNT:
 		_wheel_nodes[i].position = _mount_points[i] + Vector3.DOWN * suspension_rest_length
 		_wheel_surfaces.append(null)
+		var wheel_mesh: Node3D = _wheel_nodes[i].get_node("Mesh") as Node3D
+		_wheel_mesh_basis.append(wheel_mesh.basis)
+		_wheel_axle_sign.append(signf((wheel_mesh.basis * Vector3.UP).x))
 	_idle_input.handbrake = true
 	set_model(stats)
 	_apply_player_color()
@@ -275,11 +284,24 @@ func reset_upright() -> void:
 	reset_physics_interpolation()
 
 
+## Rolls the wheels with the car. Rolling forward (-Z) turns the top of a wheel
+## forward, a negative turn about +X. The rear wheels lock under the handbrake.
+func _process(delta: float) -> void:
+	var roll: float = get_forward_speed() * delta / wheel_radius
+	for i: int in WHEEL_COUNT:
+		var locked: bool = _handbrake_held and i >= FRONT_WHEEL_COUNT and _grounded_wheels > 0
+		if not locked:
+			_wheel_spin[i] = fposmod(_wheel_spin[i] - roll * _wheel_axle_sign[i], TAU)
+		var wheel_mesh: Node3D = _wheel_nodes[i].get_node("Mesh") as Node3D
+		wheel_mesh.basis = _wheel_mesh_basis[i] * Basis(Vector3.UP, _wheel_spin[i])
+
+
 func _physics_process(delta: float) -> void:
 	_update_gear()
 	var input: PlayerInput = _idle_input
 	if controls_enabled:
 		input = input_source if input_source != null else InputManager.get_input(player_index)
+	_handbrake_held = input.handbrake
 	if not is_puppet:
 		if input.reset_pressed:
 			reset_upright()

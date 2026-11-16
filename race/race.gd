@@ -39,6 +39,8 @@ func _ready() -> void:
 	_race_manager.setup(_track, GameState.lap_count, _is_server)
 	var humans: Array[RacerState] = _spawn_cars()
 	InputManager.solo_mode = humans.size() == 1
+	# Synthesise every sound now rather than on the first crash.
+	SoundBank.warm_up()
 	_add_car_audio(humans)
 	if not humans.is_empty():
 		_tuning_car = humans[0].car

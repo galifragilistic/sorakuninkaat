@@ -20,6 +20,9 @@ var _net_sync: NetSync
 var _is_net: bool = false
 ## False on network clients: the host decides everything.
 var _is_server: bool = true
+## Car tuned by the debug panel (the first local player's), and the panel.
+var _tuning_car: Car
+var _tuning_panel: CarTuningPanel
 
 @onready var _split_screen: SplitScreen = $ViewLayer/SplitScreen
 @onready var _environment: EnvironmentController = $EnvironmentController
@@ -37,6 +40,10 @@ func _ready() -> void:
 	var humans: Array[RacerState] = _spawn_cars()
 	InputManager.solo_mode = humans.size() == 1
 	_add_car_audio(humans)
+	if not humans.is_empty():
+		_tuning_car = humans[0].car
+		if not _is_net:
+			CarTuningPanel.apply_session(_cars, _tuning_car)
 
 	_overlay = CanvasLayer.new()
 	_overlay.layer = overlay_layer
@@ -160,6 +167,23 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed(InputManager.ACTION_PAUSE) and _can_pause():
 		get_viewport().set_input_as_handled()
 		_set_paused(true)
+	elif event.is_action_pressed(InputManager.ACTION_DEBUG_TUNING):
+		get_viewport().set_input_as_handled()
+		_toggle_tuning_panel()
+
+
+## Debug: the car tuning panel (F1). Not in network games, where only the
+## host's physics count.
+func _toggle_tuning_panel() -> void:
+	if _tuning_panel != null:
+		_tuning_panel.queue_free()
+		_tuning_panel = null
+		return
+	if _is_net or _tuning_car == null:
+		return
+	_tuning_panel = CarTuningPanel.new()
+	_tuning_panel.setup(_tuning_car, _cars)
+	_overlay.add_child(_tuning_panel)
 
 
 func _can_pause() -> bool:

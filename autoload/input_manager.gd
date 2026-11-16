@@ -55,6 +55,8 @@ const ACTION_TERTIARY: StringName = &"menu_tertiary"
 ## Lobby tabs (LB / RB on a gamepad, Q / E on the keyboard).
 const ACTION_TAB_PREVIOUS: StringName = &"menu_tab_previous"
 const ACTION_TAB_NEXT: StringName = &"menu_tab_next"
+## Opens the car tuning panel in a race (F1).
+const ACTION_DEBUG_TUNING: StringName = &"debug_tuning"
 ## Matches a button on every connected gamepad.
 const ALL_DEVICES: int = -1
 
@@ -118,6 +120,7 @@ func _register_actions() -> void:
 	_add_action(ACTION_PAUSE, [KEY_ESCAPE], [JOY_BUTTON_START])
 	_add_action(ACTION_TAB_PREVIOUS, [KEY_Q], [JOY_BUTTON_LEFT_SHOULDER])
 	_add_action(ACTION_TAB_NEXT, [KEY_E], [JOY_BUTTON_RIGHT_SHOULDER])
+	_add_action(ACTION_DEBUG_TUNING, [KEY_F1], [])
 	# Godot 4 binds ui_accept and ui_cancel to the keyboard only.
 	_add_action(&"ui_accept", [], [JOY_BUTTON_A])
 	_add_action(&"ui_cancel", [], [JOY_BUTTON_B])

@@ -20,6 +20,13 @@ const MODEL_HEADLAMP: String = "Headlamp"
 const MODEL_PAINT: String = "Paint"
 const MODEL_HEAD_LIGHT: String = "HeadLight"
 const MODEL_TAIL_LIGHT: String = "TailLight"
+const MODEL_GRILLE: String = "Grille"
+const MODEL_RUBBER: String = "Rubber"
+const MODEL_BODY: String = "Body"
+const PAINT_SHADER: Shader = preload("res://cars/shaders/car_paint.gdshader")
+const LAMP_SHADER: Shader = preload("res://cars/shaders/car_lamp.gdshader")
+const GRILLE_SHADER: Shader = preload("res://cars/shaders/car_grille.gdshader")
+const TYRE_SHADER: Shader = preload("res://cars/shaders/car_tyre.gdshader")
 
 ## Painted decals and glass sit this far off the surface they are drawn on.
 @export var decal_offset: float = 0.012
@@ -60,6 +67,27 @@ const MODEL_TAIL_LIGHT: String = "TailLight"
 ## Spotlights start this far in front of the lamp glass.
 @export var spotlight_lead: float = 0.1
 
+@export_group("Dirt")
+## Splotchy noise that breaks up the dirt line.
+@export var dirt_noise: Texture2D = preload("res://tracks/textures/snow_detail.png")
+
+@export_group("Rally decals")
+@export var number_font_size: int = 72
+@export var sponsor_font_size: int = 44
+@export var decal_pixel_size: float = 0.0034
+@export var number_plate_size: Vector2 = Vector2(0.46, 0.34)
+@export var number_plate_color: Color = Color(0.96, 0.96, 0.93)
+@export var number_color: Color = Color(0.06, 0.06, 0.08)
+## Number plate height as a share of the body height, and its place along the car (m, +z = back).
+@export_range(0.0, 1.0, 0.01) var number_height_share: float = 0.3
+@export var number_z: float = -0.42
+@export var sponsor_z: float = 0.4
+@export var decal_lift: float = 0.02
+## Made-up sponsors; each car shows one picked by its race number.
+@export var sponsors: PackedStringArray = PackedStringArray([
+	"SORAJÄTTI", "KUUSIÖLJY", "HIRVIPAJA", "TUNTURI", "KIVIMURSKA", "LUMIKKO",
+])
+
 @export_group("Details")
 @export var bumper_height: float = 0.16
 ## Thickness of bars, rails and other tubes.
@@ -96,7 +124,15 @@ var _roof_front: float = 0.0
 var _roof_rear: float = 0.0
 var _roof_half: float = 0.0
 
-var _paint_material: StandardMaterial3D
+var _paint_material: ShaderMaterial
+var _grille_material: ShaderMaterial
+var _tyre_material: ShaderMaterial
+## Dirt on the body (0 clean .. 1 filthy) and its colour.
+var _dirt: float = 0.0
+var _dirt_color: Color = Color(0.45, 0.36, 0.26)
+## Rally decals on the doors (only on Blender models).
+var _decals: Node3D
+var _race_number: int = 1
 var _paint_mesh: MeshInstance3D
 var _pattern_mesh: MeshInstance3D
 var _detail_mesh: MeshInstance3D
@@ -155,7 +191,7 @@ func set_paint(color: Color, pattern: PlayerSetup.Pattern) -> void:
 	_paint_color = color
 	_pattern = pattern
 	_ensure_nodes()
-	_paint_material.albedo_color = color
+	_paint_material.set_shader_parameter("paint_color", color)
 	if _model_root != null:
 		_update_model_pattern()
 	else:
@@ -193,6 +229,8 @@ func _clear_model() -> void:
 		_model_root = null
 	_model_wheel = null
 	_pattern_nodes.clear()
+	# The decals lived under the model.
+	_decals = null
 
 
 ## Shows an imported model. Surfaces made of "Paint" take the player's colour,
@@ -213,6 +251,7 @@ func _build_from_model(scene: PackedScene) -> void:
 		if node_name.begins_with(MODEL_WHEEL):
 			if mesh_node != null:
 				_model_wheel = mesh_node.mesh as ArrayMesh
+				_set_tyre_surfaces(_model_wheel)
 				mesh_node.visible = false
 		elif node_name.begins_with(MODEL_PATTERN):
 			var key: String = _pattern_key(node_name.trim_prefix(MODEL_PATTERN))
@@ -227,6 +266,7 @@ func _build_from_model(scene: PackedScene) -> void:
 	lamps.sort_custom(func(a: Node3D, b: Node3D) -> bool: return a.position.x < b.position.x)
 	for lamp: Node3D in lamps:
 		head_lamp_positions.append(_model_root.transform * lamp.position + Vector3.FORWARD * spotlight_lead)
+	_add_rally_decals()
 	_update_model_pattern()
 
 
@@ -254,6 +294,10 @@ func _recolour(mesh_node: MeshInstance3D) -> void:
 				mesh_node.set_surface_override_material(i, _head_mesh.material_override)
 			MODEL_TAIL_LIGHT:
 				mesh_node.set_surface_override_material(i, _tail_mesh.material_override)
+			MODEL_GRILLE:
+				mesh_node.set_surface_override_material(i, _grille_material)
+			MODEL_RUBBER:
+				mesh_node.set_surface_override_material(i, _tyre_material)
 
 
 func _update_model_pattern() -> void:
@@ -266,9 +310,13 @@ func _update_model_pattern() -> void:
 func _ensure_nodes() -> void:
 	if _paint_mesh != null:
 		return
-	_paint_material = StandardMaterial3D.new()
-	_paint_material.roughness = paint_roughness
-	_paint_material.albedo_color = _paint_color
+	_paint_material = _shader_material(PAINT_SHADER)
+	_paint_material.set_shader_parameter("paint_color", _paint_color)
+	_paint_material.set_shader_parameter("paint_roughness", paint_roughness)
+	_paint_material.set_shader_parameter("dirt_noise", dirt_noise)
+	_paint_material.set_shader_parameter("dirt_color", _dirt_color)
+	_grille_material = _shader_material(GRILLE_SHADER)
+	_tyre_material = _shader_material(TYRE_SHADER)
 	_decal_material = StandardMaterial3D.new()
 	_decal_material.roughness = paint_roughness
 	# Decals are single sheets; show them from either side.
@@ -276,8 +324,8 @@ func _ensure_nodes() -> void:
 	_paint_mesh = _add_mesh_node("Paint", _paint_material)
 	_pattern_mesh = _add_mesh_node("Pattern", LowPoly.vertex_color_material(paint_roughness))
 	_detail_mesh = _add_mesh_node("Detail", LowPoly.vertex_color_material(detail_roughness))
-	_head_mesh = _add_mesh_node("HeadLamps", LowPoly.emissive_material(head_light_color, head_light_energy))
-	_tail_mesh = _add_mesh_node("TailLamps", LowPoly.emissive_material(tail_light_color, tail_light_energy))
+	_head_mesh = _add_mesh_node("HeadLamps", _lamp_material(head_light_color, head_light_energy))
+	_tail_mesh = _add_mesh_node("TailLamps", _lamp_material(tail_light_color, tail_light_energy))
 
 
 func _add_mesh_node(node_name: String, material: Material) -> MeshInstance3D:
@@ -767,3 +815,105 @@ static func _add_cylinder(
 		LowPoly.add_quad(tool, back + offset_a, back + offset_b, front + offset_b, front + offset_a, color, offset_a + offset_b)
 		LowPoly.add_triangle(tool, front, front + offset_a, front + offset_b, color, direction)
 		LowPoly.add_triangle(tool, back, back + offset_a, back + offset_b, color, -direction)
+
+
+# --- Materials, dirt and decals ------------------------------------------------
+
+func _shader_material(shader: Shader) -> ShaderMaterial:
+	var material: ShaderMaterial = ShaderMaterial.new()
+	material.shader = shader
+	return material
+
+
+func _lamp_material(color: Color, energy: float) -> ShaderMaterial:
+	var material: ShaderMaterial = _shader_material(LAMP_SHADER)
+	material.set_shader_parameter("lamp_color", color)
+	material.set_shader_parameter("energy", energy)
+	return material
+
+
+## The model's wheel mesh is shared by every car of that model, so its rubber
+## surfaces are swapped once for the tread shader.
+func _set_tyre_surfaces(mesh: ArrayMesh) -> void:
+	for i: int in mesh.get_surface_count():
+		var material: Material = mesh.surface_get_material(i)
+		if material != null and material.resource_name == MODEL_RUBBER:
+			mesh.surface_set_material(i, _tyre_material)
+
+
+## Driving on loose ground dirties the body: amount (0..1 per call) climbs the
+## dirt line, and the dirt takes on the ground's colour.
+func add_dirt(amount: float, color: Color) -> void:
+	if amount <= 0.0 or _paint_material == null:
+		return
+	var share: float = clampf(amount / maxf(_dirt + amount, 0.0001), 0.0, 1.0)
+	_dirt_color = _dirt_color.lerp(Color(color, 1.0), share)
+	_dirt = minf(1.0, _dirt + amount)
+	_paint_material.set_shader_parameter("dirt_amount", _dirt)
+	_paint_material.set_shader_parameter("dirt_color", _dirt_color)
+
+
+func get_dirt() -> float:
+	return _dirt
+
+
+## Number shown on the doors (and which sponsor the car carries).
+func set_race_number(number: int) -> void:
+	_race_number = number
+	if _model_root != null:
+		_add_rally_decals()
+
+
+## Door number plates and a sponsor sticker on both sides of the body.
+func _add_rally_decals() -> void:
+	if _decals != null:
+		_decals.free()
+		_decals = null
+	var body: MeshInstance3D = null
+	for node: Node in _model_root.find_children(MODEL_BODY + "*", "MeshInstance3D", true, false):
+		body = node as MeshInstance3D
+		break
+	if body == null or body.mesh == null:
+		return
+	var box: AABB = body.transform * body.mesh.get_aabb()
+	_decals = Node3D.new()
+	_decals.name = "RallyDecals"
+	_model_root.add_child(_decals)
+	var number_y: float = box.position.y + box.size.y * number_height_share
+	var side_x: float = box.end.x + decal_lift
+	var sponsor: String = sponsors[(_race_number - 1) % sponsors.size()] if not sponsors.is_empty() else ""
+	var plate_material: StandardMaterial3D = StandardMaterial3D.new()
+	plate_material.albedo_color = number_plate_color
+	plate_material.roughness = paint_roughness
+	var plate_mesh: QuadMesh = QuadMesh.new()
+	plate_mesh.size = number_plate_size
+	for side: float in [-1.0, 1.0]:
+		# A node facing +Z turned to face straight out of the side.
+		var facing: Basis = Basis(Vector3.UP, side * PI * 0.5)
+		var plate: MeshInstance3D = MeshInstance3D.new()
+		plate.mesh = plate_mesh
+		plate.material_override = plate_material
+		plate.transform = Transform3D(facing, Vector3(side * side_x, number_y, number_z))
+		_decals.add_child(plate)
+		var number: Label3D = _make_label(str(_race_number), number_font_size, number_color)
+		number.transform = Transform3D(facing, Vector3(side * (side_x + decal_lift), number_y, number_z))
+		_decals.add_child(number)
+		if not sponsor.is_empty():
+			var sticker: Label3D = _make_label(sponsor, sponsor_font_size, Color.WHITE)
+			sticker.outline_size = 10
+			sticker.outline_modulate = number_color
+			sticker.transform = Transform3D(facing, Vector3(side * (side_x + decal_lift), number_y, sponsor_z))
+			_decals.add_child(sticker)
+
+
+func _make_label(text: String, font_size: int, color: Color) -> Label3D:
+	var label: Label3D = Label3D.new()
+	label.text = text
+	label.font = UiStyle.FONT_DISPLAY
+	label.font_size = font_size
+	label.pixel_size = decal_pixel_size
+	label.modulate = color
+	label.double_sided = false
+	label.shaded = true
+	label.alpha_cut = Label3D.ALPHA_CUT_OPAQUE_PREPASS
+	return label

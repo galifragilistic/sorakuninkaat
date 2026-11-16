@@ -110,6 +110,10 @@ var apply_local_damage: bool = true
 @export var landing_air_time: float = 0.25
 @export var landing_dust_time: float = 0.35
 
+@export_group("Dirt")
+## Dirt gained per metre on the dustiest ground (full dirt is 1).
+@export var dirt_per_metre: float = 0.0012
+
 @export_group("Damage smoke")
 ## Total damage (0..1) at which the engine starts to smoke.
 @export_range(0.0, 1.0, 0.01) var smoke_start_damage: float = 0.35
@@ -294,6 +298,11 @@ func _process(delta: float) -> void:
 			_wheel_spin[i] = fposmod(_wheel_spin[i] - roll * _wheel_axle_sign[i], TAU)
 		var wheel_mesh: Node3D = _wheel_nodes[i].get_node("Mesh") as Node3D
 		wheel_mesh.basis = _wheel_mesh_basis[i] * Basis(Vector3.UP, _wheel_spin[i])
+	# Loose ground slowly dirties the body.
+	var surface: SurfaceData = get_current_surface()
+	if surface != null and _grounded_wheels > 0:
+		var distance: float = get_velocity().length() * delta
+		_model.add_dirt(distance * dirt_per_metre * surface.dust_amount, surface.dust_color)
 
 
 func _physics_process(delta: float) -> void:
@@ -526,6 +535,7 @@ func _apply_player_color() -> void:
 func apply_setup(setup: PlayerSetup) -> void:
 	stats = setup.stats
 	set_model(stats)
+	_model.set_race_number(player_index + 1)
 	set_paint(setup.color, setup.pattern)
 
 

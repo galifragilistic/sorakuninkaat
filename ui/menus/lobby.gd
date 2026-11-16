@@ -63,6 +63,8 @@ var _own_address_label: Label
 var _net_status_label: Label
 var _name_dialog: NameDialog
 var _name_dialog_player: int = -1
+## Per slot: the card is open for picking a car with left / right.
+var _choosing: Array[bool] = []
 
 
 func get_backdrop() -> Backdrop:
@@ -76,7 +78,7 @@ func _build() -> void:
 	_build_settings()
 	_build_net_panel()
 	MenuKit.add_hints(self, [
-		[InputPrompts.Prompt.ACCEPT, tr("Liity / valmis")], [InputPrompts.Prompt.SECONDARY, tr("Auto / tekoäly")],
+		[InputPrompts.Prompt.ACCEPT, tr("Liity / valitse auto")], [InputPrompts.Prompt.SECONDARY, tr("Väri / tekoäly")],
 		[InputPrompts.Prompt.TERTIARY, tr("Nimi")],
 		[InputPrompts.Prompt.TABS, tr("Välilehti")], [InputPrompts.Prompt.START, tr("Aloita")],
 		[InputPrompts.Prompt.BACK, tr("Takaisin")],
@@ -194,6 +196,11 @@ func _on_start() -> void:
 
 
 func _on_back() -> void:
+	# B on a card that is picking a car only closes the picking.
+	var focused: int = _cards.find(get_viewport().gui_get_focus_owner() as ChamferButton)
+	if focused >= 0 and _choosing[focused]:
+		_stop_choosing(focused)
+		return
 	if Network.role != Network.Role.OFFLINE:
 		# First B leaves the network game, the next one leaves the lobby.
 		Network.leave()
@@ -283,8 +290,11 @@ func _build_cards() -> void:
 		card.set_padding(Vector4.ZERO)
 		card.custom_minimum_size = card_size
 		card.pressed.connect(_on_card_pressed.bind(i))
+		card.gui_input.connect(_on_card_gui_input.bind(i))
+		card.focus_exited.connect(_stop_choosing.bind(i))
 		_cards_grid.add_child(card)
 		_cards.append(card)
+		_choosing.append(false)
 
 		var stack: Control = Control.new()
 		stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -663,6 +673,8 @@ func _refresh_cards() -> void:
 		var setup: PlayerSetup = GameState.players[i]
 		_joined_views[i].visible = setup.joined
 		_empty_views[i].visible = not setup.joined
+		if not setup.joined or setup.is_ai:
+			_choosing[i] = false
 		if not setup.joined:
 			var accept: String = InputPrompts.get_button_name(InputPrompts.Prompt.ACCEPT)
 			var secondary: String = InputPrompts.get_button_name(InputPrompts.Prompt.SECONDARY)
@@ -686,7 +698,10 @@ func _refresh_cards() -> void:
 			continue
 		_name_labels[i].text = GameState.get_player_name(i)
 		_device_labels[i].text = _get_device_text(i, setup)
-		if setup.is_ready:
+		if _choosing[i]:
+			_car_labels[i].text = tr("◀ %s ▶") % setup.stats.display_name
+			MenuKit.set_chip(_status_chips[i], tr("VALITSEE AUTOA"), UiStyle.ACCENT)
+		elif setup.is_ready:
 			MenuKit.set_chip(_status_chips[i], tr("VALMIS"), UiStyle.SUCCESS)
 		else:
 			MenuKit.set_chip(_status_chips[i], tr("EI VALMIS"), UiStyle.WARNING)
@@ -754,12 +769,13 @@ func _count_ready() -> Vector2i:
 	return counts
 
 
-## A: join an empty slot, toggle ready, or remove a computer driver.
+## A: join an empty slot, pick a car (A again confirms and means ready),
+## or remove a computer driver.
 func _on_card_pressed(player: int) -> void:
 	var setup: PlayerSetup = GameState.players[player]
 	if _is_online():
 		if player == Network.local_slot:
-			Network.set_local_ready(not setup.is_ready)
+			_toggle_choosing(player)
 		elif Network.is_host() and setup.is_ai:
 			Network.set_slot_ai(player, false)
 		elif Network.is_host() and not setup.joined:
@@ -776,8 +792,51 @@ func _on_card_pressed(player: int) -> void:
 	elif setup.is_ai:
 		_leave(player)
 	else:
-		setup.is_ready = not setup.is_ready
+		_toggle_choosing(player)
 	_refresh()
+
+
+## First press opens the card for picking a car; the next one keeps the car
+## and marks the player ready.
+func _toggle_choosing(player: int) -> void:
+	_choosing[player] = not _choosing[player]
+	_set_ready(player, not _choosing[player])
+	_refresh_cards()
+
+
+func _stop_choosing(player: int) -> void:
+	if not _choosing[player]:
+		return
+	_choosing[player] = false
+	_refresh_cards()
+
+
+func _set_ready(player: int, is_ready: bool) -> void:
+	if _is_online():
+		Network.set_local_ready(is_ready)
+	else:
+		GameState.players[player].is_ready = is_ready
+
+
+## Left / right on a card that is picking a car changes the car instead of
+## moving the focus to the next card.
+func _on_card_gui_input(event: InputEvent, player: int) -> void:
+	if not _choosing[player]:
+		return
+	var step: int = 0
+	if event.is_action_pressed("ui_left", true):
+		step = -1
+	elif event.is_action_pressed("ui_right", true):
+		step = 1
+	if step == 0:
+		return
+	_cards[player].accept_event()
+	var setup: PlayerSetup = GameState.players[player]
+	var index: int = maxi(0, Catalog.CARS.find(setup.stats))
+	setup.stats = Catalog.CARS[wrapi(index + step, 0, Catalog.CARS.size())]
+	if _is_online():
+		Network.submit_local_setup()
+	_refresh_cards()
 
 
 func _add_ai(player: int) -> void:

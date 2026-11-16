@@ -34,7 +34,7 @@ Näkymien kuvat ovat kansiossa `mockups/` (PNG 2560×1440, suunniteltu 1280×720
   - Vinjetti post-process-shaderilla
 - Ajovalot ovat `SpotLight3D`-valoja, ja keila näkyy maassa. Lisäksi pienet emissiiviset lisävalot keulassa.
 - Ratavalot ovat `OmniLight3D`-valoja, joilla on lämmin valolammikko maassa ja lens flare -juova.
-- Partikkelit (`GPUParticles3D`): pölypilvet sorassa, roiskeet vedessä ja lumessa sekä kipinät kolareissa.
+- Partikkelit (`GPUParticles3D`): renkaiden pölypilvet, joiden määrä ja väri tulevat alustasta (sora, hiekka, lumi, vesi), pöly laskeutumisissa sekä sade ja lumisade. Kipinät kolareissa ja omat roisketehosteet: ks. § 10.
 - Sää- ja aikavariaatiot: Aamu, Päivä, Ilta (iltarusko), Yö sekä Aurinko, Sade, Lumi, Sumu. Toteutetaan esiasetuksina (environment + valo).
 - Laatuasetukset: Matala, Keski ja Korkea. Matalalla pois SSAO, volumetric ja SSIL.
 
@@ -48,13 +48,16 @@ Näkymien kuvat ovat kansiossa `mockups/` (PNG 2560×1440, suunniteltu 1280×720
   - Hiekka 0,65
   - Lumi 0,5
   - Jää 0,3
+
+  Tien ulkopuolisilla pinnoilla on omat arvonsa: betoni 0,9, nurmi 0,6, dyyni 0,55, vesi 0,5 ja hanki 0,45.
+- Radoilla on korkeuseroja: mäkiä, notkoja, siltoja ja tunneleita. Maasto seuraa tien reunaa ilman korkeita portaita.
 - Hypyt: ilmassa ohjaus on rajattu, ja laskeutuminen näkyy jousituksessa ja pölyssä.
 - Vauriot: neljä aluetta (etu, keski, taka, renkaat). Vaurio heikentää huippunopeutta tai ohjausta. Voi kytkeä pois päältä.
 - Autojen ominaisuudet (1–10) tulevat `Resource`-tiedostoista: huippunopeus, kiihtyvyys, pito soralla, pito asfaltilla ja kestävyys. Lisäksi vetotapa (FWD, RWD tai 4WD).
 
 ## 4. Pelitilat ja moninpeli
 
-- **Yksinpeli:** mestaruus (sarja ratoja ja pisteet), aika-ajo (haamuauto) ja harjoitus.
+- **Yksinpeli:** yksittäinen kisa tekoälykuskeja vastaan. Pisteet kertyvät pelikerran ajan. Mestaruus, aika-ajo ja harjoitus: ks. § 10.
 - **Moninpeli, jaettu ruutu 1–4 pelaajaa** (ensisijainen):
   - Jokaisella pelaajalla on oma `SubViewport` ja kamera, ja kaikki jakavat saman `World3D`:n.
   - Asettelut:
@@ -62,9 +65,10 @@ Näkymien kuvat ovat kansiossa `mockups/` (PNG 2560×1440, suunniteltu 1280×720
     - 2 pelaajaa: pystyjako (oletus) tai vaakajako
     - 3 pelaajaa: kaksi ylhäällä ja yksi alhaalla tai 2×2, jossa yksi ruutu näyttää minikartan
     - 4 pelaajaa: 2×2
-  - Ohjaimet: P1 näppäimistö (WASD), P2 näppäimistö (nuolet) tai ohjain. Ohjaimet liitetään aulassa A-painikkeella. Jokaisen pelaajan syöte erotellaan laitteen mukaan.
-  - Tyhjät paikat voi täyttää tekoälykuskeilla, jotka seuraavat rataa `Path3D`-reitin perusteella.
-- **Verkko** (myöhemmin): Godotin high-level multiplayer (ENet). Lähiverkko ja suora IP, palvelinarkkitehtuuri. Aulan välilehdet ovat jo valmiina UI:ssa.
+  - Ohjaimet: P1 näppäimistö (WASD), P2 näppäimistö (nuolet) tai ohjain. Ohjaimet liitetään aulassa A-painikkeella. Jokaisen pelaajan syöte erotellaan laitteen mukaan. Painikevihjeet vaihtuvat käytössä olevan laitteen mukaan.
+  - Pelaajat voivat antaa itselleen nimen aulassa.
+  - Tyhjät paikat voi täyttää tekoälykuskeilla, jotka seuraavat radan keskilinjaa (`Curve3D`), hidastavat mutkiin ja palautuvat jumista.
+- **Verkko:** Godotin high-level multiplayer (ENet), lähiverkko (automaattinen haku) ja suora IP. Palvelinarkkitehtuuri: isäntä omistaa aulan ja simuloi kisan, ja jokaisella koneella on yksi pelaaja. Asiakas lähettää syötteensä, ennustaa oman autonsa liikkeen ja näyttää muut autot interpoloituna isännän tilannekuvista. Jos pelaaja poistuu kesken, paikka ei siirry tekoälylle.
 
 ## 5. Näkymät ja siirtymät
 
@@ -73,15 +77,16 @@ Päävalikko ─┬─ Yksinpeli → Auton valinta → Radan valinta → Kisa �
             ├─ Moninpeli → Aula ⇄ Auton valinta / Radan valinta → Kisa (jaettu ruutu) → Tulokset
             ├─ Autotalli → Auton valinta
             ├─ Radat → Radan valinta
-            ├─ Asetukset (grafiikka, ääni, ohjaimet)
+            ├─ Rataeditori → Koeajo
+            ├─ Asetukset (grafiikan laatu, koko ruutu, äänenvoimakkuus, vauriot)
             └─ Lopeta
-Tulokset → Uusintakisa | Vaihda rata | Aulaan
+Tulokset → Uusintakisa | Vaihda rata | Aulaan (yksinpelissä Valikkoon)
 Kisa → Tauko (Jatka, Aloita alusta, Asetukset, Lopeta kisa)
 ```
 
 | # | Kuva | Sisältö |
 |---|------|---------|
-| 1 | `01_Main.png` | Logo, valikko (valittu kohta täysvärinen ja leveämpi, alla alaotsikko), ohjainten tila P1–P4, viikon haaste. Taustalla elävä pelimaailma, jossa autot ajavat. |
+| 1 | `01_Main.png` | Logo, valikko (valittu kohta täysvärinen ja leveämpi, alla alaotsikko), ohjainten tila P1–P4. Viikon haaste: ks. § 10. Taustalla elävä pelimaailma, jossa autot ajavat. |
 | 2 | `02_Moninpeli.png` | Välilehdet (Jaettu ruutu, Lähiverkko, Verkko), 4 pelaajakorttia (väri, auto, laite, tila VALMIS / VALITSEE AUTOA / tyhjä paikka), kisan asetukset (rata, kierrokset, sää, aika, vauriot, ruudunjako), ALOITA KISA. |
 | 3 | `03_Autovalinta.png` | Autolista ja luokat, auto pyörivällä alustalla kohdevalossa, ominaisuuspalkit (10 palaa), 8 väriä, kuvio. |
 | 4 | `04_Ratavalinta.png` | Alustasuodattimet, ratakortit (pohjakuva, alusta, pituus), esikatselu sekä sään ja vuorokaudenajan valinta, ratatietue. |
@@ -89,6 +94,15 @@ Kisa → Tauko (Jatka, Aloita alusta, Asetukset, Lopeta kisa)
 | 6 | `06_Jaettu.png` | Kahden pelaajan pystyjako. Jokaisella oma värikehys ja kompakti HUD. Minikartta on yhteinen keskellä ylhäällä, ohitusilmoitukset keskellä alhaalla. |
 | 7 | `07_Tulokset.png` | Palkintokoroke, tulostaulukko (aika, paras kierros, NOPEIN-merkki, pisteet), toiminnot. Taustalla sumennettu pelinäkymä. |
 | 8 | `08_Tyyliopas.png` | Värit, fontit, komponentit ja grafiikan periaatteet. |
+| – | (ei kuvaa) | Rataeditori: kartta, korkeusprofiili ja sivupaneeli. Tehty samalla tyylillä kuin muut näkymät. |
+
+### Rataeditori
+- Suljettu tie piirretään kartalle ohjauspisteillä (enintään 40). Pisteen korkeutta säädetään rullalla, ja korkeusprofiili näkyy kartan alla.
+- Tieosuuksille voi merkitä sillan, tunnelin tai hyppyrin. Kun tie kulkee toisen yli riittävän korkealla, risteykseen tulee silta automaattisesti. Liian matalasta risteyksestä tulee varoitus.
+- Säädettävissä ovat radan nimi, maasto (teema), karttakoko (Pieni, Normaali, Suuri, Valtava), tien leveys, tieosuuksien pinta (teeman mukaan, asfaltti, sora, hiekka, lumi tai jää), puusto ja lähtöpiste. Ajosuunnan voi kääntää.
+- Esineitä (puu, paali, kontti, talo, kivi, rengaspino) voi sijoittaa, siirtää ja kiertää käsin.
+- Korotettu tie nostaa maastoa ja laskettu tie laskee sitä.
+- Radat tallennetaan kansioon `user://tracks`, ja keskeneräinen rata säilyy luonnoksena. Radan voi koeajaa suoraan editorista, ja tallennetut radat näkyvät radan valinnassa.
 
 UI ohjataan kokonaan ohjaimella ja näppäimistöllä (focus-navigointi). Hiiri toimii myös.
 
@@ -140,7 +154,8 @@ UI ohjataan kokonaan ohjaimella ja näppäimistöllä (focus-navigointi). Hiiri 
   | Satamakaarre | asfaltti |
   | Tunturi | lumi |
 
-  Kaikki radat voi ajaa myös peilattuina.
+  Lisäksi pelaajan rataeditorilla tekemät radat. Peilatut radat: ks. § 10.
+- **Autojen ulkonäkö:** jokaisella autolla on oma korinmuoto (spoileri, valot ym.), ja maalikuvioita on useita.
 - **Pisteet:** 10, 8, 6 ja 5 sijoituksille 1–4.
 
 ## 8. Toteutusvaiheet
@@ -163,16 +178,39 @@ Jokainen vaihe tehdään valmiiksi, ajetaan ja commitoidaan ennen seuraavaa.
 6. **Laajennukset:** 3–4 pelaajaa, tekoälykuskit, lisää autoja ja ratoja, sää ja vuorokaudenajat, vauriot ja hypyt, äänet.
 7. **Verkkopeli:** ENet ja aulan Lähiverkko- ja Verkko-välilehdet.
 
-## 9. Ehdotettu projektirakenne
+Vaiheet 1–7 ovat valmiit. Niiden jälkeen on lisätty:
+- korkeuserot, sillat ja tunnelit sekä näkyvät checkpointit
+- pelaajien nimet aulassa ja laitteen mukaan vaihtuvat painikevihjeet
+- autojen omat korinmuodot ja lisää maalikuvioita
+- rataeditori (§ 5)
+- verkkopelin asiakaspuolen ennustus
+- Windows-vientiasetus
+
+## 9. Projektirakenne
 
 ```
 res://
-  autoload/      GameState.gd, InputManager.gd, Settings.gd
-  cars/          car.tscn, car.gd, data/*.tres (CarStats)
-  tracks/        soramonttu/…, track.gd, checkpoint.gd
-  race/          race_manager.gd, split_screen.tscn, camera_rig.gd
-  ui/            theme.tres, menus/*.tscn, hud/*.tscn, shaders/panel.gdshader
-  env/           presets/*.tres (WorldEnvironment-, sää- ja aikaesiasetukset)
-  vfx/           dust.tscn, splash.tscn
+  autoload/      game_state.gd, input_manager.gd, settings.gd, network.gd,
+                 player_input.gd, player_setup.gd
+  audio/         sound_bank.gd
+  cars/          car.tscn, car.gd, ai_driver.gd, car_damage.gd, data/*.tres (CarStats)
+  data/          catalog.gd (valikoiden autot, radat, värit, pisteet)
+  tracks/        soramonttu/…, track.gd, checkpoint.gd, track_design.gd,
+                 custom_tracks.gd, surfaces/*.tres, themes/*.tres
+  race/          race_manager.gd, split_screen.tscn, camera_rig.gd, net_sync.gd
+  ui/            theme.tres, menus/*.tscn, hud/*.tscn, editor/*, shaders/panel.gdshader
+  env/           presets/*.tres (aika), weather/*.tres (sää), shaders/vignette.gdshader
+  vfx/           dust.tscn, precipitation.gd
+  util/          low_poly.gd
+  tools/         build_theme.gd
   assets/fonts/  (mukana)
 ```
+
+## 10. Myöhemmin (ei vielä toteutettu)
+
+- Yksinpelin tilat: mestaruus (sarja ratoja ja pisteet), aika-ajo haamuautolla ja harjoitus.
+- Kaikkien ratojen ajaminen peilattuina.
+- Päävalikon viikon haaste.
+- Ohjainasetukset (näppäinten ja ohjainpainikkeiden vaihto).
+- Kipinät kolareissa ja omat roisketehosteet vedelle ja lumelle.
+- 6 lukittua autoa ovat vasta paikkoja listassa. Varsinaiset autot ja avaustapa puuttuvat.

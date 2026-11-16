@@ -125,11 +125,11 @@ static func create_default() -> TrackDesign:
 
 
 static func get_tangent_scale() -> float:
-	return (Track as Script).get_property_default_value("tangent_scale")
+	return Track.DEFAULT_TANGENT_SCALE
 
 
 static func get_sample_spacing() -> float:
-	return (Track as Script).get_property_default_value("sample_spacing")
+	return Track.DEFAULT_SAMPLE_SPACING
 
 
 func duplicate_design() -> TrackDesign:

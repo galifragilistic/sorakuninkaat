@@ -6,6 +6,10 @@ extends Node3D
 ## road heights. A TrackScenery child, if present, is built afterwards.
 
 const CHECKER_SHADER: Shader = preload("res://tracks/shaders/checker.gdshader")
+## Defaults of sample_spacing and tangent_scale. Custom tracks always use these;
+## script default values cannot be read at runtime in exported builds.
+const DEFAULT_SAMPLE_SPACING: float = 2.0
+const DEFAULT_TANGENT_SCALE: float = 0.167
 
 @export var track_name: String = ""
 
@@ -14,9 +18,9 @@ const CHECKER_SHADER: Shader = preload("res://tracks/shaders/checker.gdshader")
 @export var control_points: PackedVector3Array = PackedVector3Array()
 @export var road_width: float = 10.0
 ## Distance between ribbon cross-sections (m).
-@export var sample_spacing: float = 2.0
+@export var sample_spacing: float = DEFAULT_SAMPLE_SPACING
 ## Catmull-Rom style handle length as a fraction of the neighbour distance.
-@export_range(0.05, 0.4, 0.005) var tangent_scale: float = 0.167
+@export_range(0.05, 0.4, 0.005) var tangent_scale: float = DEFAULT_TANGENT_SCALE
 ## Height of the road above the ground so wheel rays hit the road first.
 @export var road_lift: float = 0.03
 ## Width of the darker shoulder strip on both road edges (m).

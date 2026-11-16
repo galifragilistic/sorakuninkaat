@@ -4,12 +4,23 @@ extends Node
 ## volume; computer cars fade with their distance to the nearest player.
 
 @export_group("Engine")
+## Pitch at idle (revs 0) and at the shift point (revs 1).
 @export var engine_pitch_range: Vector2 = Vector2(0.65, 2.1)
 ## Extra pitch while the throttle is open.
-@export var throttle_pitch: float = 0.18
+@export var throttle_pitch: float = 0.08
 @export var engine_volume_db_range: Vector2 = Vector2(-22.0, -11.0)
-## How fast revs follow the car (1/s).
-@export var engine_response: float = 6.0
+## Revs right after shifting up into second gear and above (0 idle .. 1 shift point).
+@export_range(0.0, 1.0, 0.01) var shift_drop_revs: float = 0.42
+## Revs never fall below this share of the throttle, so pulling away sounds busy.
+@export_range(0.0, 1.0, 0.01) var throttle_floor_revs: float = 0.3
+## Revs with the throttle open while standing still or in the air.
+@export_range(0.0, 1.0, 0.01) var free_revs: float = 0.9
+## How fast revs rise and fall (1/s). The fast fall makes each upshift audible.
+@export var rev_rise_response: float = 8.0
+@export var rev_fall_response: float = 20.0
+## Throttle cut while changing up: its length (s) and how much quieter the engine is (dB).
+@export var shift_time: float = 0.13
+@export var shift_volume_db: float = -6.0
 
 @export_group("Tyres and surface")
 ## Slip angle (degrees) where squeal starts and where it is loudest.
@@ -47,6 +58,9 @@ var _engine: AudioStreamPlayer
 var _skid: AudioStreamPlayer
 var _rumble: AudioStreamPlayer
 var _revs: float = 0.0
+var _gear: int = 0
+## Seconds left of the current upshift's throttle cut.
+var _shift_left: float = 0.0
 var _wander: FastNoiseLite
 var _time: float = 0.0
 
@@ -98,14 +112,10 @@ func _process(delta: float) -> void:
 	_rumble.pitch_scale = 1.0 + rumble_pitch * wander_pitch
 	var presence_db: float = _get_presence_db()
 	var speed: float = _car.get_velocity().length()
-	var throttle: float = _car.get_throttle()
-
-	var target_revs: float = clampf(absf(_car.get_forward_speed()) / _car.get_base_top_speed(), 0.0, 1.0)
-	_revs = lerpf(_revs, target_revs, 1.0 - exp(-engine_response * delta))
-	_engine.pitch_scale = lerpf(engine_pitch_range.x, engine_pitch_range.y, _revs) + throttle * throttle_pitch
-	_engine.volume_db = lerpf(engine_volume_db_range.x, engine_volume_db_range.y, maxf(throttle, _revs)) + presence_db
 
 	var grounded: bool = _car.is_grounded()
+	_update_engine(delta, grounded, presence_db)
+
 	var skid: float = 0.0
 	if grounded and speed > skid_min_speed:
 		skid = clampf(inverse_lerp(skid_slip_range.x, skid_slip_range.y, _car.get_slip_angle()), 0.0, 1.0)
@@ -117,6 +127,36 @@ func _process(delta: float) -> void:
 		# Loose surfaces rumble; smooth ones stay quiet.
 		rumble = clampf(speed / rumble_full_speed, 0.0, 1.0) * surface.dust_amount
 	_rumble.volume_db = _level_db(rumble, rumble_volume_db) + presence_db + rumble_level * wander_volume_db
+
+
+## Revs follow the gearbox: they climb through each gear, drop when the car
+## changes up (with a short throttle cut) and jump when it changes down.
+func _update_engine(delta: float, grounded: bool, presence_db: float) -> void:
+	var gear: int = _car.get_gear()
+	if gear > _gear and _gear >= 1:
+		_shift_left = shift_time
+	_gear = gear
+	_shift_left = maxf(0.0, _shift_left - delta)
+	var shifting: bool = _shift_left > 0.0
+	var throttle: float = 0.0 if shifting else clampf(_car.get_throttle(), 0.0, 1.0)
+
+	var target_revs: float = 0.0
+	if gear >= 1:
+		var low: float = 0.0 if gear == 1 else shift_drop_revs
+		target_revs = lerpf(low, 1.0, _car.get_gear_position())
+	elif gear == -1:
+		var reverse_top: float = _car.get_base_top_speed() * _car.reverse_speed_share
+		target_revs = absf(_car.get_forward_speed()) / maxf(reverse_top, 0.1)
+	target_revs = maxf(target_revs, throttle * throttle_floor_revs)
+	if gear == 0 or not grounded:
+		target_revs = maxf(target_revs, throttle * free_revs)
+	target_revs = clampf(target_revs, 0.0, 1.0)
+
+	var response: float = rev_rise_response if target_revs > _revs else rev_fall_response
+	_revs = lerpf(_revs, target_revs, 1.0 - exp(-response * delta))
+	_engine.pitch_scale = lerpf(engine_pitch_range.x, engine_pitch_range.y, _revs) + throttle * throttle_pitch
+	var level: float = lerpf(engine_volume_db_range.x, engine_volume_db_range.y, maxf(throttle, _revs))
+	_engine.volume_db = level + (shift_volume_db if shifting else 0.0) + presence_db
 
 
 ## 0..1 loudness to decibels, silent at zero.

@@ -92,8 +92,11 @@ var apply_local_damage: bool = true
 @export_range(0.0, 1.0, 0.01) var reverse_force_share: float = 0.6
 
 @export_group("Gearbox (cosmetic)")
-## Number of forward gears shown on the HUD.
+## Number of forward gears shown on the HUD and heard in the engine.
 @export var gear_count: int = 5
+## Share of a gear's speed band the car must go past a shift point before the
+## gear changes, so it does not flicker between two gears.
+@export_range(0.0, 0.5, 0.01) var gear_hysteresis: float = 0.08
 
 @export_group("Lights")
 @export var headlights_enabled: bool = true:
@@ -126,6 +129,7 @@ var apply_local_damage: bool = true
 @export var reset_lift: float = 1.0
 
 var _steer: float = 0.0
+var _gear: int = 0
 var _grounded_wheels: int = 0
 var _current_surface: SurfaceData
 var _mount_points: Array[Vector3] = []
@@ -178,13 +182,38 @@ func get_base_top_speed() -> float:
 
 ## 1..gear_count going forwards, 0 at standstill, -1 in reverse.
 func get_gear() -> int:
+	return _gear
+
+
+## Where the car is within its forward gear's speed band: 0 just after
+## shifting up, 1 at the next shift point (slightly outside while shifting).
+func get_gear_position() -> float:
+	if _gear < 1:
+		return 0.0
+	return _get_gear_bands() - float(_gear - 1)
+
+
+## Forward speed in gear bands: 0 at standstill, gear_count at top speed.
+func _get_gear_bands() -> float:
+	return clampf(get_forward_speed() / get_base_top_speed(), 0.0, 1.0) * float(gear_count)
+
+
+func _update_gear() -> void:
 	var forward_speed: float = get_forward_speed()
 	if forward_speed < -reverse_threshold:
-		return -1
+		_gear = -1
+		return
 	if absf(forward_speed) < reverse_threshold:
-		return 0
-	var ratio: float = clampf(forward_speed / get_base_top_speed(), 0.0, 1.0)
-	return clampi(1 + floori(ratio * float(gear_count)), 1, gear_count)
+		_gear = 0
+		return
+	var bands: float = _get_gear_bands()
+	if _gear < 1:
+		_gear = clampi(1 + floori(bands), 1, gear_count)
+		return
+	while _gear < gear_count and bands > float(_gear) + gear_hysteresis:
+		_gear += 1
+	while _gear > 1 and bands < float(_gear - 1) - gear_hysteresis:
+		_gear -= 1
 
 
 func get_forward_speed() -> float:
@@ -247,6 +276,7 @@ func reset_upright() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	_update_gear()
 	var input: PlayerInput = _idle_input
 	if controls_enabled:
 		input = input_source if input_source != null else InputManager.get_input(player_index)

@@ -13,13 +13,13 @@ enum Ground { ASPHALT, LOOSE, SNOW }
 @export_group("Engine")
 ## Firing frequency (Hz) at idle and at the shift point. A four-cylinder fires
 ## twice per revolution: 30 Hz is 900 rpm, 230 Hz about 6900 rpm.
-@export var idle_frequency: float = 30.0
-@export var redline_frequency: float = 230.0
+@export var idle_frequency: float = 33.0
+@export var redline_frequency: float = 253.0
 ## Extra firing frequency (Hz) while the throttle is open.
 @export var throttle_frequency: float = 5.0
 ## Revs where the low layer hands over to the high one (start, end).
-@export var layer_blend_revs: Vector2 = Vector2(0.3, 0.72)
-@export var engine_volume_db_range: Vector2 = Vector2(-20.0, -9.0)
+@export var layer_blend_revs: Vector2 = Vector2(0.34, 0.72)
+@export var engine_volume_db_range: Vector2 = Vector2(-19.5, -13.5)
 ## Off-throttle layer level compared with the throttle layers (dB).
 @export var overrun_volume_db: float = -3.0
 ## How fast the throttle layers fade in and out (1/s).
@@ -31,65 +31,65 @@ enum Ground { ASPHALT, LOOSE, SNOW }
 ## Revs with the throttle open while standing still or in the air.
 @export_range(0.0, 1.0, 0.01) var free_revs: float = 0.9
 ## How fast revs rise and fall (1/s). The fast fall makes each upshift audible.
-@export var rev_rise_response: float = 8.0
+@export var rev_rise_response: float = 10.5
 @export var rev_fall_response: float = 20.0
 ## Throttle cut while changing up: its length (s) and how much quieter the engine is (dB).
-@export var shift_time: float = 0.13
+@export var shift_time: float = 0.14
 @export var shift_volume_db: float = -6.0
 ## Clunk of the gearbox on every change.
-@export var shift_sound_db: float = -17.0
+@export var shift_sound_db: float = -17.5
 
 @export_group("Backfire")
 ## Lifting off above these revs may make the exhaust pop.
 @export_range(0.0, 1.0, 0.01) var backfire_min_revs: float = 0.55
-@export_range(0.0, 1.0, 0.01) var backfire_chance: float = 0.25
+@export_range(0.0, 1.0, 0.01) var backfire_chance: float = 0.12
 ## Chance of a pop on an upshift.
 @export_range(0.0, 1.0, 0.01) var shift_backfire_chance: float = 0.15
 ## Pops per lift (min, max) and the gap between them (s).
 @export var backfire_count: Vector2i = Vector2i(1, 3)
 @export var backfire_gap: Vector2 = Vector2(0.05, 0.14)
-@export var backfire_volume_db: float = -13.0
+@export var backfire_volume_db: float = -35.5
 @export var backfire_pitch_range: Vector2 = Vector2(0.85, 1.2)
 ## Throttle above this and then below release_throttle counts as lifting off.
 @export var lift_throttle: Vector2 = Vector2(0.6, 0.1)
 
 @export_group("Gearbox whine")
-@export var whine_volume_db: float = -38.0
+@export var whine_volume_db: float = -58.0
 ## The whine fades in from this speed (m/s) and is full at whine_full_speed.
 @export var whine_min_speed: float = 8.0
 @export var whine_full_speed: float = 35.0
 ## Pitch at standstill and at top speed.
-@export var whine_pitch_range: Vector2 = Vector2(0.25, 1.3)
+@export var whine_pitch_range: Vector2 = Vector2(0.3, 0.5)
 
 @export_group("Tyres and surface")
 ## Rolling noise level on tarmac, loose ground and snow.
-@export var roll_volume_db: Vector3 = Vector3(-22.0, -13.0, -15.0)
+@export var roll_volume_db: Vector3 = Vector3(-26.5, -33.0, -34.0)
 ## Ice is smooth: its rolling noise is this share of the snow sound.
-@export_range(0.0, 1.0, 0.01) var ice_roll_share: float = 0.35
+@export_range(0.0, 1.0, 0.01) var ice_roll_share: float = 0.34
 ## Speed (m/s) at which the rolling noise is loudest.
-@export var roll_full_speed: float = 25.0
+@export var roll_full_speed: float = 24.5
 ## Rolling noise pitch at standstill and at roll_full_speed.
-@export var roll_pitch_range: Vector2 = Vector2(0.8, 1.25)
+@export var roll_pitch_range: Vector2 = Vector2(0.85, 1.25)
 ## Slip angle (degrees) where squeal starts and where it is loudest.
-@export var skid_slip_range: Vector2 = Vector2(9.0, 35.0)
+@export var skid_slip_range: Vector2 = Vector2(8.5, 16.5)
 @export var skid_min_speed: float = 5.0
 ## Squeal on tarmac, scrubbing on loose ground.
-@export var skid_asphalt_db: float = -14.0
-@export var skid_loose_db: float = -10.0
+@export var skid_asphalt_db: float = -33.5
+@export var skid_loose_db: float = -30.5
 ## Soft swish when sliding on snow, light hiss on ice.
-@export var skid_snow_db: float = -15.0
-@export var skid_ice_db: float = -19.0
+@export var skid_snow_db: float = -35.0
+@export var skid_ice_db: float = -39.0
 ## How fast surface sounds fade when the ground changes (1/s).
 @export var surface_response: float = 8.0
 ## Slow random wandering of the tyre and surface loops, so they never sound
 ## like the same clip over and over: pitch (share of 1.0) and volume (dB).
-@export_range(0.0, 0.3, 0.01) var wander_pitch: float = 0.08
-@export var wander_volume_db: float = 2.0
+@export_range(0.0, 0.3, 0.01) var wander_pitch: float = 0.01
+@export var wander_volume_db: float = 0.6
 ## How fast the wandering changes (noise cycles per second).
 @export var wander_speed: float = 0.7
 
 @export_group("Crash")
-@export var crash_volume_db: float = -5.0
+@export var crash_volume_db: float = -28.5
 ## Speed change (m/s) that plays the crash at full volume.
 @export var crash_full_impact: float = 14.0
 @export var crash_pitch_range: Vector2 = Vector2(0.85, 1.15)

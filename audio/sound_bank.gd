@@ -32,10 +32,10 @@ const CYLINDER_BALANCE: Array[float] = [1.0, 0.86, 0.94, 0.8]
 ## Exhaust resonances (Hz) and their share for the low, high and off layers.
 ## The `static var`s below are the synthesis settings: the audio debug panel
 ## (F2) changes them and calls rebuild().
-static var exhaust_formants: PackedFloat32Array = PackedFloat32Array([140.0, 420.0, 1250.0])
+static var exhaust_formants: PackedFloat32Array = PackedFloat32Array([140.0, 420.0, 1240.0])
 const LAYER_FORMANT_MIX: Array = [[1.0, 0.45, 0.12], [0.75, 0.7, 0.35], [0.8, 0.25, 0.05]]
 ## Combustion noise mixed into each firing, per layer.
-static var layer_noise: PackedFloat32Array = PackedFloat32Array([0.25, 0.5, 0.12])
+static var layer_noise: PackedFloat32Array = PackedFloat32Array([0.26, 0.49, 0.12])
 ## How uneven the cylinders are (0 = all equal, 1 = CYLINDER_BALANCE as is).
 static var cylinder_spread: float = 1.0
 ## Firing loudness per layer (the off-throttle layer is soft).
@@ -55,21 +55,21 @@ const SWISH_SWELLS: int = 5
 ## Noise loops are long so the ear does not pick up the repeat.
 const NOISE_LOOP_SECONDS: float = 4.0
 ## Stone hits per second in the gravel and snow loops, and in the loose skid.
-static var gravel_hits: float = 700.0
-static var snow_hits: float = 260.0
+static var gravel_hits: float = 300.0
+static var snow_hits: float = 220.0
 static var scrub_hits: float = 1100.0
 ## Pitch of the tyre squeal (Hz).
 static var squeal_frequency: float = 880.0
 ## How each engine firing swells in (s) and how bright it is (low-pass, Hz).
 static var engine_attack: float = 0.003
-static var engine_brightness: float = 900.0
+static var engine_brightness: float = 950.0
 ## How much each firing dies away before the next (e^-engine_decay).
-static var engine_decay: float = 4.0
+static var engine_decay: float = 3.9
 ## Stone resonances (Hz) and the low rumble under them on gravel.
-static var gravel_bands: PackedFloat32Array = PackedFloat32Array([550.0, 1150.0, 2300.0])
-static var gravel_rumble: float = 1.2
+static var gravel_bands: PackedFloat32Array = PackedFloat32Array([310.0, 640.0, 1420.0])
+static var gravel_rumble: float = 0.75
 ## Low-pass (Hz) on the gravel, snow and scrub loops: lower is softer.
-static var surface_brightness: float = 2500.0
+static var surface_brightness: float = 2550.0
 ## Rumble under the snow crunch and the loose-ground skid, and the width of
 ## the stone resonances (lower Q = duller, wider ring).
 const SNOW_RUMBLE: float = 0.5
@@ -89,8 +89,8 @@ const OUTPUT_PEAK: float = 0.9
 ## Samples copied past the end of a loop (see _to_stream).
 const LOOP_TAIL: int = 64
 ## Average loudness (RMS) of the engine layers and of the tyre and surface loops.
-static var engine_rms: float = 0.3
-static var surface_rms: float = 0.25
+static var engine_rms: float = 0.29
+static var surface_rms: float = 0.17
 
 static var _cache: Dictionary = {}
 

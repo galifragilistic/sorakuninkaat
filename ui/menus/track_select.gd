@@ -22,6 +22,9 @@ var _cards: Array[ChamferButton] = []
 var _card_tracks: Array[TrackInfo] = []
 var _card_tags: Array[ChamferPanel] = []
 var _focused_track: TrackInfo
+## The track picked on this screen (marked VALITTU). Starting the race or
+## confirming uses it; moving the mouse or the focus over cards does not change it.
+var _chosen_track: TrackInfo
 var _world_preview: WorldPreview
 var _name_label: Label
 var _description_label: Label
@@ -43,11 +46,15 @@ func _build() -> void:
 	_build_filters()
 	_build_grid()
 	_build_panel()
-	MenuKit.add_hints(self, [[InputPrompts.Prompt.ACCEPT, tr("Valitse")], [InputPrompts.Prompt.BACK, tr("Takaisin")]])
+	MenuKit.add_hints(self, [
+		[InputPrompts.Prompt.ACCEPT, tr("Valitse")], [InputPrompts.Prompt.START, tr("Vahvista")],
+		[InputPrompts.Prompt.BACK, tr("Takaisin")],
+	])
 
 
 func _enter() -> void:
-	_show_track(GameState.selected_track)
+	_chosen_track = GameState.selected_track
+	_show_track(_chosen_track)
 	_update_tags()
 	var starts_race: bool = context.get("start_race", false)
 	_confirm_button.label.text = tr("ALOITA KISA") if starts_race else tr("VALITSE RATA")
@@ -120,8 +127,7 @@ func _build_grid() -> void:
 		footer.add_child(tag)
 
 		card.disabled = not track.is_available()
-		card.focused.connect(_show_track.bind(track))
-		card.pressed.connect(_confirm.bind(track))
+		card.pressed.connect(_choose.bind(track))
 		_cards.append(card)
 		_card_tracks.append(track)
 		_card_tags.append(tag)
@@ -184,7 +190,7 @@ func _build_panel() -> void:
 	_confirm_button.label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_confirm_button.add_glyph(UiGlyph.Kind.CHEVRON_RIGHT)
 	_confirm_button.custom_minimum_size.y = 54.0
-	_confirm_button.pressed.connect(func() -> void: _confirm(_focused_track))
+	_confirm_button.pressed.connect(func() -> void: _confirm(_chosen_track))
 	column.add_child(_confirm_button)
 
 
@@ -254,7 +260,21 @@ func _show_track(track: TrackInfo) -> void:
 
 func _update_tags() -> void:
 	for i: int in _card_tags.size():
-		_card_tags[i].visible = _card_tracks[i] == GameState.selected_track
+		_card_tags[i].visible = _card_tracks[i] == _chosen_track
+
+
+## Clicking a card (or A on it) picks the track; it does not start the race.
+func _choose(track: TrackInfo) -> void:
+	if track == null or not track.is_available():
+		return
+	_chosen_track = track
+	_show_track(track)
+	_update_tags()
+
+
+## START on a gamepad does what the big button does.
+func _on_start() -> void:
+	_confirm(_chosen_track)
 
 
 func _confirm(track: TrackInfo) -> void:

@@ -75,6 +75,14 @@ static var surface_brightness: float = 2500.0
 const SNOW_RUMBLE: float = 0.5
 const SCRUB_RUMBLE: float = 1.0
 const CRUNCH_Q: float = 1.6
+## Falling bits after a crash: chance of a bit per sample at the hit, how fast
+## they stop (1/s), the low-pass over them (Hz), and the fade at the very end (s).
+const CRASH_DEBRIS_RATE: float = 0.006
+const CRASH_DEBRIS_DECAY: float = 9.0
+const CRASH_DEBRIS_BRIGHTNESS: float = 3000.0
+const CRASH_FADE: float = 0.2
+## How much debris falls after a crash (0 = none, the audio panel changes it).
+static var crash_debris: float = 1.0
 ## Partials of the bent-metal clang, as ratios of its base frequency.
 const CLANG_RATIOS: Array[float] = [1.0, 2.76, 5.4, 8.93]
 const OUTPUT_PEAK: float = 0.9
@@ -414,7 +422,11 @@ static func _crash(variant: int) -> PackedFloat32Array:
 	for k: int in CLANG_RATIOS.size():
 		clang_decays.append(rng.randf_range(4.0, 9.0) * (1.0 + float(k) * 0.6))
 	var crunch: Resonator = Resonator.new(rng.randf_range(1400.0, 2400.0), 1.2)
-	var debris: Resonator = Resonator.new(rng.randf_range(2800.0, 4200.0), 3.0)
+	# Lower, wider ring for the falling bits, and a low-pass over them.
+	var debris: Resonator = Resonator.new(rng.randf_range(1200.0, 2000.0), 2.0)
+	var soften: float = 1.0 - exp(-TAU * CRASH_DEBRIS_BRIGHTNESS / float(MIX_RATE))
+	var rattle_state: float = 0.0
+	var fade_start: int = length - roundi(CRASH_FADE * float(MIX_RATE))
 	var thump_phase: float = 0.0
 	for i: int in length:
 		var t: float = float(i) / float(MIX_RATE)
@@ -425,12 +437,16 @@ static func _crash(variant: int) -> PackedFloat32Array:
 			clang += sin(TAU * clang_base * CLANG_RATIOS[k] * t) * exp(-t * clang_decays[k]) / float(k + 1)
 		var white: float = rng.randf_range(-1.0, 1.0)
 		var burst: float = crunch.process(white) * 6.0 * exp(-t * 22.0)
-		# Bits keep falling for a while after the hit.
+		# A few bits fall just after the hit and are gone well before the end.
 		var bit: float = 0.0
-		if rng.randf() < 0.012 * exp(-t * 4.0):
+		if rng.randf() < crash_debris * CRASH_DEBRIS_RATE * exp(-t * CRASH_DEBRIS_DECAY):
 			bit = rng.randf_range(-1.0, 1.0)
-		var rattle: float = debris.process(bit) * 8.0
-		samples[i] = _saturate(thump * 1.1 + clang * 0.35 + burst + rattle, 1.4)
+		rattle_state = lerpf(rattle_state, debris.process(bit) * 5.0, soften)
+		var value: float = _saturate(thump * 1.1 + clang * 0.35 + burst + rattle_state, 1.4)
+		# Fade out over the last CRASH_FADE seconds instead of stopping dead.
+		if i >= fade_start:
+			value *= 0.5 + 0.5 * cos(PI * float(i - fade_start) / float(length - fade_start))
+		samples[i] = value
 	return _normalise(samples, OUTPUT_PEAK)
 
 

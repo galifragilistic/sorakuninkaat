@@ -79,6 +79,7 @@ const PARAMETERS: Array = [
 	["bank:surface_brightness", "Alustaäänten kirkkaus (Hz)", 300.0, 10000.0, 50.0],
 	["bank:snow_hits", "Narinaa lumessa (/s)", 20.0, 2000.0, 10.0],
 	["bank:scrub_hits", "Kiviä luistossa (/s)", 50.0, 4000.0, 10.0],
+	["bank:crash_debris", "Törmäyksen sirpaleet", 0.0, 3.0, 0.05],
 	["bank:squeal_frequency", "Vinkunan sävel (Hz)", 200.0, 2500.0, 10.0],
 ]
 ## One-shot sounds with a test button: [button text, sound].
@@ -187,6 +188,8 @@ static func _read_key(key: String, sample: CarAudio) -> float:
 			return SoundBank.scrub_hits
 		"squeal_frequency":
 			return SoundBank.squeal_frequency
+		"crash_debris":
+			return SoundBank.crash_debris
 	return 0.0
 
 
@@ -223,6 +226,8 @@ static func _write_bank(name_and_index: String, value: float) -> void:
 			SoundBank.scrub_hits = value
 		"squeal_frequency":
 			SoundBank.squeal_frequency = value
+		"crash_debris":
+			SoundBank.crash_debris = value
 
 
 ## own is the local player's car sound (may be null); audios are all of them.

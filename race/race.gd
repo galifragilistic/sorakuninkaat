@@ -85,6 +85,7 @@ func _spawn_cars() -> Array[RacerState]:
 		car.name = "Car%d" % (player + 1)
 		add_child(car)
 		car.apply_setup(setup)
+		car.track = _track
 		car.global_transform = _track.get_grid_transform(slot)
 		car.reset_physics_interpolation()
 		_cars.append(car)

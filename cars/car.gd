@@ -21,6 +21,8 @@ const FRONT_WHEEL_COUNT: int = 2
 
 ## Set by an AiDriver; when null the car reads its player's device.
 var input_source: PlayerInput
+## Set by the race: a reset puts the car back on this track's road.
+var track: Track
 ## Extra grip multiplier from the weather (1.0 = dry).
 var weather_grip: float = 1.0
 ## Network client: the host simulates this car; it is only placed where the
@@ -130,10 +132,22 @@ var apply_local_damage: bool = true
 @export_group("Air")
 ## Yaw torque available from steering while no wheel touches the ground.
 @export var air_control_torque: float = 900.0
+
+@export_group("Reset")
+## Height above the road where a reset puts the car (m).
 @export var reset_lift: float = 1.0
+## Seconds after a reset before the next one is allowed, so spamming the
+## button cannot throw the car into the air.
+@export var reset_cooldown: float = 1.5
+## The car counts as driving on the road while it is this close to the road
+## height (m) and within the road's width.
+@export var on_road_height_tolerance: float = 2.0
 
 var _steer: float = 0.0
 var _gear: int = 0
+## Lap offset of the last place the car drove on the road (-1 = none yet).
+var _road_offset: float = -1.0
+var _reset_cooldown_left: float = 0.0
 var _grounded_wheels: int = 0
 var _current_surface: SurfaceData
 var _mount_points: Array[Vector3] = []
@@ -275,17 +289,42 @@ func is_grounded() -> bool:
 
 
 ## Puts the car back on its wheels where it is, keeping its heading.
+## Puts the car back on the road where it last drove, facing the race
+## direction. Without a track it is only set upright where it is.
+func reset_to_road() -> void:
+	if track == null or _road_offset < 0.0:
+		reset_upright()
+		return
+	var origin: Vector3 = track.get_position_at(_road_offset) + Vector3.UP * reset_lift
+	_place(Transform3D(Basis.looking_at(track.get_direction_at(_road_offset), Vector3.UP), origin))
+
+
+func _remember_road_position() -> void:
+	if track == null or _grounded_wheels == 0:
+		return
+	var hint: float = _road_offset if _road_offset >= 0.0 else track.get_offset_at(global_position)
+	var offset: float = track.get_offset_near(global_position, hint)
+	var road: Vector3 = track.get_position_at(offset)
+	var sideways: float = Vector2(global_position.x - road.x, global_position.z - road.z).length()
+	if sideways <= track.road_width * 0.5 and absf(global_position.y - road.y) <= on_road_height_tolerance:
+		_road_offset = offset
+
+
+func _place(new_transform: Transform3D) -> void:
+	global_transform = new_transform
+	linear_velocity = Vector3.ZERO
+	angular_velocity = Vector3.ZERO
+	_previous_velocity = Vector3.ZERO
+	reset_physics_interpolation()
+
+
 func reset_upright() -> void:
 	var forward: Vector3 = -global_basis.z
 	forward.y = 0.0
 	if forward.length_squared() < 0.001:
 		forward = Vector3.FORWARD
 	var origin: Vector3 = global_position + Vector3.UP * reset_lift
-	global_transform = Transform3D(Basis.looking_at(forward.normalized(), Vector3.UP), origin)
-	linear_velocity = Vector3.ZERO
-	angular_velocity = Vector3.ZERO
-	_previous_velocity = Vector3.ZERO
-	reset_physics_interpolation()
+	_place(Transform3D(Basis.looking_at(forward.normalized(), Vector3.UP), origin))
 
 
 ## Rolls the wheels with the car. Rolling forward (-Z) turns the top of a wheel
@@ -312,8 +351,11 @@ func _physics_process(delta: float) -> void:
 		input = input_source if input_source != null else InputManager.get_input(player_index)
 	_handbrake_held = input.handbrake
 	if not is_puppet:
-		if input.reset_pressed:
-			reset_upright()
+		_reset_cooldown_left = maxf(0.0, _reset_cooldown_left - delta)
+		_remember_road_position()
+		if input.reset_pressed and _reset_cooldown_left <= 0.0:
+			_reset_cooldown_left = reset_cooldown
+			reset_to_road()
 		_detect_impact()
 
 	var top_speed: float = get_top_speed()

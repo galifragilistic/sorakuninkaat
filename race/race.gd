@@ -42,12 +42,15 @@ func _ready() -> void:
 	_race_manager.setup(_track, GameState.lap_count, _is_server)
 	var humans: Array[RacerState] = _spawn_cars()
 	InputManager.solo_mode = humans.size() == 1
+	# Tuning saved from the debug panels comes back before anything is built.
+	AudioTuningPanel.load_saved()
 	# Synthesise every sound now rather than on the first crash.
 	SoundBank.warm_up()
 	_add_car_audio(humans)
 	if not humans.is_empty():
 		_tuning_car = humans[0].car
 		if not _is_net:
+			CarTuningPanel.load_saved()
 			CarTuningPanel.apply_session(_cars, _tuning_car)
 
 	_overlay = CanvasLayer.new()

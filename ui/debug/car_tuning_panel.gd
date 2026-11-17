@@ -57,9 +57,57 @@ static var _defaults: Dictionary = {}
 static var _stat_defaults: Dictionary = {}
 ## Apply the car values to every car (true) or only the player's (false).
 static var _all_cars: bool = true
+## True once the saved tuning has been read (load_saved()).
+static var _loaded: bool = false
+
+const STORE_SECTION: String = "car"
+const STORE_STATS_SECTION: String = "car_stats"
+const STORE_ALL_CARS: String = "_all_cars"
 
 var _car: Car
 var _cars: Array[Car] = []
+
+
+## Reads the tuning saved by earlier sessions, once. Car values go onto every
+## race's cars through apply_session(); model stats are set on the CarStats
+## resources right away (their originals are kept for PALAUTA).
+static func load_saved() -> void:
+	if _loaded:
+		return
+	_loaded = true
+	var saved: Dictionary = DebugTuningStore.load_section(STORE_SECTION)
+	for path: String in saved:
+		if path == STORE_ALL_CARS:
+			_all_cars = bool(saved[path])
+		else:
+			_overrides[path] = float(saved[path])
+	var stats: Dictionary = DebugTuningStore.load_section(STORE_STATS_SECTION)
+	for key: String in stats:
+		var resource_path: String = key.get_slice("|", 0)
+		var stat_path: String = key.get_slice("|", 1)
+		var car_stats: CarStats = load(resource_path) as CarStats
+		if car_stats == null:
+			continue
+		var property: String = stat_path.trim_prefix(STATS_PREFIX)
+		if not _stat_defaults.has(key):
+			_stat_defaults[key] = car_stats.get(property)
+		car_stats.set(property, roundi(float(stats[key])))
+
+
+## Writes every changed value to the store.
+static func _save() -> void:
+	var values: Dictionary = _overrides.duplicate()
+	values[STORE_ALL_CARS] = _all_cars
+	DebugTuningStore.save_section(STORE_SECTION, values)
+	var stats: Dictionary = {}
+	for key: String in _stat_defaults:
+		var car_stats: CarStats = load(key.get_slice("|", 0)) as CarStats
+		if car_stats == null:
+			continue
+		var value: int = car_stats.get(key.get_slice("|", 1).trim_prefix(STATS_PREFIX))
+		if value != int(_stat_defaults[key]):
+			stats[key] = value
+	DebugTuningStore.save_section(STORE_STATS_SECTION, stats)
 
 
 ## Race start: the session's tuning goes onto the new cars.
@@ -117,12 +165,14 @@ func _write(path: String, value: float) -> void:
 	if path.begins_with(STATS_PREFIX):
 		# Stats are whole numbers on the 1-10 scale.
 		_car.set_indexed(path, roundi(value))
+		_save()
 		return
 	var targets: Array[Car] = _cars if _all_cars else _only(_car)
 	for car: Car in targets:
 		if is_instance_valid(car):
 			car.set_indexed(path, value)
 	_overrides[path] = value
+	_save()
 
 
 func _get_default(path: String) -> Variant:
@@ -148,6 +198,7 @@ func _after_reset() -> void:
 			if is_instance_valid(car):
 				car.set_indexed(path, _defaults[path])
 	_overrides.clear()
+	_save()
 
 
 func _add_options(row: Container) -> void:
@@ -166,6 +217,7 @@ func _on_all_cars_toggled(enabled: bool) -> void:
 		for car: Car in _cars:
 			if is_instance_valid(car) and car != _car:
 				car.set_indexed(path, _overrides[path] if enabled else _defaults[path])
+	_save()
 
 
 func _get_telemetry() -> String:

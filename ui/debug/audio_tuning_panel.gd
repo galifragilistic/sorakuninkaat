@@ -88,10 +88,48 @@ const TEST_SOUNDS: Array = [
 static var _overrides: Dictionary = {}
 ## Original values of every key, captured before the first change.
 static var _defaults: Dictionary = {}
+## True once the saved tuning has been read (load_saved()).
+static var _loaded: bool = false
+
+const STORE_SECTION: String = "audio"
 
 var _audios: Array[CarAudio] = []
 ## The local player's car sound, shown in the telemetry line.
 var _own: CarAudio
+
+
+## Reads the tuning saved by earlier sessions, once: synthesis settings go
+## straight into SoundBank (call before it builds the sounds), mixing settings
+## onto every race's cars through apply_session().
+static func load_saved() -> void:
+	if _loaded:
+		return
+	_loaded = true
+	# The originals first, so PALAUTA can still go back to them.
+	for row: Array in PARAMETERS:
+		var key: String = row[0]
+		if key.begins_with(BANK_PREFIX) and not _defaults.has(key):
+			_defaults[key] = _read_key(key, null)
+	var saved: Dictionary = DebugTuningStore.load_section(STORE_SECTION)
+	for key: String in saved:
+		if key.begins_with(BANK_PREFIX):
+			_write_bank(key.trim_prefix(BANK_PREFIX), float(saved[key]))
+		elif key.begins_with(CAR_PREFIX):
+			_overrides[key.trim_prefix(CAR_PREFIX)] = float(saved[key])
+
+
+## Writes every changed value to the store.
+static func _save() -> void:
+	var values: Dictionary = {}
+	for path: String in _overrides:
+		values[CAR_PREFIX + path] = _overrides[path]
+	for row: Array in PARAMETERS:
+		var key: String = row[0]
+		if key.begins_with(BANK_PREFIX) and _defaults.has(key):
+			var value: float = _read_key(key, null)
+			if not is_equal_approx(value, float(_defaults[key])):
+				values[key] = value
+	DebugTuningStore.save_section(STORE_SECTION, values)
 
 
 ## Race start: the session's mixing settings go onto the new cars' sounds.
@@ -215,12 +253,14 @@ func _read(key: String) -> float:
 func _write(key: String, value: float) -> void:
 	if key.begins_with(BANK_PREFIX):
 		_write_bank(key.trim_prefix(BANK_PREFIX), value)
+		_save()
 		return
 	var path: String = key.trim_prefix(CAR_PREFIX)
 	for audio: CarAudio in _audios:
 		if is_instance_valid(audio):
 			audio.set_indexed(path, value)
 	_overrides[path] = value
+	_save()
 
 
 func _get_default(key: String) -> Variant:
@@ -239,6 +279,7 @@ func _copy_header() -> String:
 
 func _after_reset() -> void:
 	_overrides.clear()
+	_save()
 	_rebuild_sounds()
 
 

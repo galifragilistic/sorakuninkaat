@@ -10,7 +10,7 @@ extends RefCounted
 
 enum Sound {
 	ENGINE_LOW, ENGINE_HIGH, ENGINE_OFF, TRANSMISSION,
-	ROLL_ASPHALT, ROLL_GRAVEL, ROLL_SNOW, SKID_ASPHALT, SKID_LOOSE,
+	ROLL_ASPHALT, ROLL_GRAVEL, ROLL_SNOW, SKID_ASPHALT, SKID_LOOSE, SKID_SNOW, SKID_ICE,
 	CRASH, CRASH_2, CRASH_3, SHIFT, BACKFIRE,
 	BEEP, GO, UI_MOVE, UI_ACCEPT,
 }
@@ -42,7 +42,16 @@ static var cylinder_spread: float = 1.0
 const LAYER_FORCE: Array[float] = [1.0, 1.0, 0.45]
 ## Gearbox whine: samples per cycle and cycles per loop.
 const WHINE_PERIOD: int = 21           # 1050 Hz
-const WHINE_CYCLES: int = 210
+## Two seconds: the whine is filtered noise now, and a short loop would buzz.
+const WHINE_CYCLES: int = 2100
+## Width of the whine resonance (higher = closer to a pure tone).
+const WHINE_Q: float = 18.0
+## Snow swish and ice hiss: noise resonances (Hz), their width and how many
+## slow swells per loop.
+const SNOW_SKID_BANDS: Array[float] = [380.0, 950.0, 1900.0]
+const ICE_SKID_BANDS: Array[float] = [2400.0, 4800.0]
+const SWISH_Q: float = 0.9
+const SWISH_SWELLS: int = 5
 ## Noise loops are long so the ear does not pick up the repeat.
 const NOISE_LOOP_SECONDS: float = 4.0
 ## Stone hits per second in the gravel and snow loops, and in the loose skid.
@@ -154,6 +163,10 @@ static func _build(sound: Sound) -> AudioStreamWAV:
 			return _to_stream(_squeal(), true)
 		Sound.SKID_LOOSE:
 			return _to_stream(_crunch_loop(scrub_hits, [700.0, 1500.0, 2800.0], SCRUB_RUMBLE, 3), true)
+		Sound.SKID_SNOW:
+			return _to_stream(_swish(SNOW_SKID_BANDS, 5), true)
+		Sound.SKID_ICE:
+			return _to_stream(_swish(ICE_SKID_BANDS, 6), true)
 		Sound.CRASH, Sound.CRASH_2, Sound.CRASH_3:
 			return _to_stream(_crash(CRASH_VARIANTS.find(sound)), false)
 		Sound.SHIFT:
@@ -284,15 +297,16 @@ static func _engine(pulse: int, layer: int) -> PackedFloat32Array:
 		return value), engine_rms)
 
 
-## Gearbox whine: a thin tone with a little second harmonic.
+## Gearbox whine: noise rung through a narrow resonance at the whine pitch,
+## with a fainter one an octave up. A pure sine read as a beep.
 static func _whine() -> PackedFloat32Array:
 	var length: int = WHINE_PERIOD * WHINE_CYCLES
-	var samples: PackedFloat32Array = PackedFloat32Array()
-	samples.resize(length)
-	for i: int in length:
-		var phase: float = TAU * float(i) / float(WHINE_PERIOD)
-		samples[i] = sin(phase) + 0.3 * sin(phase * 2.0) + 0.1 * sin(phase * 3.0)
-	return _normalise(samples, OUTPUT_PEAK)
+	var noise: PackedFloat32Array = _noise_table(length, NOISE_SEED + 90)
+	var frequency: float = float(MIX_RATE) / float(WHINE_PERIOD)
+	var tone: Resonator = Resonator.new(frequency, WHINE_Q)
+	var octave: Resonator = Resonator.new(frequency * 2.0, WHINE_Q)
+	return _finish(_settled_loop(length, func(i: int) -> float:
+		return tone.process(noise[i]) + octave.process(noise[i]) * 0.3), surface_rms)
 
 
 # --- Tyres and surfaces -------------------------------------------------------
@@ -362,6 +376,28 @@ static func _squeal() -> PackedFloat32Array:
 		var level: float = 0.75 + 0.25 * sin(TAU * 7.0 * t / seconds)
 		var tone: float = sin(phase) + 0.35 * sin(phase * 2.0)
 		return tone * level + edge.process(noise[i]) * 3.0), surface_rms)
+
+
+## A smooth slide on snow or ice: noise through wide resonances with a few
+## slow swells per loop, softened by surface_brightness. No stone hits.
+static func _swish(bands: Array[float], seed_offset: int) -> PackedFloat32Array:
+	var length: int = roundi(NOISE_LOOP_SECONDS * float(MIX_RATE))
+	var noise: PackedFloat32Array = _noise_table(length, NOISE_SEED + 100 + seed_offset)
+	var resonators: Array[Resonator] = []
+	for frequency: float in bands:
+		resonators.append(Resonator.new(frequency, SWISH_Q))
+	var smooth: float = 1.0 - exp(-TAU * surface_brightness / float(MIX_RATE))
+	var seconds: float = float(length) / float(MIX_RATE)
+	var state: Array[float] = [0.0, 0.0]
+	return _finish(_settled_loop(length, func(i: int) -> float:
+		var value: float = 0.0
+		for r: Resonator in resonators:
+			value += r.process(noise[i])
+		var t: float = float(i) / float(MIX_RATE)
+		value *= 0.8 + 0.2 * sin(TAU * float(SWISH_SWELLS) * t / seconds)
+		state[0] = lerpf(state[0], value, smooth)
+		state[1] = lerpf(state[1], state[0], smooth)
+		return state[1]), surface_rms)
 
 
 # --- One-shots -----------------------------------------------------------------

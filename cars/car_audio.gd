@@ -54,7 +54,10 @@ enum Ground { ASPHALT, LOOSE, SNOW }
 @export var lift_throttle: Vector2 = Vector2(0.6, 0.1)
 
 @export_group("Gearbox whine")
-@export var whine_volume_db: float = -32.0
+@export var whine_volume_db: float = -38.0
+## The whine fades in from this speed (m/s) and is full at whine_full_speed.
+@export var whine_min_speed: float = 8.0
+@export var whine_full_speed: float = 35.0
 ## Pitch at standstill and at top speed.
 @export var whine_pitch_range: Vector2 = Vector2(0.25, 1.3)
 
@@ -70,9 +73,12 @@ enum Ground { ASPHALT, LOOSE, SNOW }
 ## Slip angle (degrees) where squeal starts and where it is loudest.
 @export var skid_slip_range: Vector2 = Vector2(9.0, 35.0)
 @export var skid_min_speed: float = 5.0
-## Squeal on tarmac, scrubbing on loose ground and snow.
+## Squeal on tarmac, scrubbing on loose ground.
 @export var skid_asphalt_db: float = -14.0
 @export var skid_loose_db: float = -10.0
+## Soft swish when sliding on snow, light hiss on ice.
+@export var skid_snow_db: float = -15.0
+@export var skid_ice_db: float = -19.0
 ## How fast surface sounds fade when the ground changes (1/s).
 @export var surface_response: float = 8.0
 ## Slow random wandering of the tyre and surface loops, so they never sound
@@ -94,6 +100,9 @@ enum Ground { ASPHALT, LOOSE, SNOW }
 ## Distance (m) at which another car's sound has halved.
 @export var half_distance: float = 14.0
 @export var silent_db: float = -60.0
+## Level of a loop that should not be heard at all. Lower than silent_db: a
+## loop left at -60 dB could still be heard faintly, e.g. the squeal at a standstill.
+@export var mute_db: float = -80.0
 
 ## Cars whose drivers are listening. Set by the race scene.
 var listeners: Array[Car] = []
@@ -109,7 +118,7 @@ var _rolls: Array[AudioStreamPlayer] = []
 var _skids: Array[AudioStreamPlayer] = []
 ## Current loudness (0..1) of each rolling and skid loop, eased towards its target.
 var _roll_levels: PackedFloat32Array = PackedFloat32Array([0.0, 0.0, 0.0])
-var _skid_levels: PackedFloat32Array = PackedFloat32Array([0.0, 0.0])
+var _skid_levels: PackedFloat32Array = PackedFloat32Array([0.0, 0.0, 0.0, 0.0])
 var _revs: float = 0.0
 var _load: float = 0.0
 var _gear: int = 0
@@ -137,7 +146,9 @@ func setup(car: Car, listener_cars: Array[Car]) -> void:
 	_whine = _add_loop(SoundBank.Sound.TRANSMISSION)
 	for sound: SoundBank.Sound in [SoundBank.Sound.ROLL_ASPHALT, SoundBank.Sound.ROLL_GRAVEL, SoundBank.Sound.ROLL_SNOW]:
 		_rolls.append(_add_loop(sound))
-	for sound: SoundBank.Sound in [SoundBank.Sound.SKID_ASPHALT, SoundBank.Sound.SKID_LOOSE]:
+	for sound: SoundBank.Sound in [
+		SoundBank.Sound.SKID_ASPHALT, SoundBank.Sound.SKID_LOOSE, SoundBank.Sound.SKID_SNOW, SoundBank.Sound.SKID_ICE,
+	]:
 		_skids.append(_add_loop(sound))
 	_wander = FastNoiseLite.new()
 	_wander.seed = randi()
@@ -155,7 +166,7 @@ func _exit_tree() -> void:
 func _add_loop(sound: SoundBank.Sound) -> AudioStreamPlayer:
 	var player: AudioStreamPlayer = AudioStreamPlayer.new()
 	player.stream = SoundBank.get_stream(sound)
-	player.volume_db = silent_db
+	player.volume_db = mute_db
 	add_child(player)
 	_loops[player] = sound
 	# Every car starts its loops at a different point, so two cars side by
@@ -240,7 +251,8 @@ func _update_engine(delta: float, grounded: bool, presence_db: float) -> void:
 
 	var speed_ratio: float = clampf(absf(_car.get_forward_speed()) / maxf(_car.get_base_top_speed(), 0.1), 0.0, 1.0)
 	_whine.pitch_scale = lerpf(whine_pitch_range.x, whine_pitch_range.y, speed_ratio)
-	_set_level(_whine, speed_ratio, whine_volume_db + presence_db)
+	var whine: float = smoothstep(whine_min_speed, whine_full_speed, absf(_car.get_forward_speed()))
+	_set_level(_whine, whine, whine_volume_db + presence_db)
 
 	# Lifting off sharply from high revs can make the exhaust pop.
 	if throttle > lift_throttle.x:
@@ -292,8 +304,8 @@ func _update_surface(delta: float, grounded: bool, presence_db: float) -> void:
 		_rolls[i].pitch_scale = roll_pitch * (1.0 + wander_pitch_value * wander_pitch)
 		_set_level(_rolls[i], _roll_levels[i], roll_db[i] + presence_db + wander_level * wander_volume_db)
 
-	var skid_db: Array[float] = [skid_asphalt_db, skid_loose_db]
-	var skid_index: int = 0 if ground == Ground.ASPHALT else 1
+	var skid_db: Array[float] = [skid_asphalt_db, skid_loose_db, skid_snow_db, skid_ice_db]
+	var skid_index: int = _get_skid(surface)
 	for i: int in _skids.size():
 		var target: float = skid if i == skid_index else 0.0
 		_skid_levels[i] = lerpf(_skid_levels[i], target, fade)
@@ -301,6 +313,21 @@ func _update_surface(delta: float, grounded: bool, presence_db: float) -> void:
 		var wander_level: float = _wander.get_noise_1d(_time + 100.0 + 50.0 * float(i))
 		_skids[i].pitch_scale = 1.0 + wander_pitch_value * wander_pitch
 		_set_level(_skids[i], _skid_levels[i], skid_db[i] + presence_db + wander_level * wander_volume_db)
+
+
+## Which skid loop plays on a surface: 0 squeal (tarmac), 1 gravel scrub,
+## 2 snow swish, 3 ice hiss.
+func _get_skid(surface: SurfaceData) -> int:
+	if surface == null:
+		return 1
+	match surface.kind:
+		SurfaceData.Kind.ASPHALT:
+			return 0
+		SurfaceData.Kind.SNOW:
+			return 2
+		SurfaceData.Kind.ICE:
+			return 3
+	return 1
 
 
 func _get_ground(surface: SurfaceData) -> Ground:
@@ -316,7 +343,7 @@ func _get_ground(surface: SurfaceData) -> Ground:
 
 ## Sets a loop's loudness (0..1) on top of full_db; silent at zero.
 func _set_level(player: AudioStreamPlayer, level: float, full_db: float) -> void:
-	player.volume_db = full_db + linear_to_db(level) if level > 0.01 else silent_db
+	player.volume_db = full_db + linear_to_db(level) if level > 0.01 else mute_db
 
 
 func _play_once(sound: SoundBank.Sound, volume_db: float, pitch: float) -> void:

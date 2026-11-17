@@ -376,7 +376,9 @@ func _get_slip_angle() -> float:
 	forward.y = 0.0
 	if velocity.length() < slip_min_speed or forward.is_zero_approx():
 		return 0.0
-	return rad_to_deg(forward.normalized().angle_to(velocity.normalized()))
+	# Sideways slip only: rolling straight backwards (reversing) is 0, not 180.
+	var angle: float = rad_to_deg(forward.normalized().angle_to(velocity.normalized()))
+	return minf(angle, 180.0 - angle)
 
 
 ## Total engine force for this tick, shared between the driven wheels.

@@ -756,13 +756,14 @@ func _make_surface_material(surface: SurfaceData, is_ground: bool) -> Material:
 	if surface.detail_texture == null:
 		return LowPoly.vertex_color_material(surface.roughness)
 	var material: ShaderMaterial = ShaderMaterial.new()
-	material.shader = GROUND_SHADER
-	material.set_shader_parameter("detail_texture", surface.detail_texture)
+	# The retro style samples small copies of the textures without filtering.
+	material.shader = Retro.shader(GROUND_SHADER)
+	material.set_shader_parameter("detail_texture", Retro.texture(surface.detail_texture))
 	material.set_shader_parameter("detail_scale", surface.detail_scale)
 	material.set_shader_parameter("detail_strength", surface.detail_strength)
 	material.set_shader_parameter("roughness_value", surface.roughness)
 	if is_ground:
-		material.set_shader_parameter("slope_texture", slope_texture)
+		material.set_shader_parameter("slope_texture", Retro.texture(slope_texture))
 		material.set_shader_parameter("slope_scale", slope_scale)
 		material.set_shader_parameter("slope_color", slope_color)
 		material.set_shader_parameter("slope_range", slope_range)

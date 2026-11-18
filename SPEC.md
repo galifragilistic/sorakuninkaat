@@ -19,7 +19,7 @@ Näkymien kuvat ovat kansiossa `mockups/` (PNG 2560×1440, suunniteltu 1280×720
 ### N64-tason geometria ja tekstuurit
 - Autossa 300–800 kolmiota, puissa ja esineissä 20–100.
 - Tasavarjostettu low-poly: puissa ja maassa selvästi näkyvät kolmiot ja kaksisävyinen varjostus (valoisa ja varjoisa puoli).
-- Tekstuurit 64×64–128×128, bilineaarinen suodatus (ei pikseligrafiikkaa). Paljon pelkkiä vertex-värejä.
+- Tekstuurit 64×64–128×128 (retrotyylissä 32×32 ilman suodatusta, ks. alla). Paljon pelkkiä vertex-värejä.
 - Ei normal mappeja. Materiaaleissa enintään roughness ja metallic.
 - Maasto on kolmioista koottu ruudukko, jonka laikut ovat hieman eri sävyisiä (ks. `05_Peli.png`).
 
@@ -37,6 +37,15 @@ Näkymien kuvat ovat kansiossa `mockups/` (PNG 2560×1440, suunniteltu 1280×720
 - Partikkelit (`GPUParticles3D`): renkaiden pölypilvet, joiden määrä ja väri tulevat alustasta (sora, hiekka, lumi, vesi), pöly laskeutumisissa sekä sade ja lumisade. Kipinät kolareissa ja omat roisketehosteet: ks. § 10.
 - Sää- ja aikavariaatiot: Aamu, Päivä, Ilta (iltarusko), Yö sekä Aurinko, Sade, Lumi, Sumu. Toteutetaan esiasetuksina (environment + valo).
 - Laatuasetukset: Matala, Keski ja Korkea. Matalalla pois SSAO, volumetric ja SSIL.
+
+### Grafiikkatyyli: Retro (oletus) tai Moderni
+Retrotyyli jäljittelee PS1- ja N64-konsoleita (`env/retro_style.tres`, `util/retro.gd`):
+- 3D-kuva renderöidään pienellä tarkkuudella (koko ruudun näkymä 270 riviä) ja suurennetaan teräväreunaisin pikselein. Ei reunanpehmennystä.
+- Värit pudotetaan 15-bittisiksi (5 bittiä kanavaa kohden) ja väliin tulee 4×4 Bayer -ditherointi.
+- Maan ja teiden tekstuurit pienennetään 32×32:een ja näytetään ilman suodatusta.
+- HUD ja valikot pysyvät terävinä. Valikoiden 3D-esikatselut noudattavat samaa tyyliä.
+
+Moderni-tyyli on aiempi ilme: täysi tarkkuus, MSAA ja suodatetut tekstuurit.
 
 ## 3. Ajaminen
 
@@ -78,7 +87,7 @@ Päävalikko ─┬─ Yksinpeli → Auton valinta → Radan valinta → Kisa �
             ├─ Autotalli → Auton valinta
             ├─ Radat → Radan valinta
             ├─ Rataeditori → Koeajo
-            ├─ Asetukset (grafiikan laatu, koko ruutu, äänenvoimakkuus, vauriot)
+            ├─ Asetukset (grafiikkatyyli, grafiikan laatu, koko ruutu, äänenvoimakkuus, vauriot, kieli)
             └─ Lopeta
 Tulokset → Uusintakisa | Vaihda rata | Aulaan (yksinpelissä Valikkoon)
 Kisa → Tauko (Jatka, Aloita alusta, Asetukset, Lopeta kisa)

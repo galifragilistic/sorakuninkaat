@@ -32,6 +32,7 @@ var _shown_crossed_start: bool = false
 var _shown_blink: bool = false
 
 var _viewport: SubViewport
+var _picture: TextureRect
 var _vignette_material: ShaderMaterial
 
 
@@ -69,7 +70,8 @@ func setup(
 	camera_rig.add_child(camera)
 	_viewport.add_child(camera_rig)
 
-	var picture: TextureRect = TextureRect.new()
+	_picture = TextureRect.new()
+	var picture: TextureRect = _picture
 	picture.texture = _viewport.get_texture()
 	picture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	picture.stretch_mode = TextureRect.STRETCH_SCALE
@@ -104,6 +106,7 @@ func setup(
 
 	resized.connect(_update_viewport_size)
 	get_window().size_changed.connect(_update_viewport_size)
+	Settings.changed.connect(_update_viewport_size)
 	_update_viewport_size()
 
 
@@ -134,9 +137,17 @@ func apply_preset(preset: EnvPreset) -> void:
 ## Renders at the pane's real pixel size, so the 3D view stays sharp when the
 ## window is larger than the 1280x720 design resolution.
 func _update_viewport_size() -> void:
-	var pixel_scale: Vector2 = Vector2(get_window().size) / get_viewport_rect().size
-	var pixels: Vector2 = (size * pixel_scale).round()
-	_viewport.size = Vector2i(maxi(2, int(pixels.x)), maxi(2, int(pixels.y)))
+	var retro: bool = Retro.is_on()
+	if retro:
+		# A small picture, scaled up with sharp pixels and no anti-aliasing.
+		_viewport.size = Retro.get_render_size(size)
+		_viewport.msaa_3d = Viewport.MSAA_DISABLED
+	else:
+		var pixel_scale: Vector2 = Vector2(get_window().size) / get_viewport_rect().size
+		var pixels: Vector2 = (size * pixel_scale).round()
+		_viewport.size = Vector2i(maxi(2, int(pixels.x)), maxi(2, int(pixels.y)))
+		_viewport.msaa_3d = get_viewport().msaa_3d
+	Retro.style_picture(_picture, retro)
 	hud.view_scale = Vector2(_viewport.size) / size.max(Vector2.ONE)
 	# A wide, low pane (horizontal split) would otherwise show the cars far too small.
 	var aspect: float = size.x / maxf(size.y, 1.0)

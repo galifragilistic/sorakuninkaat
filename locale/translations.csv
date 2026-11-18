@@ -55,6 +55,7 @@ Etupää,Front
 "Etuveto · 1,0 L turbo",Front-wheel drive · 1.0 L turbo
 Grafiikan laatu,Graphics quality
 Grafiikka ja pelisäännöt,Graphics and rules
+Grafiikkatyyli,Graphics style
 HIEKKA,SAND
 Hanki,Deep snow
 Heinäpaali,Hay bale
@@ -140,6 +141,7 @@ Maasto,Terrain
 Maaston mukaan,As the terrain
 Matala,Low
 Metsäpolku,Forest Trail
+Moderni,Modern
 Muut ajavat vielä kisaa loppuun,The others are still finishing the race
 Muuta,Change
 N,N
@@ -221,6 +223,7 @@ Rata ja esineet eivät mahdu pienemmälle kartalle.,The track and objects do not
 Ratatietue,Track record
 Rengaspino,Tyre stack
 Renkaat,Tyres
+Retro,Retro
 Risteys on liian matala: nosta ylempää tietä vähintään %.1f m alemman yläpuolelle.,A crossing is too low: raise the upper road at least %.1f m above the lower one.
 Ruudunjako,Screen split
 SIJA,POS

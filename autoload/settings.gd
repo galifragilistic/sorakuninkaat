@@ -4,6 +4,8 @@ extends Node
 signal changed
 
 enum Quality { LOW, MEDIUM, HIGH }
+## RETRO: low-resolution, dithered PS1 / N64 look (see Retro). MODERN: smooth.
+enum GraphicsStyle { RETRO, MODERN }
 
 const SAVE_PATH: String = "user://settings.cfg"
 ## The game was called Sorakuninkaat; its saved data lives in a folder of
@@ -23,6 +25,11 @@ const MASTER_BUS: int = 0
 var quality: Quality = Quality.HIGH:
 	set(value):
 		quality = value
+		_on_changed()
+
+var graphics_style: GraphicsStyle = GraphicsStyle.RETRO:
+	set(value):
+		graphics_style = value
 		_on_changed()
 
 var damage_enabled: bool = true:
@@ -144,6 +151,7 @@ func _load() -> void:
 	_loading = true
 	quality = clampi(config.get_value(SECTION, "quality", quality), Quality.LOW, Quality.HIGH) as Quality
 	damage_enabled = config.get_value(SECTION, "damage_enabled", damage_enabled)
+	graphics_style = clampi(config.get_value(SECTION, "graphics_style", graphics_style), 0, GraphicsStyle.size() - 1) as GraphicsStyle
 	fullscreen = config.get_value(SECTION, "fullscreen", fullscreen)
 	volume = config.get_value(SECTION, "volume", volume)
 	language = config.get_value(SECTION, "language", language)
@@ -160,6 +168,7 @@ func _save() -> void:
 	var config: ConfigFile = ConfigFile.new()
 	config.set_value(SECTION, "quality", quality)
 	config.set_value(SECTION, "damage_enabled", damage_enabled)
+	config.set_value(SECTION, "graphics_style", graphics_style)
 	config.set_value(SECTION, "fullscreen", fullscreen)
 	config.set_value(SECTION, "volume", volume)
 	config.set_value(SECTION, "language", language)

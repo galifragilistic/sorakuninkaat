@@ -19,7 +19,7 @@ Isometrinen 3D-rallipeli Godot 4.x:llä (uusin vakaa versio, **Forward+**-render
 
 ## Grafiikan säännöt
 - Low-poly-mallit tehdään koodilla tai yksinkertaisina meshinä (CSG tai ArrayMesh) siihen asti, kunnes oikeat mallit ovat käytettävissä. Tasavarjostus ja vertex-värit.
-- Tekstuurit enintään 128×128, suodatus linear.
+- Tekstuurit enintään 128×128. Retrotyylissä (oletus) ne pienennetään 32×32:een ja näytetään ilman suodatusta, Moderni-tyylissä suodatus on linear. Retrotyylin luvut ovat tiedostossa `env/retro_style.tres`.
 - Valaistus, varjot, SSAO, glow, sumu ja tonemap asetetaan `WorldEnvironment`-esiasetuksiin. Sää ja vuorokaudenaika vaihtavat esiasetusta.
 
 ## Moninpeli

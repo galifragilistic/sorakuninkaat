@@ -38,6 +38,9 @@ const CAR_SCENE: PackedScene = preload("res://cars/car.tscn")
 @export_range(0.0, 1.0, 0.01) var cone_alpha: float = 0.22
 
 var _viewport: SubViewport
+var _picture: TextureRect
+## Anti-aliasing outside the retro style.
+var _smooth_msaa: Viewport.MSAA = Viewport.MSAA_DISABLED
 var _pivot: Node3D
 var _car: Car
 var _camera: Camera3D
@@ -60,7 +63,8 @@ func _ready() -> void:
 	_viewport = SubViewport.new()
 	_viewport.own_world_3d = true
 	_viewport.transparent_bg = true
-	_viewport.msaa_3d = Viewport.MSAA_4X
+	_smooth_msaa = Viewport.MSAA_4X
+	_viewport.msaa_3d = _smooth_msaa
 	add_child(_viewport)
 	visibility_changed.connect(_update_rendering)
 
@@ -100,7 +104,8 @@ func _ready() -> void:
 	_viewport.add_child(_camera)
 	_camera.position = Vector3.UP * look_at_height + _camera.basis.z * camera_distance
 
-	var picture: TextureRect = TextureRect.new()
+	_picture = TextureRect.new()
+	var picture: TextureRect = _picture
 	picture.texture = _viewport.get_texture()
 	picture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	picture.stretch_mode = TextureRect.STRETCH_SCALE
@@ -109,6 +114,7 @@ func _ready() -> void:
 	add_child(picture)
 
 	resized.connect(_update_viewport_size)
+	Settings.changed.connect(_update_viewport_size)
 	_update_viewport_size()
 	if _has_pending:
 		show_car(_pending_color, _pending_pattern, _pending_stats, _pending_spot)
@@ -149,9 +155,16 @@ func _process(delta: float) -> void:
 
 
 func _update_viewport_size() -> void:
-	var pixel_scale: Vector2 = (Vector2(get_window().size) / get_viewport_rect().size).min(Vector2.ONE * max_pixel_scale)
-	var pixels: Vector2 = (size * pixel_scale).round()
-	_viewport.size = Vector2i(maxi(2, int(pixels.x)), maxi(2, int(pixels.y)))
+	var retro: bool = Retro.is_on()
+	if retro:
+		_viewport.size = Retro.get_render_size(size)
+		_viewport.msaa_3d = Viewport.MSAA_DISABLED
+	else:
+		var pixel_scale: Vector2 = (Vector2(get_window().size) / get_viewport_rect().size).min(Vector2.ONE * max_pixel_scale)
+		var pixels: Vector2 = (size * pixel_scale).round()
+		_viewport.size = Vector2i(maxi(2, int(pixels.x)), maxi(2, int(pixels.y)))
+		_viewport.msaa_3d = _smooth_msaa
+	Retro.style_picture(_picture, retro)
 	queue_redraw()
 	_update_rendering()
 

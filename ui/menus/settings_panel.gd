@@ -18,9 +18,15 @@ func _ready() -> void:
 	var on_off: PackedStringArray = PackedStringArray([tr("Pois"), tr("Päällä")])
 	var qualities: PackedStringArray = PackedStringArray([tr("Matala"), tr("Keski"), tr("Korkea")])
 
-	_first = OptionSpinner.create(tr("Grafiikan laatu"), qualities, Settings.quality)
-	_first.value_changed.connect(func(index: int) -> void: Settings.quality = index as Settings.Quality)
+	_first = OptionSpinner.create(
+		tr("Grafiikkatyyli"), PackedStringArray([tr("Retro"), tr("Moderni")]), Settings.graphics_style
+	)
+	_first.value_changed.connect(func(index: int) -> void: Settings.graphics_style = index as Settings.GraphicsStyle)
 	add_child(_first)
+
+	var quality: OptionSpinner = OptionSpinner.create(tr("Grafiikan laatu"), qualities, Settings.quality)
+	quality.value_changed.connect(func(index: int) -> void: Settings.quality = index as Settings.Quality)
+	add_child(quality)
 
 	var fullscreen: OptionSpinner = OptionSpinner.create(tr("Koko ruutu"), on_off, int(Settings.fullscreen))
 	fullscreen.value_changed.connect(func(index: int) -> void: Settings.fullscreen = index == 1)

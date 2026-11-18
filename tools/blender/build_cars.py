@@ -479,18 +479,33 @@ def mud_flaps(bm, spec, material="Trim"):
             add_box(bm, (side * WHEEL_X, y - 0.47, GROUND_Z + 0.2), (0.26, 0.015, 0.26), material)
 
 
-def flares(bm, spec, width=0.14, thickness=0.06):
-    """Plastic arches standing out over the wheels."""
+def flares(bm, spec, width=0.14, thickness=0.06, segments=12, sweep=(15, 165)):
+    """Plastic arches standing out over the wheels: one continuous curved band
+    per wheel, following the body side as it narrows or widens."""
     arch_radius, arch_lift = spec.get("arch", (0.42, 0.03))
+    radii = (arch_radius, arch_radius + thickness)
     for y in (AXLE_Y, -AXLE_Y):
         for side in (-1, 1):
-            for step in range(7):
-                angle = math.radians(15 + step * 150 / 6)
-                cy = y + math.cos(angle) * (arch_radius + thickness / 2)
-                cz = WHEEL_Z + arch_lift + math.sin(angle) * (arch_radius + thickness / 2)
-                half = section_at(spec, cy)[1]
-                rotation = Matrix.Rotation(angle + math.pi / 2, 3, "X")
-                add_box(bm, (side * (half + width / 2 - 0.03), cy, cz), (width, 0.17, thickness), "Trim", rotation)
+            rings = []
+            for step in range(segments + 1):
+                angle = math.radians(sweep[0] + (sweep[1] - sweep[0]) * step / segments)
+                mid_y = y + math.cos(angle) * (radii[0] + radii[1]) / 2
+                x_in = section_at(spec, mid_y)[1] - 0.03
+                ring = []
+                # Cross-section corners: inner-low, outer-low, outer-high, inner-high.
+                for x, radius in ((x_in, radii[0]), (x_in + width, radii[0]), (x_in + width, radii[1]), (x_in, radii[1])):
+                    ring.append(bm.verts.new((
+                        side * x, y + math.cos(angle) * radius, WHEEL_Z + arch_lift + math.sin(angle) * radius,
+                    )))
+                rings.append(ring)
+            faces = []
+            for a, b in zip(rings, rings[1:]):
+                for k in range(4):
+                    faces.append(bm.faces.new((a[k], a[(k + 1) % 4], b[(k + 1) % 4], b[k])))
+            faces.append(bm.faces.new(rings[0]))
+            faces.append(bm.faces.new(list(reversed(rings[-1]))))
+            bmesh.ops.recalc_face_normals(bm, faces=faces)
+            set_material(faces, "Trim")
 
 
 def side_steps(bm, spec, z=None, material="Trim"):

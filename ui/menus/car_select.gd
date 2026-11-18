@@ -39,7 +39,7 @@ func _build() -> void:
 	_build_stats_panel()
 	_build_confirm()
 	MenuKit.add_hints(self, [
-		[InputPrompts.Prompt.UP_DOWN, tr("Vaihda autoa")], [InputPrompts.Prompt.ACCEPT, tr("Vahvista")],
+		[InputPrompts.Prompt.UP_DOWN, tr("Vaihda autoa")], [InputPrompts.Prompt.ACCEPT, tr("Valitse")],
 		[InputPrompts.Prompt.BACK, tr("Takaisin")],
 	])
 
@@ -89,7 +89,8 @@ func _build_list() -> void:
 		button.selected_color = UiStyle.ACCENT
 		button.add_right_label(tr("LUOKKA %s") % car.car_class, UiStyle.caps_font(), UiStyle.MIN_FONT_SIZE)
 		button.focused.connect(_show_car.bind(i))
-		button.pressed.connect(_confirm)
+		# Picking a car moves on to its paint; VAHVISTA confirms everything.
+		button.pressed.connect(_focus_paint)
 		column.add_child(button)
 		_car_buttons.append(button)
 
@@ -220,6 +221,25 @@ func _update_paint() -> void:
 func _on_color_picked(paint: Color) -> void:
 	_color = paint
 	_update_paint()
+	_pattern_spinner.grab_focus()
+
+
+## Moves the focus from the car list to the swatch of the current colour.
+func _focus_paint() -> void:
+	for swatch: ColorSwatch in _swatches:
+		if swatch.color.is_equal_approx(_color):
+			swatch.grab_focus()
+			return
+	_swatches[0].grab_focus()
+
+
+## B on the paint and options goes back to the car list first.
+func _on_cancel() -> void:
+	var focused: Control = get_viewport().gui_get_focus_owner()
+	if focused != null and not _car_buttons.has(focused as ChamferButton):
+		_car_buttons[_car_index].grab_focus()
+		return
+	_on_back()
 
 
 func _on_pattern_changed(index: int) -> void:

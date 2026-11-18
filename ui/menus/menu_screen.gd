@@ -52,7 +52,7 @@ func get_backdrop() -> Backdrop:
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel"):
 		get_viewport().set_input_as_handled()
-		_on_back()
+		_on_cancel()
 	elif event.is_action_pressed("menu_secondary"):
 		get_viewport().set_input_as_handled()
 		_on_secondary()
@@ -80,6 +80,12 @@ func _get_initial_focus() -> Control:
 
 func _on_back() -> void:
 	go_to(context.get("return_to", MAIN), context.get("return_context", {}))
+
+
+## Esc / B. A screen can step back inside itself first (the mouse back
+## button always leaves via _on_back).
+func _on_cancel() -> void:
+	_on_back()
 
 
 ## X on a gamepad.

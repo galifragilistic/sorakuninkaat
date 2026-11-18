@@ -1,0 +1,325 @@
+keys,en
+ · ilmassa, · airborne
+%+.1f m,%+.1f m
+%.0f km/h · huippu %.0f · vaihde %d · luisto %.0f° · %s%s,%.0f km/h · top %.0f · gear %d · slip %.0f° · %s%s
+%d %%,%d %%
+%d lukittua autoa,%d locked cars
+%d m,%d m
+%d/%d valmiina · odotetaan: %s,%d/%d ready · waiting for: %s
+%s %d×%d,%s %d×%d
+%s paras kierros,%s best lap
+%s · %d KIERROSTA · %s · %s,%s · %d LAPS · %s · %s
+%s · %d/%d pelaajaa,%s · %d/%d players
+%s · luokka %s,%s · class %s
+%s · oma rata,%s · custom track
++%d kierros,+%d lap
+AIKA,TIME
+AIKA LOPPUI,OUT OF TIME
+AJA!,GO!
+AJOTUNTUMAN SÄÄTÖ · F1,HANDLING TUNING · F1
+ALOITA ALUSTA,RESTART
+ALOITA KISA,START RACE
+ASETUKSET,SETTINGS
+ASFALTTI,ASPHALT
+AULAAN,TO LOBBY
+AUTO,CAR
+AUTOTALLI,GARAGE
+AVAA,OPEN
+AVAA RATA,OPEN TRACK
+Aamu,Morning
+Aika,Time
+Aja kisa yksin kelloa vastaan,Race alone against the clock
+Ajosuunta käännetty.,Driving direction reversed.
+Aloita,Start
+Asfaltti,Asphalt
+Asfaltti · nopea,Asphalt · fast
+Aurinko,Sun
+Aurinkoinen,Sunny
+"Autot, värit ja kuviot","Cars, colours and patterns"
+Autotalli · %d/%d avattu,Garage · %d/%d unlocked
+Avattu: %s,Opened: %s
+Betoni,Concrete
+Dyyni,Dune
+EI VALMIS,NOT READY
+ESIKATSELU,PREVIEW
+ESINEET,OBJECTS
+ESINEET %d / %d,OBJECTS %d / %d
+Ei laitetta,No device
+Ei mitään,None
+Ei numeroa,No number
+Ei puita,No trees
+Ei vaurioita,No damage
+Esine,Object
+Etsitään pelejä…,Looking for games…
+Etupää,Front
+"Etuveto · 1,0 L turbo",Front-wheel drive · 1.0 L turbo
+Grafiikan laatu,Graphics quality
+Grafiikka ja pelisäännöt,Graphics and rules
+HIEKKA,SAND
+Hanki,Deep snow
+Heinäpaali,Hay bale
+Hiekka,Sand
+Hiekka · hyppyri,Sand · jump
+Hiekkasärkkä,Sand Dune
+Huippunopeus,Top speed
+Hyppyri,Jump
+ISOMETRINEN RALLI · 1–4 PELAAJAA,ISOMETRIC RALLY · 1–4 PLAYERS
+ISÄNTÄ ALOITTAA,HOST STARTS
+Ilta,Evening
+Isäntä,Host
+Isäntä · %s : %d,Host · %s : %d
+JATKA,CONTINUE
+Jaettu ruutu,Split screen
+Jaettu ruutu tai verkko · 1–4 pelaajaa,Split screen or network · 1–4 players
+Jatka,Continue
+JÄÄ,ICE
+Jäinen järvi,Frozen Lake
+Jää,Ice
+Jää · kasirata,Ice · figure eight
+KIERROS,LAP
+KIERRÄ,ROTATE
+KISA PÄÄTTYI,RACE OVER
+KISAN ASETUKSET,RACE SETTINGS
+KOEAJA,TEST DRIVE
+KOPIOI ARVOT,COPY VALUES
+KORKEUSPROFIILI,HEIGHT PROFILE
+KUMOA,UNDO
+KUSKI,DRIVER
+Kaasu / jarru,Throttle / brake
+Kaikki,All
+Kaikki autot,All cars
+Kaikki valmiina,Everyone ready
+Kaksivärinen,Two-tone
+Kapea ja mutkainen soratie tiheän metsän läpi. Puut ovat lähellä.,"A narrow, twisty gravel road through dense forest. The trees are close."
+Kartta,Map
+Kasin muotoinen rata järven jäällä. Risteyksessä kannattaa katsoa molempiin suuntiin.,A figure-eight track on a frozen lake. Look both ways at the crossing.
+Katolla,On the roof
+Kesken,Did not finish
+Keski,Medium
+Keskiosa,Middle
+Kestävyys,Durability
+Kierrokset,Laps
+Kiihtyvyys,Acceleration
+Kilparaita,Racing stripe
+Kirjoita isännän osoite,Type the host's address
+Kirjoita nimi näppäimistöllä,Type a name on the keyboard
+"Kisa on käynnissä, yritä hetken päästä uudelleen","A race is on, try again in a moment"
+Kivi,Rock
+Koeajo,Test drive
+Kohde,Feature
+Koko ruutu,Full screen
+Konepellillä,On the bonnet
+Kontti,Container
+Korkea,High
+Korkeus,Height
+Kuvio,Pattern
+Kyljissä,On the doors
+KÄÄNNÄ,REVERSE
+Kärki,Leader
+Käsijarru,Handbrake
+LIITY,JOIN
+LIITY OSOITTEESEEN,JOIN BY ADDRESS
+LOPETA,QUIT
+LOPETA KISA,QUIT RACE
+LUMI,SNOW
+LUO PELI,HOST GAME
+LUOKKA %s,CLASS %s
+Liian matala risteys,Crossing too low
+Liity aulassa,Join in the lobby
+Lumi,Snow
+Lumi · pitkä · 2 hyppyriä,Snow · long · 2 jumps
+Lumisade,Snowfall
+LÄHIVERKKO,LOCAL NETWORK
+LÄHTÖ,START
+LÄHTÖ TÄHÄN,START HERE
+Lähiverkko,Local network
+"Lähtöpisteeseen ei voi tehdä siltaa, tunnelia tai hyppyriä.","The start point cannot have a bridge, tunnel or jump."
+MAALI,FINISH
+MONINPELI,MULTIPLAYER
+Maasto,Terrain
+Maaston mukaan,As the terrain
+Matala,Low
+Metsäpolku,Forest Trail
+Muut ajavat vielä kisaa loppuun,The others are still finishing the race
+Muuta,Change
+N,N
+NIMI,NAME
+NOPEIN,FASTEST
+"Neliveto · 1,8 L turbo",Four-wheel drive · 1.8 L turbo
+"Neliveto · 2,0 L turbo",Four-wheel drive · 2.0 L turbo
+"Neliveto · 2,5 L diesel",Four-wheel drive · 2.5 L diesel
+Nimetön rata,Untitled track
+Nimi,Name
+Nopea ja leveä asfalttirata sataman konttien välissä.,"A fast, wide asphalt track between the harbour's containers."
+Normaali,Normal
+Numero,Number
+Nurmi,Grass
+Näppäimistö (WASD),Keyboard (WASD)
+Näppäimistö (nuolet),Keyboard (arrows)
+OHJAIMET,CONTROLS
+OMINAISUUDET,STATS
+Odotetaan pelaajaa,Waiting for a player
+Odotetaan pelaajaa · %s lisää tekoälykuskin,Waiting for a player · %s adds a computer driver
+Ohitit lähtöviivan sivusta – aja viivan yli,You went around the start line – drive over it
+Ohitit tarkastuspisteen sivusta – aja vilkkuvan portin läpi,You missed a checkpoint – drive through the blinking gate
+Ohjain,Gamepad
+Ohjain %d,Gamepad %d
+Ohjaus,Steering
+Oikea Shift,Right Shift
+Oma osoitteesi: %s,Your address: %s
+"Oma rata, tehty rataeditorilla. Pituus noin %d m.",Custom track made in the track editor. About %d m long.
+Omat,Custom
+Osoitteeseen ei voitu yhdistää,Could not connect to the address
+P%d · Liity ohjaimen %s-napilla,P%d · Join with the gamepad's %s button
+P%d · Liity oikealla Shiftillä,P%d · Join with the right Shift
+P%d · Vapaa paikka,P%d · Free slot
+P1,P1
+P2,P2
+PALAA PORTILLE,GO BACK TO THE GATE
+PALAUTA,RESET
+PARAS %s,BEST %s
+PARAS KIERROS,BEST LAP
+PELAAJA %d,PLAYER %d
+PELI JA GRAFIIKKA,GAME AND GRAPHICS
+PELIT LÄHIVERKOSSA,GAMES ON THE LOCAL NETWORK
+PISTE %d / %d,POINT %d / %d
+PISTEET,POINTS
+POISTA,DELETE
+Paljon,Many
+Paras %s,Best %s
+"Pehmeää hiekkaa, pitkiä luistavia kaarteita ja hyppyri dyynin laella.","Soft sand, long sliding corners and a jump on top of the dune."
+"Pelaa saman verkon koneiden kesken. Luo peli tai valitse listasta peli, johon liityt.",Play between computers on the same network. Host a game or pick one from the list to join.
+Pelaa suoralla IP-osoitteella. Internetin yli isännän on avattava reitittimestään UDP-portti %d.,Play with a direct IP address. Over the internet the host has to open UDP port %d on their router.
+Pelaaja %d,Player %d
+Peli on täynnä,The game is full
+Pelin luominen epäonnistui (portti %d varattu?),Could not host the game (is port %d in use?)
+Perinteinen,Classic
+Peruuta,Cancel
+Pieni,Small
+Piirrä oma rata,Draw your own track
+Pinta,Surface
+"Pitkä lumirata tunturin rinteillä, kaksi hyppyriä.","A long snow track on the fell slopes, two jumps."
+Pito asfaltilla,Grip on asphalt
+Pito soralla,Grip on gravel
+Pituus,Length
+Pois,Off
+Poista,Delete
+Poistu ensin pelistä (%s),Leave the game first (%s)
+Puu,Tree
+Puusto,Trees
+Pysty,Side by side
+Pyörilleen,Back on track
+Päivä,Day
+Päällä,On
+R,R
+RADAN NIMI,TRACK NAME
+RADAT,TRACKS
+RAKENNA ÄÄNET,REBUILD SOUNDS
+RATAEDITORI,TRACK EDITOR
+Radalla pitää olla vähintään %d pistettä.,A track needs at least %d points.
+Rata ja esineet eivät mahdu pienemmälle kartalle.,The track and objects do not fit on a smaller map.
+Ratatietue,Track record
+Rengaspino,Tyre stack
+Renkaat,Tyres
+Risteys on liian matala: nosta ylempää tietä vähintään %.1f m alemman yläpuolelle.,A crossing is too low: raise the upper road at least %.1f m above the lower one.
+Ruudunjako,Screen split
+SIJA,POS
+SORA,GRAVEL
+SORALLI,SORALLI
+SULJE,CLOSE
+Sade,Rain
+Satamakaarre,Harbour Bend
+Selaa ja valitse rata,Browse and pick a track
+Shakkiruudut,Checkers
+Silta,Bridge
+Sinä,You
+Sivuraita,Side band
+Sora,Gravel
+Sora · järvi · hyppyri,Gravel · lake · jump
+Sora · kapea · hyppyri,Gravel · narrow · jump
+"Sorakuoppa järven ympärillä: nopea alkuosuus, asfalttipätkä ja hyppyri takasuoralla.","A gravel pit around a lake: a fast first stretch, a bit of asphalt and a jump on the back straight."
+Soramonttu,Gravel Pit
+Sulje peli,Quit the game
+Sumu,Fog
+Suuntaohjaus,Directional
+Suuri,Large
+SÄÄ,WEATHER
+Sää,Weather
+TAKAISIN,BACK
+TALLENNA,SAVE
+TAUKO,PAUSED
+TEKOÄLY,COMPUTER
+TIE,ROAD
+TOISTA,REDO
+TULOSSA,COMING SOON
+Takaisin,Back
+Takapää,Rear
+"Takaveto · 1,2 L",Rear-wheel drive · 1.2 L
+"Takaveto · 3,0 L V6",Rear-wheel drive · 3.0 L V6
+Tallennettu: %s,Saved: %s
+Tallennettuja ratoja ei vielä ole.,No saved tracks yet.
+Tallennus epäonnistui.,Saving failed.
+Talo,House
+Tauko,Pause
+Tekoäly,Computer
+Tekoäly %d,Computer %d
+Tekoälykuskit,Computer drivers
+Testaa:,Test:
+Tien leveys,Road width
+Tietokone,Computer
+Tunneli,Tunnel
+Tunturi,Fell
+UUSI,NEW
+UUSINTAKISA,REMATCH
+Uusi rata aloitettu.,New track started.
+VAHVISTA,CONFIRM
+VAIHDA RATA,CHANGE TRACK
+VALIKKOON,TO MENU
+VALITSE AUTO,CHOOSE CAR
+VALITSE RATA,CHOOSE TRACK
+VALITSEE AUTOA,CHOOSING CAR
+VALITTU,SELECTED
+VALMIS,READY
+VARMASTI?,SURE?
+VAURIOT,DAMAGE
+VERKKO,ONLINE
+VUOROKAUDENAIKA,TIME OF DAY
+Vaaka,Stacked
+Vahvista,Confirm
+Vaihda autoa,Change car
+Vaihda valintaa,Change selection
+Valitse,Select
+Valitse auto,Choose car
+Valmis,Ready
+Valtava,Huge
+Vasen tikku,Left stick
+Vasen: lisää ja siirrä esinettä · Oikea: poista · Rulla esineen päällä: kierrä (Shift nopeasti) · Rulla: zoomaa · Keskinappi: siirrä,Left: add and move an object · Right: delete · Wheel over an object: rotate (Shift: faster) · Wheel: zoom · Middle button: pan
+Vasen: lisää ja siirrä · Oikea: poista · Rulla pisteen päällä: korkeus (Shift nopeasti) · Rulla: zoomaa · Keskinappi: siirrä,Left: add and move · Right: delete · Wheel over a point: height (Shift: faster) · Wheel: zoom · Middle button: pan
+Vauriot,Damage
+Verkko,Online
+Verkkokisa jatkuu taustalla.,The network race goes on in the background.
+Verkkopelaaja,Network player
+Vesi,Water
+VÄLIAIKA,SPLIT
+VÄRI,COLOUR
+Vähän,A few
+Välilehti,Tab
+Välilyönti,Space
+Väri / tekoäly,Colour / computer
+YKSINPELI,SINGLE PLAYER
+Yhdistetty isäntään · %s poistuu,Connected to the host · %s leaves
+Yhdistetään…,Connecting…
+Yhteys isäntään katkesi,Lost the connection to the host
+Yhteyttä peliin ei saatu,Could not reach the game
+Yksin ajaessa käyvät näppäimistö ja ohjain. Kaksinpelissä ohjain on pelaaja 2.,"Racing alone, both the keyboard and a gamepad work. With two players the gamepad is player 2."
+Yksivärinen,Plain
+Yö,Night
+esim. 192.168.1.20,e.g. 192.168.1.20
+kierrokset %d %% · kaasu %d %% · vaihde %d · %s,revs %d %% · throttle %d %% · gear %d · %s
+kisa käynnissä,race on
+km/h,km/h
+ohitti,passed
+tai lisää tekoälykuski painamalla %s,or add a computer driver with %s
+ÄÄNTEN SÄÄTÖ · F2,SOUND TUNING · F2
+Äänenvoimakkuus,Volume
+◀ %s ▶,◀ %s ▶

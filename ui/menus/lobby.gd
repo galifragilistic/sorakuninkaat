@@ -705,7 +705,7 @@ func _refresh_cards() -> void:
 		_name_labels[i].text = GameState.get_player_name(i)
 		_device_labels[i].text = _get_device_text(i, setup)
 		if _choosing[i]:
-			_car_labels[i].text = tr("◀ %s ▶") % setup.stats.display_name
+			_car_labels[i].text = tr("◀ %s ▶") % tr(setup.stats.display_name)
 			MenuKit.set_chip(_status_chips[i], tr("VALITSEE AUTOA"), UiStyle.ACCENT)
 		elif setup.is_ready:
 			MenuKit.set_chip(_status_chips[i], tr("VALMIS"), UiStyle.SUCCESS)

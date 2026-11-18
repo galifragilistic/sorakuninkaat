@@ -24,6 +24,8 @@ func _build() -> void:
 	panel.add_child(column)
 	column.add_child(UiStyle.make_caption(tr("PELI JA GRAFIIKKA")))
 	_settings = SettingsPanel.new()
+	# Every menu builds its texts once, so a new language reopens the menus here.
+	_settings.language_changed.connect(func() -> void: GameState.go_to_menu(SETTINGS, context))
 	column.add_child(_settings)
 
 	var controls: ChamferPanel = ChamferPanel.create_panel(Vector4(24.0, 22.0, 24.0, 24.0))

@@ -13,6 +13,11 @@ const OLD_USER_DIR_NAME: String = "Sorakuninkaat"
 const MIGRATED_ITEMS: Array[String] = ["settings.cfg", "debug_tuning.cfg", "track_editor_draft.json", "tracks"]
 const SECTION: String = "settings"
 const VOLUME_STEPS: int = 10
+## Languages the game speaks, in menu order. The Finnish texts are the
+## translation keys, so Finnish needs no translation file.
+const LANGUAGES: PackedStringArray = ["fi", "en"]
+## Each language's name written in that language.
+const LANGUAGE_NAMES: PackedStringArray = ["Suomi", "English"]
 const MASTER_BUS: int = 0
 
 var quality: Quality = Quality.HIGH:
@@ -38,6 +43,12 @@ var volume: int = 8:
 		_apply_volume()
 		_on_changed()
 
+var language: String = "fi":
+	set(value):
+		language = value if LANGUAGES.has(value) else LANGUAGES[0]
+		TranslationServer.set_locale(language)
+		_on_changed()
+
 ## Names chosen for player slots 1-4 on this machine ("" = default name).
 ## Slot 1's name is also this machine's name in network games.
 var player_names: PackedStringArray = PackedStringArray(["", "", "", ""])
@@ -49,6 +60,8 @@ var _loading: bool = false
 
 func _ready() -> void:
 	_migrate_old_user_data()
+	# Finnish unless the player has chosen otherwise, whatever the system language.
+	TranslationServer.set_locale(language)
 	_load()
 	_apply_volume()
 	for i: int in player_names.size():
@@ -133,6 +146,7 @@ func _load() -> void:
 	damage_enabled = config.get_value(SECTION, "damage_enabled", damage_enabled)
 	fullscreen = config.get_value(SECTION, "fullscreen", fullscreen)
 	volume = config.get_value(SECTION, "volume", volume)
+	language = config.get_value(SECTION, "language", language)
 	var names: PackedStringArray = config.get_value(SECTION, "player_names", player_names)
 	for i: int in mini(names.size(), player_names.size()):
 		player_names[i] = GameState.sanitize_name(names[i])
@@ -148,6 +162,7 @@ func _save() -> void:
 	config.set_value(SECTION, "damage_enabled", damage_enabled)
 	config.set_value(SECTION, "fullscreen", fullscreen)
 	config.set_value(SECTION, "volume", volume)
+	config.set_value(SECTION, "language", language)
 	config.set_value(SECTION, "player_names", player_names)
 	config.set_value(SECTION, "steering_modes", steering_modes)
 	config.save(SAVE_PATH)

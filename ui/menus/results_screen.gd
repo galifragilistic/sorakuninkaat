@@ -36,8 +36,8 @@ func setup(manager: RaceManager, track: TrackInfo) -> void:
 
 	var caption: Label = UiStyle.make_caption(
 		tr("%s · %d KIERROSTA · %s · %s") % [
-			track.display_name.to_upper(), manager.lap_count,
-			GameState.get_time_preset().display_name.to_upper(), GameState.get_weather().display_name.to_upper(),
+			tr(track.display_name).to_upper(), manager.lap_count,
+			tr(GameState.get_time_preset().display_name).to_upper(), tr(GameState.get_weather().display_name).to_upper(),
 		], UiStyle.INFO
 	)
 	caption.position = title_position

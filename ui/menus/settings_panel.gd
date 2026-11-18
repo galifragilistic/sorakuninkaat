@@ -3,6 +3,9 @@ extends VBoxContainer
 ## The settings rows, shared by the settings screen and the pause menu.
 ## Changes are applied and saved immediately through the Settings autoload.
 
+## The player picked another language; the screen should rebuild its texts.
+signal language_changed
+
 var _first: OptionSpinner
 
 
@@ -33,6 +36,15 @@ func _ready() -> void:
 	var damage: OptionSpinner = OptionSpinner.create(tr("Vauriot"), on_off, int(Settings.damage_enabled))
 	damage.value_changed.connect(func(index: int) -> void: Settings.damage_enabled = index == 1)
 	add_child(damage)
+
+	# Shown in both languages so it can be found whichever one is on.
+	var language: OptionSpinner = OptionSpinner.create(
+		"Kieli / Language", Settings.LANGUAGE_NAMES, maxi(0, Settings.LANGUAGES.find(Settings.language))
+	)
+	language.value_changed.connect(func(index: int) -> void:
+		Settings.language = Settings.LANGUAGES[index]
+		language_changed.emit())
+	add_child(language)
 
 
 func get_first_control() -> Control:

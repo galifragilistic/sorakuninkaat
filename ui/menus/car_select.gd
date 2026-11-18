@@ -218,7 +218,7 @@ func _show_car(index: int) -> void:
 	for i: int in _car_buttons.size():
 		_car_buttons[i].selected = i == index
 	_name_label.text = car.display_name.to_upper()
-	_description_label.text = tr("%s · luokka %s") % [car.description, car.car_class]
+	_description_label.text = tr("%s · luokka %s") % [tr(car.description), car.car_class]
 	var values: Array[int] = [car.top_speed, car.acceleration, car.grip_gravel, car.grip_asphalt, car.durability]
 	for i: int in values.size():
 		_stat_bars[i].value = values[i]

@@ -42,7 +42,7 @@ func _build() -> void:
 		["", tr("P1"), tr("P2"), tr("Ohjain")],
 		[tr("Kaasu / jarru"), "W / S", "▲ / ▼", "RT / LT"],
 		[tr("Ohjaus"), "A / D", "◀ / ▶", tr("Vasen tikku")],
-		[tr("Käsijarru"), tr("Välilyönti"), "Shift", "X"],
+		[tr("Käsijarru"), tr("Välilyönti"), tr("Oikea Shift"), "X"],
 		[tr("Pyörilleen"), "R", "Enter", "Back"],
 		[tr("Tauko"), "Esc", "Esc", "Start"],
 	]

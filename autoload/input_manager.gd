@@ -30,6 +30,7 @@ const KEYBOARD_LAYOUTS: Dictionary = {
 		Action.BRAKE: KEY_DOWN,
 		Action.LEFT: KEY_LEFT,
 		Action.RIGHT: KEY_RIGHT,
+		# The right Shift only (see _right_shift_held).
 		Action.HANDBRAKE: KEY_SHIFT,
 		Action.RESET: KEY_ENTER,
 	},
@@ -73,6 +74,9 @@ var prompt_style: PromptStyle = PromptStyle.KEYBOARD
 var _devices: Array[Device] = []
 var _joy_ids: Array[int] = []
 var _inputs: Array[PlayerInput] = []
+## The arrow-key player's handbrake is the right Shift only. Polling cannot
+## tell the two Shift keys apart, so the right one is followed from events.
+var _right_shift_held: bool = false
 
 
 func _ready() -> void:
@@ -158,6 +162,9 @@ func get_input(player_index: int) -> PlayerInput:
 
 func _input(event: InputEvent) -> void:
 	_update_prompt_style(event)
+	var key: InputEventKey = event as InputEventKey
+	if key != null and _get_physical_key(key) == KEY_SHIFT and key.location == KEY_LOCATION_RIGHT:
+		_right_shift_held = key.pressed
 	if not join_enabled:
 		return
 	var button: InputEventJoypadButton = event as InputEventJoypadButton
@@ -236,7 +243,7 @@ func _read_solo(input: PlayerInput) -> void:
 	input.throttle = _key_strength(layout[Action.THROTTLE])
 	input.brake = _key_strength(layout[Action.BRAKE])
 	input.steer = _key_strength(layout[Action.RIGHT]) - _key_strength(layout[Action.LEFT])
-	input.handbrake = Input.is_physical_key_pressed(layout[Action.HANDBRAKE])
+	input.handbrake = _is_key_held(layout[Action.HANDBRAKE])
 	var reset_held: bool = Input.is_physical_key_pressed(layout[Action.RESET])
 	input.aim = _key_aim(layout)
 	input.aim_from_keys = true
@@ -259,8 +266,8 @@ func _read_keyboard(input: PlayerInput, layout: Dictionary) -> void:
 	input.throttle = _key_strength(layout[Action.THROTTLE])
 	input.brake = _key_strength(layout[Action.BRAKE])
 	input.steer = _key_strength(layout[Action.RIGHT]) - _key_strength(layout[Action.LEFT])
-	input.handbrake = Input.is_physical_key_pressed(layout[Action.HANDBRAKE])
-	input.update_reset(Input.is_physical_key_pressed(layout[Action.RESET]))
+	input.handbrake = _is_key_held(layout[Action.HANDBRAKE])
+	input.update_reset(_is_key_held(layout[Action.RESET]))
 	input.aim = _key_aim(layout)
 	input.aim_from_keys = true
 
@@ -292,4 +299,57 @@ func _stick_aim(joy_id: int) -> Vector2:
 
 
 func _key_strength(key: Key) -> float:
-	return 1.0 if Input.is_physical_key_pressed(key) else 0.0
+	return 1.0 if _is_key_held(key) else 0.0
+
+
+## Shift in a layout means the right Shift (see _right_shift_held).
+func _is_key_held(key: Key) -> bool:
+	return _right_shift_held if key == KEY_SHIFT else Input.is_physical_key_pressed(key)
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		_right_shift_held = false
+
+
+## The player slot whose device sent this event: a key of a slot's keyboard
+## layout or a button or stick of a slot's gamepad. -1 if no slot uses it.
+func get_event_slot(event: InputEvent) -> int:
+	if event is InputEventJoypadButton or event is InputEventJoypadMotion:
+		for i: int in GameState.MAX_PLAYERS:
+			if _devices[i] == Device.JOYPAD and _joy_ids[i] == event.device:
+				return i
+		return -1
+	var key: InputEventKey = event as InputEventKey
+	if key == null:
+		return -1
+	var physical: Key = _get_physical_key(key)
+	for i: int in GameState.MAX_PLAYERS:
+		if not KEYBOARD_LAYOUTS.has(_devices[i]):
+			continue
+		var layout: Dictionary = KEYBOARD_LAYOUTS[_devices[i]]
+		for action: Action in layout:
+			var bound: Key = layout[action]
+			if bound != physical:
+				continue
+			# Shift belongs to the arrow keys only on the right-hand side.
+			if bound == KEY_SHIFT and key.location != KEY_LOCATION_RIGHT:
+				continue
+			return i
+	return -1
+
+
+## The slot's handbrake key or button, which also accepts in the lobby.
+func is_slot_accept(event: InputEvent, slot: int) -> bool:
+	if not event.is_pressed() or event.is_echo():
+		return false
+	if event is InputEventJoypadButton:
+		return (event as InputEventJoypadButton).button_index == JOY_JOIN_BUTTON
+	var key: InputEventKey = event as InputEventKey
+	if key == null or not KEYBOARD_LAYOUTS.has(_devices[slot]):
+		return false
+	return _get_physical_key(key) == KEYBOARD_LAYOUTS[_devices[slot]][Action.HANDBRAKE]
+
+
+func _get_physical_key(key: InputEventKey) -> Key:
+	return key.physical_keycode if key.physical_keycode != KEY_NONE else key.keycode

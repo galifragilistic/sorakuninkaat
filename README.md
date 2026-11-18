@@ -1,19 +1,65 @@
-# SoRalli – toteutuspaketti Claude Codelle
+# SoRalli
 
-**Sisältö**
-- `SPEC.md`: pelin määrittely (kamera, grafiikka, ajaminen, moninpeli, näkymät, UI-tyyli, vaiheet)
-- `CLAUDE.md`: pysyvät ohjeet, jotka Claude Code lukee automaattisesti
-- `mockups/`: 8 näkymän kuvat (PNG) ja `mockups/html/`, jossa näkyvät tarkat värit ja tekstit
-- `assets/fonts/`: Russo One ja Chakra Petch (OFL-lisenssi)
+Isometrinen rallipeli 1–4 pelaajalle samalla sohvalla tai verkossa. Lyhyitä ratoja, soraa, hyppyjä ja sladeja 90-luvun ylhäältä kuvattujen rallipelien hengessä: low-poly-grafiikka ja moderni valaistus.
 
-## Näin pääset alkuun
-1. Asenna Godot 4 (uusin vakaa) ja varmista, että `godot` toimii komentoriviltä.
-2. Pura paketti tyhjään kansioon ja aja siellä `git init`.
-3. Avaa kansiossa Claude Code ja anna ensimmäiseksi kehotteeksi:
+![Neljä autoa Soramontun mutkassa](docs/screenshots/hero.jpg)
 
-> Lue CLAUDE.md, SPEC.md ja kuvat mockups-kansiosta. Luo Godot 4 -projekti (Forward+) SPEC.md:n § 9 rakenteella ja toteuta vaihe 1: harmaalaatikkorata, yksi auto raycast-fysiikalla ja ortografinen isometrinen seurantakamera. Kerro lopuksi, miten testaan, ja commitoi.
+## Lataa
 
-4. Testaa Godotissa (F5). Anna palautetta ajotuntumasta ennen kuin siirryt eteenpäin, esimerkiksi: "Liikaa luistoa soralla, kamera saa ennakoida enemmän."
-5. Jatka vaihe kerrallaan: *"Toteuta vaihe 2 SPEC.md:stä. Vertaa lopputulosta kuvaan mockups/05_Peli.png."*
+Uusin versio löytyy [Releases-sivulta](https://github.com/galifragilistic/sorakuninkaat/releases/latest):
 
-**Vinkki:** valikkovaiheessa (5) kannattaa liittää kehotteeseen kyseinen kuva, esimerkiksi *"Tee aula kuvan mockups/02_Moninpeli.png mukaan."*
+- **Windows:** `SoRalli-Windows.zip`. Pura ja käynnistä `SoRalli.exe`. Jos SmartScreen varoittaa, valitse *Lisätietoja → Suorita silti*.
+- **macOS** (Apple Silicon ja Intel): `SoRalli-macOS.zip`. Pura ja avaa `SoRalli.app` ensimmäisellä kerralla hiiren oikealla painikkeella → *Avaa*, koska sovellusta ei ole notarisoitu.
+
+## Ominaisuudet
+
+- **Kuusi rataa** soralla, hiekalla, jäällä, asfaltilla ja lumessa, mäkineen, siltoineen, tunneleineen ja hyppyreineen
+- **Kuusi autoa** omilla ominaisuuksillaan, väreillä, kuvioilla ja kilpanumerolla kyljessä, katolla tai konepellillä
+- **Sää ja vuorokaudenaika:** aamu, päivä, ilta ja yö sekä aurinko, sade, lumisade ja sumu
+- **Jaettu ruutu 1–4 pelaajalle** näppäimistöillä ja ohjaimilla, tyhjille paikoille tekoälykuskit
+- **Verkkopeli** lähiverkossa tai suoralla IP-osoitteella
+- **Rataeditori:** piirrä oma rata, säädä korkeudet, lisää sillat, tunnelit, hyppyrit ja maisema, ja koeaja heti
+- Vauriot, väliajat, minikartta, moottori- ja renkaiden äänet
+
+## Kuvia
+
+| | |
+|---|---|
+| ![Ilta-ajo sateessa sillalla](docs/screenshots/race_rain.jpg) | ![Lumisade Tunturilla](docs/screenshots/race_snow.jpg) |
+| ![Yö satamassa ajovalojen loisteessa](docs/screenshots/race_night.jpg) | ![Kahden pelaajan jaettu ruutu](docs/screenshots/split_screen.jpg) |
+| ![Neljä pelaajaa Jäisellä järvellä](docs/screenshots/four_players.jpg) | ![Moninpeliaula](docs/screenshots/lobby.jpg) |
+| ![Päävalikko](docs/screenshots/menu.jpg) | ![Auton valinta](docs/screenshots/car_select.jpg) |
+
+![Rataeditori](docs/screenshots/track_editor.jpg)
+
+## Ohjaimet
+
+| | P1 (WASD) | P2 (nuolet) | Ohjain |
+|---|---|---|---|
+| Kaasu / jarru | W / S | ▲ / ▼ | RT / LT |
+| Ohjaus | A / D | ◀ / ▶ | Vasen tikku |
+| Käsijarru | Välilyönti | Oikea Shift | X |
+| Takaisin tielle | R | Enter | Back |
+| Tauko | Esc | Esc | Start |
+
+Moninpeliaulassa pelaaja 1 valitsee kisan asetukset. Muut liittyvät ja hyväksyvät autonsa omalla käsijarrunapillaan (oikea Shift tai ohjaimen A): vasen ja oikea vaihtavat autoa, ylös ja alas väriä.
+
+## Kehitys
+
+Peli on tehty [Godot 4.7](https://godotengine.org):llä (Forward+). Avaa kansio Godotissa ja käynnistä F5:llä.
+
+- [`SPEC.md`](SPEC.md): pelin määrittely ja tila
+- [`CLAUDE.md`](CLAUDE.md): koodityyli ja työtavat
+- `mockups/`: näkymien alkuperäiset suunnitelmat
+- `tools/blender/build_cars.py`: automallit, rakennetaan Blenderillä (`blender --background --factory-startup --python tools/blender/build_cars.py -- .`)
+
+**Haarat ja julkaisut:** uudet muutokset tehdään `dev`-haaraan. Jokaisesta devin pushista GitHub Actions tekee testattavat Windows- ja Mac-buildit (Actions-välilehti → ajon artefaktit). Kun muutokset on testattu, dev yhdistetään `master`iin, ja siitä syntyy automaattisesti uusi release.
+
+Buildin voi tehdä myös itse:
+
+```bash
+godot --headless --export-release "macOS" build/macos/SoRalli.app
+godot --headless --export-release "Windows Desktop" build/windows/SoRalli.exe
+```
+
+Fontit Russo One ja Chakra Petch ovat OFL-lisenssillä (`assets/fonts/`).

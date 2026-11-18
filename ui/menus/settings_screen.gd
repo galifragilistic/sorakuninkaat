@@ -58,10 +58,13 @@ func _build() -> void:
 				UiStyle.TEXT_SECONDARY if is_heading else UiStyle.TEXT
 			)
 			grid.add_child(cell)
-	controls_column.add_child(UiStyle.make_label(
+	var note: Label = UiStyle.make_label(
 		tr("Yksin ajaessa käyvät näppäimistö ja ohjain. Kaksinpelissä ohjain on pelaaja 2."),
 		UiStyle.FONT_MEDIUM, 14, UiStyle.TEXT_SECONDARY
-	))
+	)
+	# The retro style's pixel font is wider: wrap instead of widening the panel.
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	controls_column.add_child(note)
 	MenuKit.add_hints(self, [[InputPrompts.Prompt.LEFT_RIGHT, tr("Muuta")], [InputPrompts.Prompt.BACK, tr("Takaisin")]])
 
 

@@ -26,12 +26,26 @@ const TEXT_DISABLED: Color = Color(0.64, 0.675, 0.78, 0.45)
 ## Dark wash drawn over the 3D backdrop behind menu screens.
 const SCRIM: Color = Color(0.055, 0.071, 0.125, 0.78)
 
-const FONT_DISPLAY: FontFile = preload("res://assets/fonts/russo-one-latin-400-normal.woff2")
-const FONT_REGULAR: FontFile = preload("res://assets/fonts/chakra-petch-latin-400-normal.woff2")
-const FONT_MEDIUM: FontFile = preload("res://assets/fonts/chakra-petch-latin-500-normal.woff2")
-const FONT_SEMIBOLD: FontFile = preload("res://assets/fonts/chakra-petch-latin-600-normal.woff2")
-const FONT_BOLD: FontFile = preload("res://assets/fonts/chakra-petch-latin-700-normal.woff2")
-const ALL_FONTS: Array[FontFile] = [FONT_DISPLAY, FONT_REGULAR, FONT_MEDIUM, FONT_SEMIBOLD, FONT_BOLD]
+## The UI's fonts. They wrap the vector fonts below, and the retro style
+## swaps them to the bitmap PixelFont (see use_pixel_fonts()).
+const FONT_DISPLAY: FontVariation = preload("res://ui/fonts/display.tres")
+const FONT_REGULAR: FontVariation = preload("res://ui/fonts/regular.tres")
+const FONT_MEDIUM: FontVariation = preload("res://ui/fonts/medium.tres")
+const FONT_SEMIBOLD: FontVariation = preload("res://ui/fonts/semibold.tres")
+const FONT_BOLD: FontVariation = preload("res://ui/fonts/bold.tres")
+const ALL_FONTS: Array[FontVariation] = [FONT_DISPLAY, FONT_REGULAR, FONT_MEDIUM, FONT_SEMIBOLD, FONT_BOLD]
+## Which of ALL_FONTS take the bold bitmap font. The other weights share the
+## regular one: bold pixels make small text too wide.
+const PIXEL_BOLD_FONTS: Array[FontVariation] = [FONT_DISPLAY]
+
+const VECTOR_DISPLAY: FontFile = preload("res://assets/fonts/russo-one-latin-400-normal.woff2")
+const VECTOR_FONTS: Array[FontFile] = [
+	VECTOR_DISPLAY,
+	preload("res://assets/fonts/chakra-petch-latin-400-normal.woff2"),
+	preload("res://assets/fonts/chakra-petch-latin-500-normal.woff2"),
+	preload("res://assets/fonts/chakra-petch-latin-600-normal.woff2"),
+	preload("res://assets/fonts/chakra-petch-latin-700-normal.woff2"),
+]
 
 ## Smallest text size allowed at the 1280x720 design resolution.
 const MIN_FONT_SIZE: int = 13
@@ -41,6 +55,8 @@ const TITLE_SLANT: float = 0.105
 
 static var _caps_font: FontVariation
 static var _title_font: FontVariation
+static var _pixel_regular: FontFile
+static var _pixel_bold: FontFile
 
 
 ## Russo One slanted for screen titles and the logo.
@@ -48,8 +64,12 @@ static func title_font() -> FontVariation:
 	if _title_font == null:
 		_title_font = FontVariation.new()
 		_title_font.base_font = FONT_DISPLAY
-		_title_font.variation_transform = Transform2D(Vector2(1.0, TITLE_SLANT), Vector2(0.0, 1.0), Vector2.ZERO)
+		_title_font.variation_transform = _title_transform()
 	return _title_font
+
+
+static func _title_transform() -> Transform2D:
+	return Transform2D(Vector2(1.0, TITLE_SLANT), Vector2(0.0, 1.0), Vector2.ZERO)
 
 
 ## Bold, letter-spaced font for small upper-case captions ("SIJA", "KIERROS").
@@ -59,6 +79,23 @@ static func caps_font() -> FontVariation:
 		_caps_font.base_font = FONT_BOLD
 		_caps_font.spacing_glyph = CAPS_LETTER_SPACING
 	return _caps_font
+
+
+## Draws all UI text with the bitmap PixelFont (retro style), whose pixels
+## are pixel_size font-size units, or with the vector fonts. Vector fonts lose
+## their smoothing in the retro style; they still draw what PixelFont lacks.
+static func use_pixel_fonts(on: bool, pixel_size: int) -> void:
+	if on and (_pixel_regular == null or _pixel_regular.fixed_size != pixel_size):
+		_pixel_regular = PixelFont.build(pixel_size, false, VECTOR_FONTS[2])
+		_pixel_bold = PixelFont.build(pixel_size, true, VECTOR_DISPLAY)
+	for i: int in ALL_FONTS.size():
+		var font: FontVariation = ALL_FONTS[i]
+		var vector: FontFile = VECTOR_FONTS[i]
+		vector.antialiasing = TextServer.FONT_ANTIALIASING_NONE if on else TextServer.FONT_ANTIALIASING_GRAY
+		var pixel: FontFile = _pixel_bold if PIXEL_BOLD_FONTS.has(font) else _pixel_regular
+		font.base_font = pixel if on else vector
+	# Slanted pixels would break the pixel grid.
+	title_font().variation_transform = Transform2D.IDENTITY if on else _title_transform()
 
 
 static func make_label(text: String, font: Font, font_size: int, color: Color = TEXT) -> Label:

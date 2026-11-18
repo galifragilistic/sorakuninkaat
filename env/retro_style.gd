@@ -14,3 +14,7 @@ extends Resource
 ## Ground and road detail textures are shrunk to this many pixels a side and
 ## sampled without filtering.
 @export var texture_size: int = 32
+## Font size units per pixel of the UI's bitmap font: text is drawn at the
+## whole multiple of this nearest to its font size: with 8, sizes 13-19 get
+## 2x2 pixels, 20-27 3x3 and so on.
+@export_range(4, 16) var font_pixel_size: int = 8

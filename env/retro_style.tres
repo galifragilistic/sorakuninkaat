@@ -8,3 +8,4 @@ pixel_size = 2.6666667
 color_bits = 5
 dither_strength = 1.0
 texture_size = 32
+font_pixel_size = 8

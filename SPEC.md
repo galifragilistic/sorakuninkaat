@@ -43,7 +43,7 @@ Retrotyyli jäljittelee PS1- ja N64-konsoleita (`env/retro_style.tres`, `util/re
 - 3D-kuva renderöidään pienellä tarkkuudella (koko ruudun näkymä 270 riviä) ja suurennetaan teräväreunaisin pikselein. Ei reunanpehmennystä.
 - Värit pudotetaan 15-bittisiksi (5 bittiä kanavaa kohden) ja väliin tulee 4×4 Bayer -ditherointi.
 - Maan ja teiden tekstuurit pienennetään 32×32:een ja näytetään ilman suodatusta.
-- HUD ja valikot piirretään suunnittelutarkkuudella 1280×720 ilman fonttien pehmennystä ja suurennetaan ruudulle, joten isolla näytöllä nekin näkyvät isoina pikseleinä. Valikoiden 3D-esikatselut noudattavat samaa tyyliä.
+- HUD ja valikot piirretään suunnittelutarkkuudella 1280×720 ja suurennetaan ruudulle, joten isolla näytöllä nekin näkyvät isoina pikseleinä. Tekstit käyttävät koodilla piirrettyä bittikarttafonttia (16-bit-henkinen 5×7-pikselifontti, lihavoitu versio otsikoille ja napeille), jonka pikselit ovat kokonaislukumonikertoja (fonttikoot 13–19 → 2×2, 20–27 → 3×3 jne.). Valikoiden 3D-esikatselut noudattavat samaa tyyliä.
 
 Moderni-tyyli on aiempi ilme: täysi tarkkuus, MSAA ja suodatetut tekstuurit.
 

@@ -18,19 +18,20 @@ static func is_on() -> bool:
 
 
 ## The whole window in the retro style: menus and HUD are drawn at their
-## 1280x720 design resolution and scaled up with sharp pixels, and the fonts
-## lose their smoothing. The modern style draws them at the screen's own
+## 1280x720 design resolution and scaled up with sharp pixels, and text uses
+## the bitmap PixelFont. The modern style draws them at the screen's own
 ## resolution.
 static func apply_window(window: Window) -> void:
 	var on: bool = is_on()
 	window.content_scale_mode = (
 		Window.CONTENT_SCALE_MODE_VIEWPORT if on else Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
 	)
-	var antialiasing: TextServer.FontAntialiasing = (
-		TextServer.FONT_ANTIALIASING_NONE if on else TextServer.FONT_ANTIALIASING_GRAY
+	# Sharp pixels for the bitmap font and everything else scaled in the UI.
+	window.canvas_item_default_texture_filter = (
+		Viewport.DEFAULT_CANVAS_ITEM_TEXTURE_FILTER_NEAREST if on
+		else Viewport.DEFAULT_CANVAS_ITEM_TEXTURE_FILTER_LINEAR
 	)
-	for font: FontFile in UiStyle.ALL_FONTS:
-		font.antialiasing = antialiasing
+	UiStyle.use_pixel_fonts(on, STYLE.font_pixel_size)
 
 
 ## Size of the 3D picture rendered for a view ui_size big (in UI units).

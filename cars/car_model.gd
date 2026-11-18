@@ -1025,7 +1025,7 @@ func _height_profile(faces: PackedVector3Array, z0: float, step: float, count: i
 func _make_label(text: String, font_size: int, color: Color) -> Label3D:
 	var label: Label3D = Label3D.new()
 	label.text = text
-	label.font = UiStyle.FONT_DISPLAY
+	label.font = UiStyle.VECTOR_DISPLAY
 	label.font_size = font_size
 	label.pixel_size = decal_pixel_size
 	label.modulate = color

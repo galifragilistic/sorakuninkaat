@@ -17,6 +17,10 @@ const CAR_SCENE: PackedScene = preload("res://cars/car.tscn")
 ## Point on the car the camera looks at.
 @export var look_at_height: float = 0.75
 @export var headlights_on: bool = true
+## Most rendered pixels per UI pixel (see WorldPreview).
+@export var max_pixel_scale: float = 1.5
+## Frames a still car keeps rendering after a change before it stops.
+@export var still_render_frames: int = 3
 
 @export_group("Lighting")
 @export var key_light_color: Color = Color(1.0, 0.95, 0.88)
@@ -42,6 +46,7 @@ var _pending_pattern: PlayerSetup.Pattern = PlayerSetup.Pattern.STRIPE
 var _has_pending: bool = false
 var _pending_stats: CarStats
 var _shown_stats: CarStats
+var _still_frames_left: int = 0
 
 
 func _init() -> void:
@@ -53,8 +58,8 @@ func _ready() -> void:
 	_viewport.own_world_3d = true
 	_viewport.transparent_bg = true
 	_viewport.msaa_3d = Viewport.MSAA_4X
-	_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	add_child(_viewport)
+	visibility_changed.connect(_update_rendering)
 
 	var environment: Environment = Environment.new()
 	environment.background_mode = Environment.BG_CLEAR_COLOR
@@ -123,18 +128,39 @@ func show_car(color: Color, pattern: PlayerSetup.Pattern, stats: CarStats = null
 		_shown_stats = stats
 		_car.set_model(stats)
 	_car.set_paint(color, pattern)
+	_update_rendering()
 
 
 func _process(delta: float) -> void:
 	if _pivot != null and is_visible_in_tree():
 		_pivot.rotation_degrees.y += spin_degrees_per_second * delta
+	if _still_frames_left > 0:
+		_still_frames_left -= 1
+		if _still_frames_left == 0 and spin_degrees_per_second == 0.0:
+			_viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
 
 
 func _update_viewport_size() -> void:
-	var pixel_scale: Vector2 = Vector2(get_window().size) / get_viewport_rect().size
+	var pixel_scale: Vector2 = (Vector2(get_window().size) / get_viewport_rect().size).min(Vector2.ONE * max_pixel_scale)
 	var pixels: Vector2 = (size * pixel_scale).round()
 	_viewport.size = Vector2i(maxi(2, int(pixels.x)), maxi(2, int(pixels.y)))
 	queue_redraw()
+	_update_rendering()
+
+
+## A spinning car renders every frame; a still one only after it changes, and
+## a hidden one not at all.
+func _update_rendering() -> void:
+	if _viewport == null:
+		return
+	if not is_visible_in_tree():
+		_viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	elif spin_degrees_per_second != 0.0:
+		_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	else:
+		# A couple of frames, so a model that finishes loading late is shown too.
+		_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+		_still_frames_left = still_render_frames
 
 
 func _draw() -> void:

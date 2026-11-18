@@ -11,6 +11,9 @@ signal preset_applied(preset: EnvPreset)
 @export var weather: WeatherData
 @export var world_environment: WorldEnvironment
 @export var sun: DirectionalLight3D
+## Caps the quality setting for this scene, e.g. menu backdrops that do not
+## need the heaviest effects.
+@export var max_quality: Settings.Quality = Settings.Quality.HIGH
 
 
 func _ready() -> void:
@@ -29,7 +32,7 @@ func apply() -> void:
 		return
 	# Work on a copy so quality tweaks never leak into the preset resource.
 	var environment: Environment = preset.environment.duplicate() as Environment
-	var quality: Settings.Quality = Settings.quality
+	var quality: Settings.Quality = mini(Settings.quality, max_quality) as Settings.Quality
 	if quality == Settings.Quality.LOW:
 		environment.ssao_enabled = false
 		environment.volumetric_fog_enabled = false

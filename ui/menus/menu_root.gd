@@ -14,6 +14,9 @@ const SCREENS: Dictionary = {
 
 ## Sideways shift of the backdrop so the road stays clear of the main menu column (m).
 @export var backdrop_shift: float = -9.0
+## Frame rate cap while the menus are open; nothing in them needs more.
+## The race runs uncapped (vsync only).
+@export var menu_max_fps: int = 60
 
 var _backdrop: WorldPreview
 var _scrim: ColorRect
@@ -22,6 +25,7 @@ var _screen: MenuScreen
 
 
 func _ready() -> void:
+	Engine.max_fps = menu_max_fps
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_solid = _add_fill(UiStyle.BASE)
 
@@ -66,3 +70,7 @@ func _add_fill(color: Color) -> ColorRect:
 	rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(rect)
 	return rect
+
+
+func _exit_tree() -> void:
+	Engine.max_fps = 0

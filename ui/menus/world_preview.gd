@@ -13,6 +13,14 @@ enum CameraMode { FLYOVER, OVERVIEW }
 @export var camera_distance: float = 110.0
 @export var camera_far: float = 400.0
 
+@export_group("Performance")
+## Most rendered pixels per UI pixel. 1.0 keeps a Retina or 4K screen from
+## rendering the backdrop at full device resolution.
+@export var max_pixel_scale: float = 1.0
+@export var msaa: Viewport.MSAA = Viewport.MSAA_2X
+## Heaviest environment effects the preview uses, whatever the quality setting.
+@export var max_quality: Settings.Quality = Settings.Quality.MEDIUM
+
 @export_group("Flyover")
 ## Vertical view size in metres.
 @export var flyover_view_size: float = 30.0
@@ -38,7 +46,7 @@ func _init() -> void:
 func _ready() -> void:
 	_viewport = SubViewport.new()
 	_viewport.own_world_3d = true
-	_viewport.msaa_3d = Viewport.MSAA_4X
+	_viewport.msaa_3d = msaa
 	_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	add_child(_viewport)
 
@@ -71,6 +79,7 @@ func show_track(track: TrackInfo) -> void:
 	_viewport.add_child(_track)
 	var controller: EnvironmentController = EnvironmentController.new()
 	controller.preset = env_preset
+	controller.max_quality = max_quality
 	controller.world_environment = world_environment
 	controller.sun = sun
 	_viewport.add_child(controller)
@@ -102,7 +111,7 @@ func _update_flyover(delta: float) -> void:
 
 
 func _update_viewport_size() -> void:
-	var pixel_scale: Vector2 = Vector2(get_window().size) / get_viewport_rect().size
+	var pixel_scale: Vector2 = (Vector2(get_window().size) / get_viewport_rect().size).min(Vector2.ONE * max_pixel_scale)
 	var pixels: Vector2 = (size * pixel_scale).round()
 	_viewport.size = Vector2i(maxi(2, int(pixels.x)), maxi(2, int(pixels.y)))
 

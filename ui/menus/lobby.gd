@@ -65,6 +65,9 @@ var _name_dialog: NameDialog
 var _name_dialog_player: int = -1
 ## Per slot: the card is open for picking a car with left / right.
 var _choosing: Array[bool] = []
+## The player who opened the lobby: they alone change the race settings and
+## add computer drivers in split screen.
+const OWNER_SLOT: int = 0
 
 
 func get_backdrop() -> Backdrop:
@@ -78,7 +81,7 @@ func _build() -> void:
 	_build_settings()
 	_build_net_panel()
 	MenuKit.add_hints(self, [
-		[InputPrompts.Prompt.ACCEPT, tr("Liity / valitse auto")], [InputPrompts.Prompt.SECONDARY, tr("Väri / tekoäly")],
+		[InputPrompts.Prompt.ACCEPT, tr("Valitse auto")], [InputPrompts.Prompt.SECONDARY, tr("Väri / tekoäly")],
 		[InputPrompts.Prompt.TERTIARY, tr("Nimi")],
 		[InputPrompts.Prompt.TABS, tr("Välilehti")], [InputPrompts.Prompt.START, tr("Aloita")],
 		[InputPrompts.Prompt.BACK, tr("Takaisin")],
@@ -136,8 +139,8 @@ func _on_tertiary() -> void:
 	var setup: PlayerSetup = GameState.players[player]
 	if not setup.joined or setup.is_ai:
 		return
-	# Online, only your own name is yours to change.
-	if _is_online() and player != Network.local_slot:
+	# Only your own name is yours to change.
+	if player != (Network.local_slot if _is_online() else OWNER_SLOT):
 		return
 	_name_dialog_player = player
 	_name_dialog = NameDialog.create(tr("PELAAJA %d") % (player + 1), setup.display_name)
@@ -181,12 +184,12 @@ func _on_secondary() -> void:
 		elif Network.is_host():
 			Network.set_slot_ai(player, not setup.joined)
 		return
-	if not setup.joined:
+	if player == OWNER_SLOT:
+		_open_car_select(player)
+	elif not setup.joined:
 		_add_ai(player)
 	elif setup.is_ai:
 		_leave(player)
-	else:
-		_open_car_select(player)
 	_refresh()
 
 
@@ -291,7 +294,7 @@ func _build_cards() -> void:
 		card.custom_minimum_size = card_size
 		card.pressed.connect(_on_card_pressed.bind(i))
 		card.gui_input.connect(_on_card_gui_input.bind(i))
-		card.focus_exited.connect(_stop_choosing.bind(i))
+		card.focus_exited.connect(_on_card_focus_exited.bind(i))
 		_cards_grid.add_child(card)
 		_cards.append(card)
 		_choosing.append(false)
@@ -677,12 +680,14 @@ func _refresh_cards() -> void:
 		if not setup.joined or setup.is_ai:
 			_choosing[i] = false
 		if not setup.joined:
-			var accept: String = InputPrompts.get_button_name(InputPrompts.Prompt.ACCEPT)
+			var accept_pad: String = "A"
 			var secondary: String = InputPrompts.get_button_name(InputPrompts.Prompt.SECONDARY)
 			if online:
 				_empty_titles[i].text = tr("P%d · Vapaa paikka") % (i + 1)
+			elif InputManager.get_device(i) == InputManager.Device.KEYBOARD_ARROWS:
+				_empty_titles[i].text = tr("P%d · Liity oikealla Shiftillä") % (i + 1)
 			else:
-				_empty_titles[i].text = tr("P%d · Paina %s liittyäksesi") % [i + 1, accept]
+				_empty_titles[i].text = tr("P%d · Liity ohjaimen %s-napilla") % [i + 1, accept_pad]
 			if not online:
 				_empty_notes[i].text = tr("tai lisää tekoälykuski painamalla %s") % secondary
 			elif Network.is_host():
@@ -782,18 +787,14 @@ func _on_card_pressed(player: int) -> void:
 		elif Network.is_host() and not setup.joined:
 			Network.set_slot_ai(player, true)
 		return
-	if not setup.joined:
-		# Without a free device the slot can only be driven by the computer.
-		if InputManager.ensure_device(player):
-			setup.joined = true
-			setup.is_ai = false
-			setup.is_ready = false
-		else:
-			_add_ai(player)
+	# Player 1 runs the lobby: picks their own car and adds or removes computer
+	# drivers. The others join and pick with their own keys or gamepad.
+	if player == OWNER_SLOT:
+		_toggle_choosing(player)
+	elif not setup.joined:
+		_add_ai(player)
 	elif setup.is_ai:
 		_leave(player)
-	else:
-		_toggle_choosing(player)
 	_refresh()
 
 
@@ -822,22 +823,20 @@ func _set_ready(player: int, is_ready: bool) -> void:
 ## Left / right on a card that is picking a car changes the car instead of
 ## moving the focus to the next card.
 func _on_card_gui_input(event: InputEvent, player: int) -> void:
-	if not _choosing[player]:
+	# The menu focus belongs to player 1, so it only steers player 1's card.
+	if not _choosing[player] or player != _get_own_slot():
 		return
-	var step: int = 0
 	if event.is_action_pressed("ui_left", true):
-		step = -1
+		_cycle_car(player, -1)
 	elif event.is_action_pressed("ui_right", true):
-		step = 1
-	if step == 0:
+		_cycle_car(player, 1)
+	elif event.is_action_pressed("ui_up", true):
+		_cycle_color(player, -1)
+	elif event.is_action_pressed("ui_down", true):
+		_cycle_color(player, 1)
+	else:
 		return
 	_cards[player].accept_event()
-	var setup: PlayerSetup = GameState.players[player]
-	var index: int = maxi(0, Catalog.CARS.find(setup.stats))
-	setup.stats = Catalog.CARS[wrapi(index + step, 0, Catalog.CARS.size())]
-	if _is_online():
-		Network.submit_local_setup()
-	_refresh_cards()
 
 
 func _add_ai(player: int) -> void:
@@ -866,14 +865,94 @@ func _open_car_select(player: int) -> void:
 
 
 func _on_device_changed(player_index: int) -> void:
-	# A gamepad that just claimed a slot joins straight away, replacing a computer driver.
+	# A gamepad that just claimed a slot joins straight away, replacing a
+	# computer driver, and starts picking a car.
 	if _tab == Tab.SPLIT and InputManager.get_device(player_index) == InputManager.Device.JOYPAD:
-		var setup: PlayerSetup = GameState.players[player_index]
-		if not setup.joined or setup.is_ai:
-			setup.joined = true
-			setup.is_ai = false
-			setup.is_ready = false
+		_join_player(player_index)
 	_refresh()
+
+
+func _join_player(player: int) -> void:
+	var setup: PlayerSetup = GameState.players[player]
+	if setup.joined and not setup.is_ai:
+		return
+	setup.joined = true
+	setup.is_ai = false
+	setup.is_ready = false
+	_choosing[player] = true
+
+
+func _on_card_focus_exited(player: int) -> void:
+	if player == _get_own_slot():
+		_stop_choosing(player)
+
+
+# --- Other players' own controls (split screen) -------------------------------
+
+## Split screen: the keys and gamepads of players 2-4 drive their own cards
+## and never move the menu focus, which belongs to player 1.
+func _input(event: InputEvent) -> void:
+	if _tab != Tab.SPLIT or _is_online() or _name_dialog != null or not _cards_grid.visible:
+		return
+	var slot: int = InputManager.get_event_slot(event)
+	if slot <= OWNER_SLOT:
+		return
+	# Key releases go on, so the input manager sees the right Shift let go.
+	if event is InputEventKey and not event.is_pressed():
+		return
+	get_viewport().set_input_as_handled()
+	_on_player_input(slot, event)
+
+
+## Handbrake key or A: join, then confirm the car (ready), or pick again.
+## Left / right: car. Up / down: colour. B: stop picking, then leave.
+func _on_player_input(slot: int, event: InputEvent) -> void:
+	var setup: PlayerSetup = GameState.players[slot]
+	if InputManager.is_slot_accept(event, slot):
+		if not setup.joined or setup.is_ai:
+			_join_player(slot)
+		else:
+			_toggle_choosing(slot)
+		_refresh()
+		return
+	if event is InputEventJoypadButton and event.is_action_pressed("ui_cancel"):
+		if _choosing[slot]:
+			_stop_choosing(slot)
+		elif setup.joined and not setup.is_ai:
+			_leave(slot)
+			_refresh()
+		return
+	if not _choosing[slot]:
+		return
+	if event.is_action_pressed("ui_left", true):
+		_cycle_car(slot, -1)
+	elif event.is_action_pressed("ui_right", true):
+		_cycle_car(slot, 1)
+	elif event.is_action_pressed("ui_up", true):
+		_cycle_color(slot, -1)
+	elif event.is_action_pressed("ui_down", true):
+		_cycle_color(slot, 1)
+
+
+func _cycle_car(player: int, step: int) -> void:
+	var setup: PlayerSetup = GameState.players[player]
+	var index: int = maxi(0, Catalog.CARS.find(setup.stats))
+	setup.stats = Catalog.CARS[wrapi(index + step, 0, Catalog.CARS.size())]
+	if _is_online():
+		Network.submit_local_setup()
+	_refresh_cards()
+
+
+func _cycle_color(player: int, step: int) -> void:
+	var setup: PlayerSetup = GameState.players[player]
+	var index: int = 0
+	for i: int in Catalog.CAR_COLORS.size():
+		if Catalog.CAR_COLORS[i].is_equal_approx(setup.color):
+			index = i
+	setup.color = Catalog.CAR_COLORS[wrapi(index + step, 0, Catalog.CAR_COLORS.size())]
+	if _is_online():
+		Network.submit_local_setup()
+	_refresh_cards()
 
 
 func _try_start() -> void:

@@ -1,4 +1,4 @@
-# Sorakuninkaat – pelin määrittely
+# SoRalli – pelin määrittely
 
 Isometrinen 3D-rallipeli Godot 4:llä. Henkeä haetaan 90-luvun ylhäältä kuvatuista rallipeleistä: lyhyet radat, sora, hypyt ja kaverit samalla sohvalla. **Geometria ja tekstuurit ovat N64-tasoa, valaistus ja jälkikäsittely modernia.**
 

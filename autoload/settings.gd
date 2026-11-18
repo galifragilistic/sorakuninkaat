@@ -6,6 +6,11 @@ signal changed
 enum Quality { LOW, MEDIUM, HIGH }
 
 const SAVE_PATH: String = "user://settings.cfg"
+## The game was called Sorakuninkaat; its saved data lives in a folder of
+## that name next to this game's own user folder.
+const OLD_USER_DIR_NAME: String = "Sorakuninkaat"
+## Files and folders copied from the old user folder on the first start.
+const MIGRATED_ITEMS: Array[String] = ["settings.cfg", "debug_tuning.cfg", "track_editor_draft.json", "tracks"]
 const SECTION: String = "settings"
 const VOLUME_STEPS: int = 10
 const MASTER_BUS: int = 0
@@ -43,6 +48,7 @@ var _loading: bool = false
 
 
 func _ready() -> void:
+	_migrate_old_user_data()
 	_load()
 	_apply_volume()
 	for i: int in player_names.size():
@@ -91,6 +97,31 @@ func _apply_window_mode() -> void:
 func _apply_volume() -> void:
 	AudioServer.set_bus_mute(MASTER_BUS, volume == 0)
 	AudioServer.set_bus_volume_db(MASTER_BUS, linear_to_db(float(maxi(volume, 1)) / float(VOLUME_STEPS)))
+
+
+## First start under the new name: copies settings, drafts and custom tracks
+## from the old game's user folder, if there is one. The old folder is kept.
+func _migrate_old_user_data() -> void:
+	if FileAccess.file_exists(SAVE_PATH):
+		return
+	var old_dir: String = OS.get_user_data_dir().get_base_dir().path_join(OLD_USER_DIR_NAME)
+	if old_dir == OS.get_user_data_dir() or not DirAccess.dir_exists_absolute(old_dir):
+		return
+	for item: String in MIGRATED_ITEMS:
+		_copy_recursive(old_dir.path_join(item), OS.get_user_data_dir().path_join(item))
+
+
+func _copy_recursive(from: String, to: String) -> void:
+	if FileAccess.file_exists(from):
+		DirAccess.copy_absolute(from, to)
+		return
+	if not DirAccess.dir_exists_absolute(from):
+		return
+	DirAccess.make_dir_recursive_absolute(to)
+	for file: String in DirAccess.get_files_at(from):
+		DirAccess.copy_absolute(from.path_join(file), to.path_join(file))
+	for folder: String in DirAccess.get_directories_at(from):
+		_copy_recursive(from.path_join(folder), to.path_join(folder))
 
 
 func _load() -> void:

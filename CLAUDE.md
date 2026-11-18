@@ -1,4 +1,4 @@
-# CLAUDE.md – Sorakuninkaat (Godot 4)
+# CLAUDE.md – SoRalli (Godot 4)
 
 ## Projekti
 Isometrinen 3D-rallipeli Godot 4.x:llä (uusin vakaa versio, **Forward+**-renderöijä). Kaikki vaatimukset ovat tiedostossa `SPEC.md`, ja näkymien kuvat kansiossa `mockups/`. Lue molemmat ennen kuin aloitat uuden vaiheen.

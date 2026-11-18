@@ -19,7 +19,7 @@ enum Role { OFFLINE, HOST, CLIENT }
 ## Which lobby tab the session belongs to.
 enum Kind { LAN, INTERNET }
 
-const GAME_ID: String = "sorakuninkaat"
+const GAME_ID: String = "soralli"
 const DEFAULT_PORT: int = 24616
 ## LAN announcements go to this port and the next few, so several copies of
 ## the game on one machine can each listen on their own port.

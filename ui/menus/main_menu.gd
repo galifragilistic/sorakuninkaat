@@ -63,7 +63,7 @@ func _on_back() -> void:
 
 
 func _build_logo() -> void:
-	var lines: Array[String] = [tr("SORA"), tr("KUNINKAAT")]
+	var lines: Array[String] = [tr("SORALLI")]
 	for i: int in lines.size():
 		var line: Label = UiStyle.make_label(lines[i], UiStyle.title_font(), logo_font_size, UiStyle.ACCENT)
 		line.add_theme_color_override("font_shadow_color", Color("#a8420a"))
@@ -73,7 +73,7 @@ func _build_logo() -> void:
 		add_child(line)
 
 	var tagline: HBoxContainer = MenuKit.make_hbox(10)
-	tagline.position = logo_position + Vector2(0.0, float(logo_font_size) * 2.0 + 14.0)
+	tagline.position = logo_position + Vector2(0.0, float(logo_font_size) * float(lines.size()) + 14.0)
 	add_child(tagline)
 	var dash: ColorRect = ColorRect.new()
 	dash.color = UiStyle.INFO

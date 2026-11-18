@@ -1,4 +1,4 @@
-# Sorakuninkaat – toteutuspaketti Claude Codelle
+# SoRalli – toteutuspaketti Claude Codelle
 
 **Sisältö**
 - `SPEC.md`: pelin määrittely (kamera, grafiikka, ajaminen, moninpeli, näkymät, UI-tyyli, vaiheet)

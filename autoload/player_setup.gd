@@ -7,12 +7,15 @@ enum Pattern { STRIPE, PLAIN, SIDE_BAND, TWO_TONE, CHECKER }
 ## CLASSIC: left/right turns the wheel. DIRECTIONAL: the stick (or WASD)
 ## points where the car should head on screen, and the car steers there.
 enum Steering { CLASSIC, DIRECTIONAL }
+## Where the race number is painted. Sent over the network as an int.
+enum NumberSpot { SIDES, ROOF, HOOD, NONE }
 
 var stats: CarStats
 ## Name the player chose ("" = the default "Pelaaja N"). See GameState.get_player_name().
 var display_name: String = ""
 var color: Color = Color.WHITE
 var pattern: Pattern = Pattern.STRIPE
+var number_spot: NumberSpot = NumberSpot.SIDES
 ## How this player steers; only matters on the machine the player sits at.
 var steering: Steering = Steering.CLASSIC
 ## Whether this player slot takes part in the next race.

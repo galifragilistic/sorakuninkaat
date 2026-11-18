@@ -255,7 +255,7 @@ func serialize_lobby() -> Dictionary:
 		slots.append({
 			"joined": setup.joined, "ai": setup.is_ai, "ready": setup.is_ready, "peer": setup.peer_id,
 			"car": Catalog.CARS.find(setup.stats), "color": setup.color.to_html(), "pattern": setup.pattern,
-			"name": setup.display_name,
+			"number": setup.number_spot, "name": setup.display_name,
 		})
 	var state: Dictionary = {
 		"slots": slots, "track": Catalog.TRACKS.find(GameState.selected_track), "laps": GameState.lap_count,
@@ -280,6 +280,7 @@ func _apply_lobby(state: Dictionary) -> void:
 		setup.stats = Catalog.CARS[clampi(data["car"], 0, Catalog.CARS.size() - 1)]
 		setup.color = Color.html(data["color"])
 		setup.pattern = data["pattern"]
+		setup.number_spot = clampi(int(data.get("number", 0)), 0, PlayerSetup.NumberSpot.size() - 1) as PlayerSetup.NumberSpot
 		setup.display_name = GameState.sanitize_name(str(data.get("name", "")))
 		if setup.joined and setup.peer_id == multiplayer.get_unique_id():
 			local_slot = i
@@ -332,7 +333,8 @@ func submit_local_setup() -> void:
 		broadcast_lobby()
 	elif role == Role.CLIENT:
 		_request_setup.rpc_id(
-			HOST_PEER_ID, Catalog.CARS.find(setup.stats), setup.color.to_html(), setup.pattern, setup.display_name
+			HOST_PEER_ID, Catalog.CARS.find(setup.stats), setup.color.to_html(), setup.pattern, setup.display_name,
+			setup.number_spot
 		)
 
 
@@ -366,7 +368,7 @@ func set_slot_ai(slot: int, enabled: bool) -> void:
 
 
 @rpc("any_peer", "call_remote", "reliable")
-func _request_setup(car_index: int, color_html: String, pattern: int, player_name: String) -> void:
+func _request_setup(car_index: int, color_html: String, pattern: int, player_name: String, number_spot: int) -> void:
 	var slot: int = _get_sender_slot()
 	if slot < 0:
 		return
@@ -375,6 +377,7 @@ func _request_setup(car_index: int, color_html: String, pattern: int, player_nam
 	setup.stats = Catalog.CARS[clampi(car_index, 0, Catalog.CARS.size() - 1)]
 	setup.color = Color.html(color_html)
 	setup.pattern = clampi(pattern, 0, PlayerSetup.Pattern.size() - 1) as PlayerSetup.Pattern
+	setup.number_spot = clampi(number_spot, 0, PlayerSetup.NumberSpot.size() - 1) as PlayerSetup.NumberSpot
 	broadcast_lobby()
 
 

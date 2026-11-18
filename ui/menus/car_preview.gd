@@ -44,6 +44,9 @@ var _camera: Camera3D
 var _pending_color: Color = Color.WHITE
 var _pending_pattern: PlayerSetup.Pattern = PlayerSetup.Pattern.STRIPE
 var _has_pending: bool = false
+var _pending_spot: PlayerSetup.NumberSpot = PlayerSetup.NumberSpot.SIDES
+## Race number painted on the car.
+var number: int = 1
 var _pending_stats: CarStats
 var _shown_stats: CarStats
 var _still_frames_left: int = 0
@@ -108,26 +111,31 @@ func _ready() -> void:
 	resized.connect(_update_viewport_size)
 	_update_viewport_size()
 	if _has_pending:
-		show_car(_pending_color, _pending_pattern, _pending_stats)
+		show_car(_pending_color, _pending_pattern, _pending_stats, _pending_spot)
 
 
 func show_setup(setup: PlayerSetup) -> void:
-	show_car(setup.color, setup.pattern, setup.stats)
+	show_car(setup.color, setup.pattern, setup.stats, setup.number_spot)
 
 
 ## stats is optional; when given, the model takes that car's proportions.
-func show_car(color: Color, pattern: PlayerSetup.Pattern, stats: CarStats = null) -> void:
+func show_car(
+	color: Color, pattern: PlayerSetup.Pattern, stats: CarStats = null,
+	number_spot: PlayerSetup.NumberSpot = PlayerSetup.NumberSpot.SIDES
+) -> void:
 	if _car == null:
 		# Not in the tree yet; applied in _ready().
 		_pending_color = color
 		_pending_pattern = pattern
 		_pending_stats = stats
+		_pending_spot = number_spot
 		_has_pending = true
 		return
 	if stats != null and stats != _shown_stats:
 		_shown_stats = stats
 		_car.set_model(stats)
 	_car.set_paint(color, pattern)
+	_car.set_number(number, number_spot)
 	_update_rendering()
 
 

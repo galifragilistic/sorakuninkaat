@@ -9,7 +9,7 @@ extends MenuScreen
 @export var list_row_height: float = 50.0
 @export var preview_rect: Rect2 = Rect2(360.0, 96.0, 500.0, 430.0)
 @export var name_font_size: int = 44
-@export var panel_position: Vector2 = Vector2(894.0, 118.0)
+@export var panel_position: Vector2 = Vector2(894.0, 96.0)
 @export var panel_width: float = 330.0
 @export var confirm_size: Vector2 = Vector2(200.0, 56.0)
 
@@ -29,6 +29,8 @@ var _swatches: Array[ColorSwatch] = []
 var _pattern_spinner: OptionSpinner
 var _steering_spinner: OptionSpinner
 var _steering: PlayerSetup.Steering = PlayerSetup.Steering.CLASSIC
+var _number_spot: PlayerSetup.NumberSpot = PlayerSetup.NumberSpot.SIDES
+var _number_spinner: OptionSpinner
 
 
 func _build() -> void:
@@ -54,6 +56,9 @@ func _enter() -> void:
 	_pattern_spinner.index = _pattern
 	_steering = setup.steering
 	_steering_spinner.index = _steering
+	_number_spot = setup.number_spot
+	_number_spinner.index = _number_spot
+	_preview.number = _player + 1
 	_show_car(_car_index)
 	_update_paint()
 
@@ -127,7 +132,7 @@ func _build_stats_panel() -> void:
 	panel.position = panel_position
 	panel.custom_minimum_size.x = panel_width
 	add_child(panel)
-	var column: VBoxContainer = MenuKit.make_vbox(7)
+	var column: VBoxContainer = MenuKit.make_vbox(4)
 	panel.add_child(column)
 	column.add_child(UiStyle.make_caption(tr("OMINAISUUDET")))
 
@@ -180,6 +185,15 @@ func _build_stats_panel() -> void:
 	_steering_spinner.value_changed.connect(func(index: int) -> void: _steering = index as PlayerSetup.Steering)
 	column.add_child(_steering_spinner)
 
+	_number_spinner = OptionSpinner.create(
+		tr("Numero"), PackedStringArray([tr("Kyljissä"), tr("Katolla"), tr("Konepellillä"), tr("Ei numeroa")]), 0
+	)
+	_number_spinner.value_width = 130.0
+	_number_spinner.value_changed.connect(func(index: int) -> void:
+		_number_spot = index as PlayerSetup.NumberSpot
+		_update_paint())
+	column.add_child(_number_spinner)
+
 
 func _build_confirm() -> void:
 	var button: ChamferButton = ChamferButton.create(tr("VAHVISTA"), 20, Vector4(24.0, 0.0, 16.0, 0.0))
@@ -209,13 +223,13 @@ func _show_car(index: int) -> void:
 	for i: int in values.size():
 		_stat_bars[i].value = values[i]
 		_stat_values[i].text = "%d/%d" % [values[i], CarStats.STAT_MAX]
-	_preview.show_car(_color, _pattern, car)
+	_preview.show_car(_color, _pattern, car, _number_spot)
 
 
 func _update_paint() -> void:
 	for swatch: ColorSwatch in _swatches:
 		swatch.selected = swatch.color.is_equal_approx(_color)
-	_preview.show_car(_color, _pattern, Catalog.CARS[_car_index])
+	_preview.show_car(_color, _pattern, Catalog.CARS[_car_index], _number_spot)
 
 
 func _on_color_picked(paint: Color) -> void:
@@ -252,6 +266,7 @@ func _confirm() -> void:
 	setup.stats = Catalog.CARS[_car_index]
 	setup.color = _color
 	setup.pattern = _pattern
+	setup.number_spot = _number_spot
 	Settings.set_steering(_player, _steering)
 	if context.has("next"):
 		# Remember how to come back here from the next screen.

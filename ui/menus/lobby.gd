@@ -341,6 +341,7 @@ func _build_joined_view(parent: Control, player: int) -> Control:
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	column.add_child(body)
 	var preview: CarPreview = CarPreview.new()
+	preview.number = player + 1
 	preview.show_stage = false
 	preview.view_size = 5.4
 	# A still three-quarter view reads better than a spinning car on a small card.

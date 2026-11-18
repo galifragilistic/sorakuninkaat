@@ -86,6 +86,7 @@ func _build_podium(standings: Array[RacerState]) -> void:
 		car.size = podium_car_size
 		car.position = Vector2(x + (podium_box_width - podium_car_size.x) * 0.5, base_y - height - podium_car_size.y + 18.0)
 		add_child(car)
+		car.number = racer.player_index + 1
 		car.show_setup(racer.setup)
 
 

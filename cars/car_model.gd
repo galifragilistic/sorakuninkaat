@@ -23,6 +23,7 @@ const MODEL_TAIL_LIGHT: String = "TailLight"
 const MODEL_GRILLE: String = "Grille"
 const MODEL_RUBBER: String = "Rubber"
 const MODEL_BODY: String = "Body"
+const MODEL_DETAILS: String = "Details"
 const PAINT_SHADER: Shader = preload("res://cars/shaders/car_paint.gdshader")
 const LAMP_SHADER: Shader = preload("res://cars/shaders/car_lamp.gdshader")
 const GRILLE_SHADER: Shader = preload("res://cars/shaders/car_grille.gdshader")
@@ -73,7 +74,6 @@ const TYRE_SHADER: Shader = preload("res://cars/shaders/car_tyre.gdshader")
 
 @export_group("Rally decals")
 @export var number_font_size: int = 72
-@export var sponsor_font_size: int = 44
 @export var decal_pixel_size: float = 0.0034
 @export var number_plate_size: Vector2 = Vector2(0.46, 0.34)
 @export var number_plate_color: Color = Color(0.96, 0.96, 0.93)
@@ -81,12 +81,19 @@ const TYRE_SHADER: Shader = preload("res://cars/shaders/car_tyre.gdshader")
 ## Number plate height as a share of the body height, and its place along the car (m, +z = back).
 @export_range(0.0, 1.0, 0.01) var number_height_share: float = 0.3
 @export var number_z: float = -0.42
-@export var sponsor_z: float = 0.4
 @export var decal_lift: float = 0.02
-## Made-up sponsors; each car shows one picked by its race number.
-@export var sponsors: PackedStringArray = PackedStringArray([
-	"SORAJÄTTI", "KUUSIÖLJY", "HIRVIPAJA", "TUNTURI", "KIVIMURSKA", "LUMIKKO",
-])
+## Number plates on the roof or bonnet: size compared to the door plates.
+@export var top_number_scale: float = 1.5
+## Smallest roof plate, as a share of top_number_scale, when vents leave little room.
+@export_range(0.2, 1.0, 0.01) var min_top_number_share: float = 0.55
+## How far below the highest point of the body still counts as roof (m).
+@export var roof_tolerance: float = 0.06
+## Bonnet plate's place from the nose, as a share of the body length.
+@export_range(0.0, 0.5, 0.01) var hood_position_share: float = 0.2
+## Length over which the roof or bonnet slope is measured (m).
+@export var hood_slope_span: float = 0.4
+## Step between height samples along the car when looking for the roof (m).
+@export var roof_sample_step: float = 0.05
 
 @export_group("Details")
 @export var bumper_height: float = 0.16
@@ -133,6 +140,7 @@ var _dirt_color: Color = Color(0.45, 0.36, 0.26)
 ## Rally decals on the doors (only on Blender models).
 var _decals: Node3D
 var _race_number: int = 1
+var _number_spot: PlayerSetup.NumberSpot = PlayerSetup.NumberSpot.SIDES
 var _paint_mesh: MeshInstance3D
 var _pattern_mesh: MeshInstance3D
 var _detail_mesh: MeshInstance3D
@@ -857,53 +865,161 @@ func get_dirt() -> float:
 	return _dirt
 
 
-## Number shown on the doors (and which sponsor the car carries).
-func set_race_number(number: int) -> void:
+## Race number and where it is painted.
+func set_race_number(number: int, spot: PlayerSetup.NumberSpot = PlayerSetup.NumberSpot.SIDES) -> void:
 	_race_number = number
+	_number_spot = spot
 	if _model_root != null:
 		_add_rally_decals()
 
 
-## Door number plates and a sponsor sticker on both sides of the body.
+## Number plates on both doors, on the roof or on the bonnet (or none).
 func _add_rally_decals() -> void:
 	if _decals != null:
 		_decals.free()
 		_decals = null
+	if _number_spot == PlayerSetup.NumberSpot.NONE:
+		return
 	var body: MeshInstance3D = null
 	for node: Node in _model_root.find_children(MODEL_BODY + "*", "MeshInstance3D", true, false):
 		body = node as MeshInstance3D
 		break
 	if body == null or body.mesh == null:
 		return
-	var box: AABB = body.transform * body.mesh.get_aabb()
 	_decals = Node3D.new()
 	_decals.name = "RallyDecals"
 	_model_root.add_child(_decals)
-	var number_y: float = box.position.y + box.size.y * number_height_share
-	var side_x: float = box.end.x + decal_lift
-	var sponsor: String = sponsors[(_race_number - 1) % sponsors.size()] if not sponsors.is_empty() else ""
+	var box: AABB = body.transform * body.mesh.get_aabb()
+	match _number_spot:
+		PlayerSetup.NumberSpot.SIDES:
+			var number_y: float = box.position.y + box.size.y * number_height_share
+			var side_x: float = box.end.x + decal_lift
+			for side: float in [-1.0, 1.0]:
+				# A node facing +Z turned to face straight out of the side.
+				var facing: Basis = Basis(Vector3.UP, side * PI * 0.5)
+				_add_number_plate(Transform3D(facing, Vector3(side * side_x, number_y, number_z)), 1.0)
+		PlayerSetup.NumberSpot.ROOF, PlayerSetup.NumberSpot.HOOD:
+			var faces: PackedVector3Array = _get_body_faces(body)
+			var details: PackedVector3Array = PackedVector3Array()
+			for node: Node in _model_root.find_children(MODEL_DETAILS + "*", "MeshInstance3D", true, false):
+				details.append_array(_get_body_faces(node as MeshInstance3D))
+			var plate_scale: Array[float] = [top_number_scale]
+			var top: Transform3D = _find_top_spot(faces, details, box, _number_spot == PlayerSetup.NumberSpot.ROOF, plate_scale)
+			_add_number_plate(top, plate_scale[0])
+
+
+func _add_number_plate(place: Transform3D, scale: float) -> void:
 	var plate_material: StandardMaterial3D = StandardMaterial3D.new()
 	plate_material.albedo_color = number_plate_color
 	plate_material.roughness = paint_roughness
 	var plate_mesh: QuadMesh = QuadMesh.new()
-	plate_mesh.size = number_plate_size
-	for side: float in [-1.0, 1.0]:
-		# A node facing +Z turned to face straight out of the side.
-		var facing: Basis = Basis(Vector3.UP, side * PI * 0.5)
-		var plate: MeshInstance3D = MeshInstance3D.new()
-		plate.mesh = plate_mesh
-		plate.material_override = plate_material
-		plate.transform = Transform3D(facing, Vector3(side * side_x, number_y, number_z))
-		_decals.add_child(plate)
-		var number: Label3D = _make_label(str(_race_number), number_font_size, number_color)
-		number.transform = Transform3D(facing, Vector3(side * (side_x + decal_lift), number_y, number_z))
-		_decals.add_child(number)
-		if not sponsor.is_empty():
-			var sticker: Label3D = _make_label(sponsor, sponsor_font_size, Color.WHITE)
-			sticker.outline_size = 10
-			sticker.outline_modulate = number_color
-			sticker.transform = Transform3D(facing, Vector3(side * (side_x + decal_lift), number_y, sponsor_z))
-			_decals.add_child(sticker)
+	plate_mesh.size = number_plate_size * scale
+	var plate: MeshInstance3D = MeshInstance3D.new()
+	plate.mesh = plate_mesh
+	plate.material_override = plate_material
+	plate.transform = place
+	_decals.add_child(plate)
+	var number: Label3D = _make_label(str(_race_number), roundi(number_font_size * scale), number_color)
+	# Just in front of the plate, along the plate's own normal.
+	number.transform = place.translated_local(Vector3(0.0, 0.0, decal_lift))
+	_decals.add_child(number)
+
+
+## A mesh's triangles in model space (three points each).
+func _get_body_faces(mesh_node: MeshInstance3D) -> PackedVector3Array:
+	if mesh_node.mesh == null:
+		return PackedVector3Array()
+	var faces: PackedVector3Array = mesh_node.mesh.get_faces()
+	for i: int in faces.size():
+		faces[i] = mesh_node.transform * faces[i]
+	return faces
+
+
+## A plate lying on the roof (the highest part of the body) or on the bonnet
+## (near the nose), tilted to the surface. On the roof it moves along to a
+## stretch that no vent or scoop covers. The number reads from behind.
+## out_scale[0] receives the plate size to use.
+func _find_top_spot(
+	faces: PackedVector3Array, details: PackedVector3Array, box: AABB, roof: bool, out_scale: Array[float]
+) -> Transform3D:
+	out_scale[0] = top_number_scale
+	var count: int = maxi(2, ceili(box.size.z / roof_sample_step) + 1)
+	var step: float = box.size.z / float(count - 1)
+	var body_heights: PackedFloat32Array = _height_profile(faces, box.position.z, step, count)
+	var index: int
+	if roof:
+		var top: float = -INF
+		for height: float in body_heights:
+			top = maxf(top, height)
+		var roof_from: int = count
+		var roof_to: int = -1
+		for i: int in count:
+			if body_heights[i] >= top - roof_tolerance:
+				roof_from = mini(roof_from, i)
+				roof_to = maxi(roof_to, i)
+		@warning_ignore("integer_division")
+		var centre: int = (roof_from + roof_to) / 2
+		# The longest stretch of roof that no vent or scoop covers.
+		var detail_heights: PackedFloat32Array = _height_profile(details, box.position.z, step, count)
+		var best_from: int = centre
+		var best_length: int = 0
+		var run_from: int = -1
+		for i: int in range(roof_from, roof_to + 2):
+			var clear: bool = i <= roof_to and detail_heights[i] <= body_heights[i] + roof_tolerance
+			if clear and run_from < 0:
+				run_from = i
+			elif not clear and run_from >= 0:
+				if i - run_from > best_length:
+					best_length = i - run_from
+					best_from = run_from
+				run_from = -1
+		@warning_ignore("integer_division")
+		index = best_from + best_length / 2 if best_length > 0 else centre
+		# A short clear stretch takes a smaller plate.
+		var plate_length: float = number_plate_size.y * top_number_scale
+		var room: float = float(maxi(best_length - 1, 0)) * step
+		out_scale[0] = top_number_scale * clampf(room / plate_length, min_top_number_share, 1.0)
+	else:
+		# -Z is the front of the car.
+		index = clampi(roundi(float(count - 1) * hood_position_share), 0, count - 1)
+	var half: int = maxi(1, roundi(hood_slope_span * 0.5 / step))
+	var middle_y: float = body_heights[index]
+	var front_y: float = body_heights[maxi(0, index - half)]
+	var back_y: float = body_heights[mini(count - 1, index + half)]
+	# Past the end of the body there is nothing to lean on.
+	if is_inf(front_y) or is_inf(back_y):
+		front_y = middle_y
+		back_y = middle_y
+	var span: float = float(mini(count - 1, index + half) - maxi(0, index - half)) * step
+	# Rising towards the back by this angle; the plate leans with it.
+	var slope: float = atan2(back_y - front_y, maxf(span, 0.001))
+	var facing: Basis = Basis(Vector3.RIGHT, -PI * 0.5 - slope)
+	var y: float = maxf(middle_y, (front_y + back_y) * 0.5) + decal_lift
+	return Transform3D(facing, Vector3(0.0, y, box.position.z + float(index) * step))
+
+
+## Height of the top surface on the centre line (x = 0) at count points from
+## z0 in steps of step. Each triangle that crosses the centre line is visited
+## once; points no triangle covers stay at -INF.
+func _height_profile(faces: PackedVector3Array, z0: float, step: float, count: int) -> PackedFloat32Array:
+	var heights: PackedFloat32Array = PackedFloat32Array()
+	heights.resize(count)
+	heights.fill(-INF)
+	for i: int in range(0, faces.size() - 2, 3):
+		var a: Vector3 = faces[i]
+		var b: Vector3 = faces[i + 1]
+		var c: Vector3 = faces[i + 2]
+		if minf(a.x, minf(b.x, c.x)) > 0.0 or maxf(a.x, maxf(b.x, c.x)) < 0.0:
+			continue
+		var first: int = maxi(0, ceili((minf(a.z, minf(b.z, c.z)) - z0) / step))
+		var last: int = mini(count - 1, floori((maxf(a.z, maxf(b.z, c.z)) - z0) / step))
+		var top_y: float = maxf(a.y, maxf(b.y, c.y)) + 1.0
+		for k: int in range(first, last + 1):
+			var origin: Vector3 = Vector3(0.0, top_y, z0 + float(k) * step)
+			var hit: Variant = Geometry3D.ray_intersects_triangle(origin, Vector3.DOWN, a, b, c)
+			if hit != null:
+				heights[k] = maxf(heights[k], (hit as Vector3).y)
+	return heights
 
 
 func _make_label(text: String, font_size: int, color: Color) -> Label3D:

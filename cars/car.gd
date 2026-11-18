@@ -579,7 +579,7 @@ func _apply_player_color() -> void:
 func apply_setup(setup: PlayerSetup) -> void:
 	stats = setup.stats
 	set_model(stats)
-	_model.set_race_number(player_index + 1)
+	_model.set_race_number(player_index + 1, setup.number_spot)
 	set_paint(setup.color, setup.pattern)
 
 
@@ -600,3 +600,8 @@ func set_model(car_stats: CarStats) -> void:
 
 func set_paint(color: Color, pattern: PlayerSetup.Pattern) -> void:
 	_model.set_paint(color, pattern)
+
+
+## Race number and where it is painted (menu previews).
+func set_number(number: int, spot: PlayerSetup.NumberSpot) -> void:
+	_model.set_race_number(number, spot)

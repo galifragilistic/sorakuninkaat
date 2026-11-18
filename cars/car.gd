@@ -142,12 +142,20 @@ var apply_local_damage: bool = true
 ## The car counts as driving on the road while it is this close to the road
 ## height (m) and within the road's width.
 @export var on_road_height_tolerance: float = 2.0
+## A reset puts the car this far back along the road from where it last
+## drove on it, so resetting is never a shortcut through a corner (m).
+@export var reset_back_distance: float = 10.0
+## The car counts as upright while its roof points at least this much up
+## (dot product with straight up). Upright on the road, a reset does nothing.
+@export_range(0.0, 1.0, 0.01) var upright_min_dot: float = 0.5
 
 var _steer: float = 0.0
 var _gear: int = 0
 ## Lap offset of the last place the car drove on the road (-1 = none yet).
 var _road_offset: float = -1.0
 var _reset_cooldown_left: float = 0.0
+## Upright with its wheels on the road this tick: nothing to reset.
+var _on_road: bool = false
 var _grounded_wheels: int = 0
 var _current_surface: SurfaceData
 var _mount_points: Array[Vector3] = []
@@ -289,17 +297,24 @@ func is_grounded() -> bool:
 
 
 ## Puts the car back on its wheels where it is, keeping its heading.
-## Puts the car back on the road where it last drove, facing the race
-## direction. Without a track it is only set upright where it is.
+## Puts the car back on the road a little behind where it last drove,
+## facing the race direction. Without a track it is only set upright.
 func reset_to_road() -> void:
 	if track == null or _road_offset < 0.0:
 		reset_upright()
 		return
-	var origin: Vector3 = track.get_position_at(_road_offset) + Vector3.UP * reset_lift
-	_place(Transform3D(Basis.looking_at(track.get_direction_at(_road_offset), Vector3.UP), origin))
+	var offset: float = _road_offset - reset_back_distance
+	var origin: Vector3 = track.get_position_at(offset) + Vector3.UP * reset_lift
+	_place(Transform3D(Basis.looking_at(track.get_direction_at(offset), Vector3.UP), origin))
+	_road_offset = fposmod(offset, track.get_length())
+
+
+func is_on_road() -> bool:
+	return _on_road
 
 
 func _remember_road_position() -> void:
+	_on_road = false
 	if track == null or _grounded_wheels == 0:
 		return
 	var hint: float = _road_offset if _road_offset >= 0.0 else track.get_offset_at(global_position)
@@ -308,6 +323,7 @@ func _remember_road_position() -> void:
 	var sideways: float = Vector2(global_position.x - road.x, global_position.z - road.z).length()
 	if sideways <= track.road_width * 0.5 and absf(global_position.y - road.y) <= on_road_height_tolerance:
 		_road_offset = offset
+		_on_road = global_basis.y.dot(Vector3.UP) >= upright_min_dot
 
 
 func _place(new_transform: Transform3D) -> void:
@@ -353,7 +369,7 @@ func _physics_process(delta: float) -> void:
 	if not is_puppet:
 		_reset_cooldown_left = maxf(0.0, _reset_cooldown_left - delta)
 		_remember_road_position()
-		if input.reset_pressed and _reset_cooldown_left <= 0.0:
+		if input.reset_pressed and _reset_cooldown_left <= 0.0 and not _on_road:
 			_reset_cooldown_left = reset_cooldown
 			reset_to_road()
 		_detect_impact()

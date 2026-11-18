@@ -34,6 +34,9 @@ var position: int = 1
 var gap_to_leader: float = 0.0
 ## Checkpoints passed in order since the start, the start line included.
 var checkpoints_passed: int = 0
+## The car went past its next checkpoint without driving through the gate
+## and has to turn back to it.
+var missed_checkpoint: bool = false
 var finished: bool = false
 var finish_time: float = 0.0
 ## True when the race ended before this racer completed all laps.

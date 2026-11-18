@@ -23,9 +23,12 @@ enum State { WAITING, COUNTDOWN, RACING, FINISHED }
 @export var overtake_margin: float = 1.0
 ## Once the winner is in, the others have this long to finish (s).
 @export var finish_timeout: float = 30.0
+## A car this far past its next checkpoint without going through the gate
+## is told to turn back (m).
+@export var missed_checkpoint_margin: float = 6.0
 
 ## Values per racer in get_racer_data() / apply_remote_racers().
-const FLOATS_PER_RACER: int = 14
+const FLOATS_PER_RACER: int = 15
 
 var track: Track
 var lap_count: int = 3
@@ -118,7 +121,7 @@ func get_racer_data() -> PackedFloat32Array:
 			racer.laps_completed, racer.next_checkpoint, float(racer.crossed_start), racer.lap_start_time,
 			racer.last_lap_time, racer.best_lap_time, racer.progress, racer.position, racer.gap_to_leader,
 			float(racer.finished), racer.finish_time, float(racer.did_not_finish), racer.track_offset,
-			racer.checkpoints_passed,
+			racer.checkpoints_passed, float(racer.missed_checkpoint),
 		])
 	return data
 
@@ -143,6 +146,7 @@ func apply_remote_racers(remote_time: float, data: PackedFloat32Array) -> void:
 		racer.did_not_finish = data[base + 11] > 0.5
 		racer.track_offset = data[base + 12]
 		racer.checkpoints_passed = int(data[base + 13])
+		racer.missed_checkpoint = data[base + 14] > 0.5
 	_standings.sort_custom(func(a: RacerState, b: RacerState) -> bool: return a.position < b.position)
 
 
@@ -262,6 +266,7 @@ func _end_race_for_stragglers() -> void:
 
 func _finish_racer(racer: RacerState) -> void:
 	racer.finished = true
+	racer.missed_checkpoint = false
 	racer.finish_time = race_time
 	racer.car.controls_enabled = false
 	if _first_finish_time < 0.0:
@@ -288,6 +293,7 @@ func _update_standings() -> void:
 		elif racer.next_checkpoint == 0 and racer.crossed_start and offset < length * 0.5:
 			offset += length
 		racer.progress = float(racer.laps_completed) * length + offset
+		racer.missed_checkpoint = state == State.RACING and racer.progress > _get_checkpoint_progress(racer) + missed_checkpoint_margin
 
 	var previous: Array[RacerState] = _standings.duplicate()
 	_standings.sort_custom(_is_ahead)
@@ -299,6 +305,15 @@ func _update_standings() -> void:
 		# Gaps of racers still driving change only at checkpoints (_record_passage).
 		if racer.finished and leader.finished and not racer.did_not_finish:
 			racer.gap_to_leader = racer.finish_time - leader.finish_time
+
+
+## Distance along the race (as in RacerState.progress) of the racer's next checkpoint.
+func _get_checkpoint_progress(racer: RacerState) -> float:
+	var length: float = track.get_length()
+	var checkpoint_progress: float = float(racer.laps_completed) * length + track.get_checkpoint_offset(racer.next_checkpoint)
+	if racer.next_checkpoint == 0 and racer.crossed_start:
+		checkpoint_progress += length
+	return checkpoint_progress
 
 
 func _report_overtakes(previous: Array[RacerState]) -> void:

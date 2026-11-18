@@ -24,6 +24,11 @@ extends Control
 ## How far above the screen centre the countdown / finish banner sits.
 @export var banner_lift: float = 120.0
 @export var banner_font_size: int = 110
+## "Go back to the gate" warning: how far below the screen centre it sits,
+## its text size and how fast it pulses (cycles per second).
+@export var missed_drop: float = 90.0
+@export var missed_font_size: int = 44
+@export var missed_pulse_speed: float = 2.0
 
 @export_group("Compact layout")
 @export var compact_edge_margin: Vector2 = Vector2(24.0, 24.0)
@@ -31,6 +36,7 @@ extends Control
 @export var compact_speedometer_margin: Vector2 = Vector2(20.0, 16.0)
 @export var compact_time_label_width: float = 118.0
 @export var compact_banner_font_size: int = 76
+@export var compact_missed_font_size: int = 30
 @export var compact_minimap_size: Vector2 = Vector2(116.0, 76.0)
 
 @export_group("Behaviour")
@@ -77,6 +83,8 @@ var _player_chip: ChamferPanel
 var _player_chip_label: Label
 var _split_time_left: float = 0.0
 var _banner_time_left: float = 0.0
+var _missed_box: VBoxContainer
+var _missed_hint: Label
 
 
 func _ready() -> void:
@@ -96,6 +104,7 @@ func _ready() -> void:
 		_build_damage()
 	_build_speedometer()
 	_build_banner()
+	_build_missed_warning()
 
 
 func setup(manager: RaceManager, racer: RacerState, track: Track, camera: Camera3D) -> void:
@@ -162,6 +171,15 @@ func _process(delta: float) -> void:
 		if _split_time_left > 0.0:
 			_split_time_left -= delta
 			_split_badge.visible = _split_time_left > 0.0
+	_missed_box.visible = _racer.missed_checkpoint and not _racer.finished
+	if _missed_box.visible:
+		# The start line has no gate of its own to blink.
+		_missed_hint.text = (
+			tr("Ohitit lähtöviivan sivusta – aja viivan yli") if _racer.next_checkpoint == 0
+			else tr("Ohitit tarkastuspisteen sivusta – aja vilkkuvan portin läpi")
+		)
+		var pulse: float = 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * TAU * missed_pulse_speed)
+		_missed_box.modulate.a = lerpf(0.55, 1.0, pulse)
 	if _banner_time_left > 0.0:
 		_banner_time_left -= delta
 		if _banner_time_left <= 0.0:
@@ -495,6 +513,31 @@ func _build_banner() -> void:
 	_banner_hint_label.add_theme_constant_override("outline_size", 8)
 	_banner_hint_label.visible = false
 	column.add_child(_banner_hint_label)
+
+
+## Shown while the car has driven past its next checkpoint beside the gate.
+func _build_missed_warning() -> void:
+	_missed_box = VBoxContainer.new()
+	_missed_box.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	_missed_box.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_missed_box.grow_vertical = Control.GROW_DIRECTION_BOTH
+	_missed_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_missed_box.offset_top += missed_drop
+	_missed_box.offset_bottom += missed_drop
+	_missed_box.visible = false
+	add_child(_missed_box)
+	var title: Label = UiStyle.make_label(
+		tr("PALAA PORTILLE"), UiStyle.FONT_DISPLAY, compact_missed_font_size if compact else missed_font_size, UiStyle.ACCENT
+	)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_color_override("font_outline_color", UiStyle.BASE)
+	title.add_theme_constant_override("outline_size", 12)
+	_missed_box.add_child(title)
+	_missed_hint = UiStyle.make_label("", UiStyle.FONT_BOLD, 18)
+	_missed_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_missed_hint.add_theme_color_override("font_outline_color", UiStyle.BASE)
+	_missed_hint.add_theme_constant_override("outline_size", 8)
+	_missed_box.add_child(_missed_hint)
 
 
 # --- Updates -------------------------------------------------------------

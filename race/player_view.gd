@@ -16,6 +16,8 @@ const VIGNETTE_SHADER: Shader = preload("res://env/shaders/vignette.gdshader")
 ## How strongly wide panes zoom in: 0 keeps the vertical size, 1 keeps the
 ## horizontal size, 0.5 splits the difference.
 @export_range(0.0, 1.0, 0.05) var wide_zoom_compensation: float = 0.5
+## Blink cycle (s) of a checkpoint gate the player drove past.
+@export var missed_blink_period: float = 0.5
 
 var racer: RacerState
 var camera_rig: CameraRig
@@ -27,6 +29,7 @@ var _track: Track
 ## Next checkpoint and start-line state the gates were last coloured for.
 var _shown_checkpoint: int = -1
 var _shown_crossed_start: bool = false
+var _shown_blink: bool = false
 
 var _viewport: SubViewport
 var _vignette_material: ShaderMaterial
@@ -107,14 +110,20 @@ func setup(
 func _process(_delta: float) -> void:
 	if racer == null:
 		return
-	if racer.next_checkpoint == _shown_checkpoint and racer.crossed_start == _shown_crossed_start:
+	# A gate the player drove past blinks until they come back through it.
+	var blink: bool = racer.missed_checkpoint and fmod(Time.get_ticks_msec() / 1000.0, missed_blink_period) < missed_blink_period * 0.5
+	if racer.next_checkpoint == _shown_checkpoint and racer.crossed_start == _shown_crossed_start and blink == _shown_blink:
 		return
 	_shown_checkpoint = racer.next_checkpoint
 	_shown_crossed_start = racer.crossed_start
+	_shown_blink = blink
 	# Gates passed on this lap change colour; crossing the start line resets them.
 	for index: int in range(1, _track.checkpoint_count):
 		var passed: bool = racer.crossed_start and (racer.next_checkpoint == 0 or index < racer.next_checkpoint)
-		_track.set_checkpoint_passed(view_index, index, passed)
+		var gate_state: Track.GateState = Track.GateState.PASSED if passed else Track.GateState.OPEN
+		if blink and index == racer.next_checkpoint:
+			gate_state = Track.GateState.MISSED
+		_track.set_checkpoint_state(view_index, index, gate_state)
 
 
 func apply_preset(preset: EnvPreset) -> void:

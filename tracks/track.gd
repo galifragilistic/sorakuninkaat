@@ -12,6 +12,9 @@ const GROUND_SHADER: Shader = preload("res://tracks/shaders/ground_detail.gdshad
 ## show that player's progress around the lap.
 const GATE_SHARED_LAYER: int = 11
 const GATE_FIRST_VIEW_LAYER: int = 12
+
+## How a gate looks in one player's view.
+enum GateState { OPEN, PASSED, MISSED }
 ## Defaults of sample_spacing and tangent_scale. Custom tracks always use these;
 ## script default values cannot be read at runtime in exported builds.
 const DEFAULT_SAMPLE_SPACING: float = 2.0
@@ -128,6 +131,8 @@ const DEFAULT_TANGENT_SCALE: float = 0.167
 @export var checkpoint_marker_color: Color = Color("#3fd8ff")
 ## Glow colour of a gate the player has already passed on this lap.
 @export var checkpoint_passed_color: Color = Color("#b6f03c")
+## Warning colour of a gate the player drove past instead of through.
+@export var checkpoint_missed_color: Color = Color("#ff7a1a")
 @export var checkpoint_post_color: Color = Color(0.12, 0.13, 0.19)
 @export var checkpoint_post_height: float = 2.6
 @export var checkpoint_post_width: float = 0.28
@@ -611,9 +616,9 @@ func _build_checkpoint_gate(offset: float, index: int) -> void:
 	var dash_mesh: ArrayMesh = dashes.commit()
 
 	# The lamps and dashes exist once for cameras outside a race and once per
-	# race view in both colours; set_checkpoint_passed() picks the colour.
+	# race view in every GateState colour; set_checkpoint_state() picks one.
 	var glows: Array[Array] = []
-	for color: Color in [checkpoint_marker_color, checkpoint_passed_color]:
+	for color: Color in [checkpoint_marker_color, checkpoint_passed_color, checkpoint_missed_color]:
 		glows.append([
 			[lamp_mesh, LowPoly.emissive_material(color, checkpoint_light_energy)],
 			[dash_mesh, LowPoly.emissive_material(color, checkpoint_dash_energy)],
@@ -624,11 +629,11 @@ func _build_checkpoint_gate(offset: float, index: int) -> void:
 	for view: int in GameState.MAX_PLAYERS:
 		var layer: int = 1 << (GATE_FIRST_VIEW_LAYER + view - 1)
 		var states: Array[Array] = []
-		for passed: int in 2:
+		for gate_state: int in GateState.size():
 			var meshes: Array[MeshInstance3D] = []
-			for glow: Array in glows[passed]:
+			for glow: Array in glows[gate_state]:
 				var mesh_instance: MeshInstance3D = _add_gate_mesh(gate, glow[0], glow[1], layer)
-				mesh_instance.visible = passed == 0
+				mesh_instance.visible = gate_state == GateState.OPEN
 				meshes.append(mesh_instance)
 			states.append(meshes)
 		per_view.append(states)
@@ -655,16 +660,15 @@ static func get_view_cull_mask(view: int) -> int:
 	return mask
 
 
-## Shows checkpoint index's gate in race view n as passed or still to pass.
+## Shows checkpoint index's gate in race view n as still to pass, passed or missed.
 ## The start line (index 0) has no gate.
-func set_checkpoint_passed(view: int, index: int, passed: bool) -> void:
+func set_checkpoint_state(view: int, index: int, gate_state: GateState) -> void:
 	if not _gate_glows.has(index) or view < 0 or view >= GameState.MAX_PLAYERS:
 		return
 	var states: Array = _gate_glows[index][view]
-	for mesh_instance: MeshInstance3D in states[0]:
-		mesh_instance.visible = not passed
-	for mesh_instance: MeshInstance3D in states[1]:
-		mesh_instance.visible = passed
+	for i: int in states.size():
+		for mesh_instance: MeshInstance3D in states[i]:
+			mesh_instance.visible = i == gate_state
 
 
 func _build_ground() -> void:

@@ -30,6 +30,8 @@ var quality: Quality = Quality.HIGH:
 var graphics_style: GraphicsStyle = GraphicsStyle.RETRO:
 	set(value):
 		graphics_style = value
+		if is_inside_tree():
+			Retro.apply_window(get_tree().root)
 		_on_changed()
 
 var damage_enabled: bool = true:
@@ -71,6 +73,9 @@ func _ready() -> void:
 	TranslationServer.set_locale(language)
 	_load()
 	_apply_volume()
+	# Deferred: the engine applies the project's stretch settings to the window
+	# after the autoloads are ready, which would undo this.
+	Retro.apply_window.call_deferred(get_tree().root)
 	for i: int in player_names.size():
 		GameState.players[i].display_name = player_names[i]
 	for i: int in steering_modes.size():

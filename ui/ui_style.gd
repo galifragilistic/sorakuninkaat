@@ -31,6 +31,7 @@ const FONT_REGULAR: FontFile = preload("res://assets/fonts/chakra-petch-latin-40
 const FONT_MEDIUM: FontFile = preload("res://assets/fonts/chakra-petch-latin-500-normal.woff2")
 const FONT_SEMIBOLD: FontFile = preload("res://assets/fonts/chakra-petch-latin-600-normal.woff2")
 const FONT_BOLD: FontFile = preload("res://assets/fonts/chakra-petch-latin-700-normal.woff2")
+const ALL_FONTS: Array[FontFile] = [FONT_DISPLAY, FONT_REGULAR, FONT_MEDIUM, FONT_SEMIBOLD, FONT_BOLD]
 
 ## Smallest text size allowed at the 1280x720 design resolution.
 const MIN_FONT_SIZE: int = 13

@@ -17,6 +17,22 @@ static func is_on() -> bool:
 	return Settings.graphics_style == Settings.GraphicsStyle.RETRO
 
 
+## The whole window in the retro style: menus and HUD are drawn at their
+## 1280x720 design resolution and scaled up with sharp pixels, and the fonts
+## lose their smoothing. The modern style draws them at the screen's own
+## resolution.
+static func apply_window(window: Window) -> void:
+	var on: bool = is_on()
+	window.content_scale_mode = (
+		Window.CONTENT_SCALE_MODE_VIEWPORT if on else Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
+	)
+	var antialiasing: TextServer.FontAntialiasing = (
+		TextServer.FONT_ANTIALIASING_NONE if on else TextServer.FONT_ANTIALIASING_GRAY
+	)
+	for font: FontFile in UiStyle.ALL_FONTS:
+		font.antialiasing = antialiasing
+
+
 ## Size of the 3D picture rendered for a view ui_size big (in UI units).
 static func get_render_size(ui_size: Vector2) -> Vector2i:
 	var pixels: Vector2 = (ui_size / STYLE.pixel_size).round()

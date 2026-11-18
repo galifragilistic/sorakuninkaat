@@ -60,6 +60,20 @@ const DEFAULT_TANGENT_SCALE: float = 0.167
 @export_range(0.0, 1.0, 0.01) var slope_strength: float = 0.75
 ## Rock texture repeats per metre.
 @export var slope_scale: float = 0.15
+## Relief shading of hills and hollows (see ground_detail.gdshader): how much
+## slopes lighten or darken towards a fixed light at the top left of the
+## screen, and how much each metre of height lightens the ground.
+@export_range(0.0, 5.0, 0.05) var hill_shade_strength: float = 2.5
+@export var hill_light: Vector3 = Vector3(-0.5, 0.6, 0.6)
+## Darkest and lightest the hill shading may make a slope.
+@export var hill_shade_range: Vector2 = Vector2(0.6, 1.2)
+@export var height_tint: float = 0.03
+@export var height_tint_limit: float = 0.15
+## Contour lines on the ground (not on the road): how much they darken it,
+## metres of height between them and their width in pixels.
+@export_range(0.0, 1.0, 0.01) var contour_strength: float = 0.3
+@export var contour_interval: float = 1.0
+@export var contour_width: float = 1.5
 ## Distance of the tyre ruts from the road centre and their half width (m).
 @export var rut_offset: float = 0.8
 @export var rut_width: float = 0.45
@@ -762,8 +776,17 @@ func _make_surface_material(surface: SurfaceData, is_ground: bool) -> Material:
 	material.set_shader_parameter("detail_scale", surface.detail_scale)
 	material.set_shader_parameter("detail_strength", surface.detail_strength)
 	material.set_shader_parameter("roughness_value", surface.roughness)
+	material.set_shader_parameter("hill_shade_strength", hill_shade_strength)
+	material.set_shader_parameter("hill_light", hill_light)
+	material.set_shader_parameter("hill_shade_range", hill_shade_range)
+	material.set_shader_parameter("height_tint", height_tint)
+	material.set_shader_parameter("height_tint_limit", height_tint_limit)
+	material.set_shader_parameter("height_reference", global_position.y)
 	if is_ground:
 		material.set_shader_parameter("slope_texture", Retro.texture(slope_texture))
+		material.set_shader_parameter("contour_strength", contour_strength)
+		material.set_shader_parameter("contour_interval", contour_interval)
+		material.set_shader_parameter("contour_width", contour_width)
 		material.set_shader_parameter("slope_scale", slope_scale)
 		material.set_shader_parameter("slope_color", slope_color)
 		material.set_shader_parameter("slope_range", slope_range)

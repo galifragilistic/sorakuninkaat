@@ -27,6 +27,26 @@ uniform float rut_strength = 0.0;
 // The ruts come and go along the road with this second, larger pattern.
 uniform float rut_break_scale = 0.37;
 
+// Hill shading, as on relief maps: a fixed light in view space (from the top
+// left of the screen) lightens slopes facing it and darkens slopes facing
+// away, whatever the sun does. Flat ground keeps its colour.
+uniform vec3 hill_light = vec3(-0.5, 0.6, 0.6);
+uniform float hill_shade_strength = 0.0;
+// Darkest and lightest the hill shading may make a slope (colour multiplier).
+uniform vec2 hill_shade_range = vec2(0.6, 1.2);
+// Shading never lifts a colour above this, so bright snow does not bloom.
+uniform float max_albedo = 0.92;
+// Higher ground a little lighter, hollows a little darker: colour change per
+// metre above or below height_reference, and its largest amount either way.
+uniform float height_tint = 0.0;
+uniform float height_tint_limit = 0.2;
+uniform float height_reference = 0.0;
+// Contour lines on the ground every contour_interval metres of height, about
+// contour_width pixels wide, darkening the ground by contour_strength.
+uniform float contour_strength = 0.0;
+uniform float contour_interval = 1.0;
+uniform float contour_width = 1.0;
+
 varying vec3 world_position;
 varying vec3 world_normal;
 
@@ -60,6 +80,26 @@ void fragment() {
 		float rut = 1.0 - smoothstep(0.0, rut_width, abs(lateral - rut_offset));
 		rut *= 0.5 + 0.5 * texture(detail_texture, world_position.xz * detail_scale * rut_break_scale).r;
 		albedo *= 1.0 - rut * rut_strength;
+	}
+
+	vec3 unshaded = albedo;
+	if (hill_shade_strength > 0.0) {
+		vec3 light = normalize(hill_light);
+		vec3 up = normalize((VIEW_MATRIX * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
+		float shade = 1.0 + (dot(NORMAL, light) - dot(up, light)) * hill_shade_strength;
+		albedo *= clamp(shade, hill_shade_range.x, hill_shade_range.y);
+	}
+	if (height_tint > 0.0) {
+		float tint = clamp((world_position.y - height_reference) * height_tint, -height_tint_limit, height_tint_limit);
+		albedo *= 1.0 + tint;
+	}
+	albedo = min(albedo, max(unshaded, vec3(max_albedo)));
+
+	if (contour_strength > 0.0) {
+		float level = (world_position.y - height_reference) / contour_interval;
+		// Distance to the nearest contour in screen pixels, so lines keep their width.
+		float pixels = abs(fract(level + 0.5) - 0.5) / max(fwidth(level), 1e-4);
+		albedo *= 1.0 - contour_strength * (1.0 - smoothstep(0.0, contour_width, pixels));
 	}
 
 	ALBEDO = albedo;

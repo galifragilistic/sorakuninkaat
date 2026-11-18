@@ -1,18 +1,10 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://tracks/track.gd" id="1"]
 [ext_resource type="Resource" path="res://tracks/surfaces/gravel.tres" id="2"]
 [ext_resource type="Resource" path="res://tracks/surfaces/grass.tres" id="4"]
 [ext_resource type="Script" path="res://tracks/track_scenery.gd" id="5"]
 [ext_resource type="Resource" path="res://tracks/surfaces/water.tres" id="6"]
-
-[sub_resource type="StandardMaterial3D" id="container_a"]
-albedo_color = Color(0.62, 0.62, 0.72, 1)
-roughness = 0.8
-
-[sub_resource type="StandardMaterial3D" id="container_b"]
-albedo_color = Color(0.78, 0.36, 0.24, 1)
-roughness = 0.8
 
 [node name="Metsapolku" type="Node3D"]
 script = ExtResource("1")
@@ -35,4 +27,3 @@ tree_road_margin = 2.5
 tree_spacing = 4.0
 lamps = PackedVector2Array(0.02, 1, 0.36, 1, 0.62, -1, 0.85, 1)
 jumps = PackedFloat32Array(0.47)
-

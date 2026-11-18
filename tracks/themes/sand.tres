@@ -12,5 +12,4 @@ road_surface = ExtResource("2")
 ground_surface = ExtResource("3")
 terrain_noise_height = 2.0
 tree_count = 45
-tree_color = Color(0.42, 0.55, 0.25, 1)
-tree_top_color = Color(0.52, 0.63, 0.3, 1)
+tree_style = 2

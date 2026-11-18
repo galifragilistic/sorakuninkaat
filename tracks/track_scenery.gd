@@ -1,7 +1,18 @@
 class_name TrackScenery
 extends Node3D
 ## Low-poly set dressing for a Track: trees, a lake, hay bales and track lights.
-## Everything is generated in code; Track calls build() once the road exists.
+## Trees and objects are models made in Blender (PropModels); the rest is
+## generated in code. Track calls build() once the road exists.
+
+## Which trees grow by the track.
+enum TreeStyle { FOREST, WINTER, DRY }
+
+const TREE_MODELS: Dictionary = {
+	TreeStyle.FOREST: [PropModels.SPRUCE, PropModels.PINE, PropModels.BIRCH, PropModels.SPRUCE],
+	TreeStyle.WINTER: [PropModels.SPRUCE_SNOWY, PropModels.PINE_SNOWY, PropModels.SPRUCE_SNOWY],
+	TreeStyle.DRY: [PropModels.PINE, PropModels.BIRCH, PropModels.PINE],
+}
+const ROCK_MODELS: Array[PackedScene] = [PropModels.ROCK_BOULDER, PropModels.ROCK_CLUSTER]
 
 @export var scenery_seed: int = 11
 
@@ -11,17 +22,10 @@ extends Node3D
 @export var tree_road_margin: float = 3.5
 @export var tree_spacing: float = 5.0
 @export var tree_border_margin: float = 6.0
-@export var tree_scale_range: Vector2 = Vector2(0.85, 1.5)
-@export var tree_sides: int = 6
-@export var tree_trunk_radius: float = 0.24
-@export var tree_trunk_height: float = 1.0
-## Per tier: x = base height, y = radius, z = cone height.
-@export var tree_tiers: PackedVector3Array = PackedVector3Array([
-	Vector3(0.7, 1.5, 2.6), Vector3(2.0, 1.1, 2.7),
-])
-@export var tree_color: Color = Color(0.3, 0.52, 0.22)
-@export var tree_top_color: Color = Color(0.4, 0.62, 0.26)
-@export var tree_trunk_color: Color = Color(0.42, 0.27, 0.17)
+@export var tree_scale_range: Vector2 = Vector2(0.8, 1.3)
+## Picks the tree models (TREE_MODELS): spruces, pines and birches, snowy ones
+## in winter.
+@export var tree_style: TreeStyle = TreeStyle.FOREST
 ## Random darkening per tree (0..1).
 @export_range(0.0, 0.5, 0.01) var tree_tint_variation: float = 0.18
 @export var tree_collision_radius: float = 0.4
@@ -64,8 +68,8 @@ extends Node3D
 @export var bales_per_row: int = 4
 @export var bale_spacing: float = 4.5
 @export var bale_margin: float = 1.2
+## Collision size of a bale (the model is PropModels.HAY_BALE).
 @export var bale_size: Vector3 = Vector3(1.9, 1.1, 1.2)
-@export var bale_color: Color = Color(0.86, 0.66, 0.27)
 
 @export_group("Jumps")
 ## Lap fractions (0..1) where a ramp starts.
@@ -84,26 +88,15 @@ extends Node3D
 @export var container_colors: Array[Color] = [
 	Color(0.62, 0.62, 0.72), Color(0.78, 0.36, 0.24), Color(0.25, 0.45, 0.62), Color(0.36, 0.55, 0.32),
 ]
-@export var container_rib_color: Color = Color(0.12, 0.13, 0.19)
-@export var container_rib_count: int = 5
-@export var container_rib_width: float = 0.12
-@export var house_wall_color: Color = Color(0.86, 0.8, 0.68)
-@export var house_roof_color: Color = Color(0.55, 0.2, 0.17)
-@export var house_door_color: Color = Color(0.32, 0.22, 0.15)
-@export var house_window_color: Color = Color(0.2, 0.26, 0.38)
-## Share of the house height taken by the walls; the roof is the rest.
-@export_range(0.2, 0.9, 0.01) var house_wall_share: float = 0.55
-@export var rock_color: Color = Color(0.5, 0.5, 0.52)
-@export var rock_top_color: Color = Color(0.62, 0.62, 0.64)
-@export var rock_sides: int = 7
-@export var tire_color: Color = Color(0.08, 0.08, 0.1)
-@export var tire_band_color: Color = Color(0.92, 0.92, 0.9)
-@export var tire_count: int = 3
-@export var tire_sides: int = 10
-## Buildings reach this far below the ground so slopes show no gap.
-@export var foundation_depth: float = 0.8
 ## Random trees keep this far from placed objects.
 @export var prop_tree_clearance: float = 2.0
+
+@export_group("Long containers")
+## Shipping containers placed by hand in a track scene: x, z, yaw and how
+## many are stacked on top of each other. They take container_colors in turn.
+@export var long_containers: PackedVector4Array = PackedVector4Array()
+## Size of one long container (the model is PropModels.CONTAINER_LONG).
+@export var long_container_size: Vector3 = Vector3(12.0, 3.2, 4.2)
 
 @export_group("Exclusion zones")
 ## No trees this close to the road on bridges and in tunnels (m beyond the road edge).
@@ -124,6 +117,7 @@ func build(track: Track) -> void:
 	_build_bales(track)
 	_build_jumps(track)
 	_build_props(track)
+	_build_long_containers(track)
 	_build_trees(track)
 
 
@@ -134,20 +128,6 @@ func set_lights_enabled(enabled: bool) -> void:
 
 
 # --- Trees ---------------------------------------------------------------
-
-func _build_tree_mesh() -> ArrayMesh:
-	var tool: SurfaceTool = LowPoly.begin()
-	LowPoly.add_prism(tool, Vector3.ZERO, tree_trunk_radius, tree_trunk_height, tree_sides, tree_trunk_color)
-	var tier_count: int = tree_tiers.size()
-	for i: int in tier_count:
-		var tier: Vector3 = tree_tiers[i]
-		var blend: float = float(i) / float(maxi(1, tier_count - 1))
-		var color: Color = tree_color.lerp(tree_top_color, blend)
-		# Twist each tier so the facets do not line up.
-		var twist: float = PI / float(tree_sides) * float(i)
-		LowPoly.add_cone(tool, Vector3.UP * tier.x, tier.y, tier.z, tree_sides, color, twist)
-	return tool.commit()
-
 
 func _build_trees(track: Track) -> void:
 	var half: Vector2 = track.ground_size * 0.5 - Vector2.ONE * tree_border_margin
@@ -179,11 +159,25 @@ func _build_trees(track: Track) -> void:
 		if not crowded:
 			positions.append(point)
 
-	var multimesh: MultiMesh = MultiMesh.new()
-	multimesh.transform_format = MultiMesh.TRANSFORM_3D
-	multimesh.use_colors = true
-	multimesh.mesh = _build_tree_mesh()
-	multimesh.instance_count = positions.size()
+	# One MultiMesh per tree model.
+	var models: Array = TREE_MODELS[tree_style]
+	var model_of: PackedInt32Array = PackedInt32Array()
+	var counts: PackedInt32Array = PackedInt32Array()
+	counts.resize(models.size())
+	for i: int in positions.size():
+		var model: int = _rng.randi_range(0, models.size() - 1)
+		model_of.append(model)
+		counts[model] += 1
+	var multimeshes: Array[MultiMesh] = []
+	for model: int in models.size():
+		var multimesh: MultiMesh = MultiMesh.new()
+		multimesh.transform_format = MultiMesh.TRANSFORM_3D
+		multimesh.use_colors = true
+		multimesh.mesh = PropModels.get_mesh(models[model])
+		multimesh.instance_count = counts[model]
+		multimeshes.append(multimesh)
+	var filled: PackedInt32Array = PackedInt32Array()
+	filled.resize(models.size())
 
 	var trunk_shape: CylinderShape3D = CylinderShape3D.new()
 	trunk_shape.radius = tree_collision_radius
@@ -195,20 +189,27 @@ func _build_trees(track: Track) -> void:
 	for i: int in positions.size():
 		var tree_scale: float = _rng.randf_range(tree_scale_range.x, tree_scale_range.y)
 		var basis: Basis = Basis(Vector3.UP, _rng.randf_range(0.0, TAU)).scaled(Vector3.ONE * tree_scale)
-		multimesh.set_instance_transform(i, Transform3D(basis, positions[i]))
+		var multimesh: MultiMesh = multimeshes[model_of[i]]
+		var slot: int = filled[model_of[i]]
+		filled[model_of[i]] += 1
+		multimesh.set_instance_transform(slot, Transform3D(basis, positions[i]))
 		var tint: float = 1.0 - _rng.randf_range(0.0, tree_tint_variation)
-		multimesh.set_instance_color(i, Color(tint, tint, tint))
+		multimesh.set_instance_color(slot, Color(tint, tint, tint))
 
 		var collision: CollisionShape3D = CollisionShape3D.new()
 		collision.shape = trunk_shape
 		collision.position = positions[i] + Vector3.UP * tree_collision_height * 0.5
 		body.add_child(collision)
 
-	var instance: MultiMeshInstance3D = MultiMeshInstance3D.new()
-	instance.name = "Trees"
-	instance.multimesh = multimesh
-	instance.material_override = LowPoly.vertex_color_material()
-	add_child(instance)
+	var material: StandardMaterial3D = LowPoly.vertex_color_material()
+	for model: int in models.size():
+		if counts[model] == 0:
+			continue
+		var instance: MultiMeshInstance3D = MultiMeshInstance3D.new()
+		instance.name = "Trees_%d" % model
+		instance.multimesh = multimeshes[model]
+		instance.material_override = material
+		add_child(instance)
 
 
 func _is_excluded(point: Vector3) -> bool:
@@ -448,9 +449,7 @@ func _build_jumps(track: Track) -> void:
 func _build_bales(track: Track) -> void:
 	if bale_rows.is_empty():
 		return
-	var tool: SurfaceTool = LowPoly.begin()
-	LowPoly.add_box(tool, Vector3.UP * bale_size.y * 0.5, bale_size, bale_color)
-	var mesh: ArrayMesh = tool.commit()
+	var mesh: Mesh = PropModels.get_mesh(PropModels.HAY_BALE)
 	var material: StandardMaterial3D = LowPoly.vertex_color_material()
 	var shape: BoxShape3D = BoxShape3D.new()
 	shape.size = bale_size
@@ -488,21 +487,29 @@ func _build_props(track: Track) -> void:
 	if props.is_empty():
 		return
 	var material: StandardMaterial3D = LowPoly.vertex_color_material()
-	var meshes: Dictionary = {}
 	var container_index: int = 0
+	var rock_index: int = 0
 	for prop: Vector4 in props:
 		var kind: int = roundi(prop.x)
 		if kind == TrackDesign.Prop.TREE:
 			continue
 		var size: Vector3 = TrackDesign.PROP_SIZES[kind]
-		var key: String = str(kind)
-		var paint: Color = Color.WHITE
-		if kind == TrackDesign.Prop.CONTAINER:
-			paint = container_colors[container_index % container_colors.size()]
-			container_index += 1
-			key += paint.to_html()
-		if not meshes.has(key):
-			meshes[key] = _build_prop_mesh(kind, size, paint)
+		var model: PackedScene
+		var paint_material: Material = null
+		match kind:
+			TrackDesign.Prop.BALE:
+				model = PropModels.HAY_BALE
+			TrackDesign.Prop.CONTAINER:
+				model = PropModels.CONTAINER
+				paint_material = _paint_material(container_index)
+				container_index += 1
+			TrackDesign.Prop.HOUSE:
+				model = PropModels.HOUSE
+			TrackDesign.Prop.ROCK:
+				model = ROCK_MODELS[rock_index % ROCK_MODELS.size()]
+				rock_index += 1
+			_:
+				model = PropModels.TYRE_STACK
 
 		var body: StaticBody3D = StaticBody3D.new()
 		body.name = "Prop_%d" % get_child_count()
@@ -512,10 +519,7 @@ func _build_props(track: Track) -> void:
 		body.position = base
 		body.rotation.y = prop.w
 
-		var mesh_instance: MeshInstance3D = MeshInstance3D.new()
-		mesh_instance.mesh = meshes[key]
-		mesh_instance.material_override = material
-		body.add_child(mesh_instance)
+		body.add_child(_model_node(model, material, paint_material))
 		var collision: CollisionShape3D = CollisionShape3D.new()
 		collision.position = Vector3.UP * size.y * 0.5
 		if kind == TrackDesign.Prop.ROCK or kind == TrackDesign.Prop.TIRES:
@@ -530,64 +534,41 @@ func _build_props(track: Track) -> void:
 		body.add_child(collision)
 
 
-func _build_prop_mesh(kind: int, size: Vector3, paint: Color) -> ArrayMesh:
-	var tool: SurfaceTool = LowPoly.begin()
-	var half: Vector3 = size * 0.5
-	match kind:
-		TrackDesign.Prop.BALE:
-			LowPoly.add_box(tool, Vector3.UP * half.y, size, bale_color)
-		TrackDesign.Prop.CONTAINER:
-			var body_size: Vector3 = size + Vector3.UP * foundation_depth
-			LowPoly.add_box(tool, Vector3.UP * (size.y - body_size.y * 0.5), body_size, paint)
-			# Corrugation ribs along both long sides.
-			for i: int in container_rib_count:
-				var x: float = lerpf(-half.x, half.x, (float(i) + 0.5) / float(container_rib_count))
-				for side: float in [-1.0, 1.0]:
-					LowPoly.add_box(
-						tool, Vector3(x, half.y, side * half.z),
-						Vector3(container_rib_width, size.y * 0.9, container_rib_width), paint.darkened(0.25)
-					)
-			LowPoly.add_box(tool, Vector3(half.x, half.y, 0.0), Vector3(container_rib_width, size.y, size.z), container_rib_color)
-		TrackDesign.Prop.HOUSE:
-			_add_house(tool, size)
-		TrackDesign.Prop.ROCK:
-			var radius: float = half.x
-			LowPoly.add_prism(tool, Vector3.DOWN * foundation_depth, radius, size.y * 0.45 + foundation_depth, rock_sides, rock_color)
-			LowPoly.add_cone(tool, Vector3.UP * size.y * 0.45, radius * 0.95, size.y * 0.55, rock_sides, rock_top_color, PI / float(rock_sides))
-		TrackDesign.Prop.TIRES:
-			var tire_height: float = size.y / float(tire_count)
-			for i: int in tire_count:
-				var color: Color = tire_band_color if i % 2 == 1 else tire_color
-				LowPoly.add_prism(tool, Vector3.UP * tire_height * float(i), half.x, tire_height, tire_sides, color)
-	return tool.commit()
+## Hand-placed stacks of long shipping containers, standing on the ground.
+func _build_long_containers(track: Track) -> void:
+	var material: StandardMaterial3D = LowPoly.vertex_color_material()
+	var color_index: int = 0
+	for stack: Vector4 in long_containers:
+		var levels: int = maxi(1, roundi(stack.w))
+		var body: StaticBody3D = StaticBody3D.new()
+		body.name = "Container_%d" % get_child_count()
+		add_child(body)
+		var base: Vector3 = Vector3(stack.x, 0.0, stack.y)
+		base.y = track.get_ground_height(to_global(base))
+		body.position = base
+		body.rotation.y = stack.z
+		for level: int in levels:
+			var node: MeshInstance3D = _model_node(PropModels.CONTAINER_LONG, material, _paint_material(color_index))
+			color_index += 1
+			node.position = Vector3.UP * long_container_size.y * float(level)
+			body.add_child(node)
+		var box: BoxShape3D = BoxShape3D.new()
+		box.size = Vector3(long_container_size.x, long_container_size.y * float(levels), long_container_size.z)
+		var collision: CollisionShape3D = CollisionShape3D.new()
+		collision.shape = box
+		collision.position = Vector3.UP * box.size.y * 0.5
+		body.add_child(collision)
 
 
-## Walls with a door and windows, under a pitched roof running along x.
-func _add_house(tool: SurfaceTool, size: Vector3) -> void:
-	var half: Vector3 = size * 0.5
-	var wall_height: float = size.y * house_wall_share
-	var wall_size: Vector3 = Vector3(size.x, wall_height + foundation_depth, size.z)
-	LowPoly.add_box(tool, Vector3.UP * (wall_height - wall_size.y * 0.5), wall_size, house_wall_color)
-	var door: Vector3 = Vector3(size.x * 0.14, wall_height * 0.62, 0.1)
-	LowPoly.add_box(tool, Vector3(0.0, door.y * 0.5, half.z), door, house_door_color)
-	var window: Vector3 = Vector3(size.x * 0.14, wall_height * 0.3, 0.1)
-	for x: float in [-size.x * 0.3, size.x * 0.3]:
-		for side: float in [-1.0, 1.0]:
-			LowPoly.add_box(tool, Vector3(x, wall_height * 0.58, side * half.z), window, house_window_color)
-	# Roof: two slopes meeting at the ridge, with a little overhang.
-	var overhang: float = size.z * 0.06
-	var eave: float = wall_height
-	var ridge: Vector3 = Vector3(0.0, size.y, 0.0)
-	var reach_x: float = half.x + overhang
-	var reach_z: float = half.z + overhang
-	for side: float in [-1.0, 1.0]:
-		LowPoly.add_quad(
-			tool, Vector3(-reach_x, eave, side * reach_z), Vector3(reach_x, eave, side * reach_z),
-			Vector3(reach_x, ridge.y, 0.0), Vector3(-reach_x, ridge.y, 0.0),
-			house_roof_color, Vector3(0.0, 1.0, side)
-		)
-		# Gable ends in the wall colour.
-		LowPoly.add_triangle(
-			tool, Vector3(side * half.x, eave, -half.z), Vector3(side * half.x, eave, half.z),
-			Vector3(side * half.x, ridge.y, 0.0), house_wall_color, Vector3(side, 0.0, 0.0)
-		)
+func _model_node(model: PackedScene, material: Material, paint_material: Material) -> MeshInstance3D:
+	var node: MeshInstance3D = MeshInstance3D.new()
+	node.mesh = PropModels.get_mesh(model)
+	PropModels.apply_materials(node, material, paint_material)
+	return node
+
+
+## Containers take container_colors in turn.
+func _paint_material(index: int) -> StandardMaterial3D:
+	var paint: StandardMaterial3D = LowPoly.vertex_color_material()
+	paint.albedo_color = container_colors[index % container_colors.size()]
+	return paint

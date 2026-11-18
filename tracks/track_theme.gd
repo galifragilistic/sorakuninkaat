@@ -9,5 +9,4 @@ extends Resource
 @export var ground_surface: SurfaceData
 @export var terrain_noise_height: float = 1.2
 @export var tree_count: int = 120
-@export var tree_color: Color = Color(0.3, 0.52, 0.22)
-@export var tree_top_color: Color = Color(0.4, 0.62, 0.26)
+@export var tree_style: TrackScenery.TreeStyle = TrackScenery.TreeStyle.FOREST

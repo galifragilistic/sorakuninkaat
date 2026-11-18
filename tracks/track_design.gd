@@ -422,8 +422,7 @@ func build_track() -> Track:
 	var forest_share: float = FOREST_LEVELS[clampi(forest, 0, FOREST_LEVELS.size() - 1)]
 	scenery.tree_count = roundi(float(theme.tree_count) * forest_share * area_scale)
 	scenery.props = props
-	scenery.tree_color = theme.tree_color
-	scenery.tree_top_color = theme.tree_top_color
+	scenery.tree_style = theme.tree_style
 	scenery.jumps = jumps
 	var lamps: PackedVector2Array = PackedVector2Array()
 	var side: float = 1.0

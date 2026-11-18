@@ -1,18 +1,10 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://tracks/track.gd" id="1"]
 [ext_resource type="Resource" path="res://tracks/surfaces/sand.tres" id="2"]
 [ext_resource type="Resource" path="res://tracks/surfaces/sand_ground.tres" id="4"]
 [ext_resource type="Script" path="res://tracks/track_scenery.gd" id="5"]
 [ext_resource type="Resource" path="res://tracks/surfaces/water.tres" id="6"]
-
-[sub_resource type="StandardMaterial3D" id="container_a"]
-albedo_color = Color(0.62, 0.62, 0.72, 1)
-roughness = 0.8
-
-[sub_resource type="StandardMaterial3D" id="container_b"]
-albedo_color = Color(0.78, 0.36, 0.24, 1)
-roughness = 0.8
 
 [node name="Hiekkasarkka" type="Node3D"]
 script = ExtResource("1")
@@ -31,9 +23,7 @@ lake_surface = ExtResource("6")
 lake_center = Vector3(18, 0, -8)
 lake_radius = 15.0
 tree_count = 45
-tree_color = Color(0.42, 0.55, 0.25, 1)
-tree_top_color = Color(0.52, 0.63, 0.3, 1)
+tree_style = 2
 lamps = PackedVector2Array(0.02, 1, 0.27, -1, 0.5, 1, 0.76, -1)
 bale_rows = PackedVector2Array(0.36, -1, 0.56, -1, 0.9, -1)
 jumps = PackedFloat32Array(0.18)
-

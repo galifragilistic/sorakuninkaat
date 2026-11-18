@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://tracks/track.gd" id="1"]
 [ext_resource type="Resource" path="res://tracks/surfaces/gravel.tres" id="2"]
@@ -6,14 +6,6 @@
 [ext_resource type="Script" path="res://tracks/track_scenery.gd" id="5"]
 [ext_resource type="Resource" path="res://tracks/surfaces/water.tres" id="6"]
 [ext_resource type="Resource" path="res://tracks/surfaces/asphalt.tres" id="3"]
-
-[sub_resource type="StandardMaterial3D" id="container_a"]
-albedo_color = Color(0.62, 0.62, 0.72, 1)
-roughness = 0.8
-
-[sub_resource type="StandardMaterial3D" id="container_b"]
-albedo_color = Color(0.78, 0.36, 0.24, 1)
-roughness = 0.8
 
 [node name="Soramonttu" type="Node3D"]
 script = ExtResource("1")
@@ -35,10 +27,4 @@ lamps = PackedVector2Array(0.03, 1, 0.2, -1, 0.34, 1, 0.5, -1, 0.66, 1, 0.82, -1
 bale_rows = PackedVector2Array(0.3, -1, 0.44, -1, 0.72, -1)
 jumps = PackedFloat32Array(0.885)
 tree_exclusions = PackedVector3Array(-34, 9, -8)
-
-[node name="Container" type="CSGBox3D" parent="."]
-transform = Transform3D(0.866, 0, 0.5, 0, 1, 0, -0.5, 0, 0.866, -34, 1.6, -8)
-use_collision = true
-size = Vector3(12, 3.2, 4.2)
-material = SubResource("container_a")
-
+long_containers = PackedVector4Array(-34, -8, 0.5236, 1)

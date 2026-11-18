@@ -16,6 +16,11 @@ const TRACK_SELECT: StringName = &"track_select"
 const SETTINGS: StringName = &"settings"
 const TRACK_EDITOR: StringName = &"track_editor"
 
+## Goes back as Esc / B would (the header's back button calls this).
+func request_back() -> void:
+	_on_back()
+
+
 ## Values passed by the screen that opened this one.
 var context: Dictionary = {}
 

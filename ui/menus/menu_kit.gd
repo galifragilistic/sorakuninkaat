@@ -11,8 +11,8 @@ const HINT_FONT_SIZE: int = 15
 const BLUR_SHADER: Shader = preload("res://ui/shaders/backdrop_blur.gdshader")
 
 
-## "(B) Takaisin   TITLE" row at the top-left of a screen. The prompt follows
-## the device in use (Esc on the keyboard).
+## "< TAKAISIN   TITLE" row at the top-left of a screen. The back button is for
+## the mouse; Esc / B is shown with the hints along the bottom.
 static func add_header(screen: Control, title: String, with_back_hint: bool = true) -> HBoxContainer:
 	var row: HBoxContainer = HBoxContainer.new()
 	row.add_theme_constant_override("separation", 28)
@@ -20,9 +20,23 @@ static func add_header(screen: Control, title: String, with_back_hint: bool = tr
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	screen.add_child(row)
 	if with_back_hint:
-		row.add_child(make_hint(InputPrompts.Prompt.BACK, screen.tr("Takaisin")))
+		row.add_child(make_back_button(screen))
 	row.add_child(UiStyle.make_label(title, UiStyle.title_font(), TITLE_FONT_SIZE))
 	return row
+
+
+## Mouse button that goes back like Esc / B. It takes no focus, so gamepad and
+## keyboard navigation never land on it; they use the back prompt instead.
+static func make_back_button(screen: Control) -> ChamferButton:
+	var button: ChamferButton = ChamferButton.create(screen.tr("TAKAISIN"), 15, Vector4(10.0, 7.0, 16.0, 7.0))
+	button.focus_mode = Control.FOCUS_NONE
+	button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var glyph: UiGlyph = button.add_glyph(UiGlyph.Kind.CHEVRON_LEFT, 20.0)
+	button.row.move_child(glyph, 0)
+	var menu_screen: MenuScreen = screen as MenuScreen
+	if menu_screen != null:
+		button.pressed.connect(menu_screen.request_back)
+	return button
 
 
 ## Row of button prompts along the bottom edge. hints = [[InputPrompts.Prompt, text], ...].

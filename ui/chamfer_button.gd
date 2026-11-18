@@ -41,6 +41,7 @@ var disabled: bool = false:
 
 ## Layout box for the button's contents; add extra labels or glyphs here.
 var row: HBoxContainer
+var _hovered: bool = false
 var label: Label
 
 var _labels: Array[Label] = []
@@ -73,6 +74,8 @@ func _init() -> void:
 	add_child(row)
 	focus_entered.connect(_on_focus_changed)
 	focus_exited.connect(_on_focus_changed)
+	mouse_entered.connect(_set_hovered.bind(true))
+	mouse_exited.connect(_set_hovered.bind(false))
 	_update_style()
 
 
@@ -110,7 +113,7 @@ func _gui_input(event: InputEvent) -> void:
 		return
 	# Hover focuses only when the mouse really moves, so a screen that opens
 	# under a parked cursor does not steal focus from a gamepad player.
-	if event is InputEventMouseMotion and not has_focus():
+	if event is InputEventMouseMotion and not has_focus() and focus_mode != Control.FOCUS_NONE:
 		grab_focus()
 	var mouse: InputEventMouseButton = event as InputEventMouseButton
 	var clicked: bool = mouse != null and mouse.pressed and mouse.button_index == MOUSE_BUTTON_LEFT
@@ -127,6 +130,11 @@ func _on_focus_changed() -> void:
 		focused.emit()
 
 
+func _set_hovered(hovered: bool) -> void:
+	_hovered = hovered
+	_update_style()
+
+
 func _update_style() -> void:
 	if row == null:
 		return
@@ -139,7 +147,8 @@ func _update_style() -> void:
 		fill_color = tinted
 		border_width = outline_width
 		border_color = accent_color
-	elif has_focus():
+	elif has_focus() or (_hovered and focus_mode == Control.FOCUS_NONE):
+		# A mouse-only button (no focus) lights up under the cursor instead.
 		fill_color = accent_color
 		has_fill = true
 	elif selected:

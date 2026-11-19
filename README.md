@@ -53,6 +53,7 @@ Moninpeliaulassa pelaaja 1 valitsee kisan asetukset. Muut liittyvät ja hyväksy
 Peli on tehty [Godot 4.7](https://godotengine.org):llä (Forward+). Avaa kansio Godotissa ja käynnistä F5:llä.
 
 - [`SPEC.md`](SPEC.md): pelin määrittely ja tila
+- [`CHANGELOG.md`](CHANGELOG.md): muutosloki versioittain
 - [`CLAUDE.md`](CLAUDE.md): koodityyli ja työtavat
 - `mockups/`: näkymien alkuperäiset suunnitelmat
 - `tools/blender/build_cars.py`: automallit, rakennetaan Blenderillä (`blender --background --factory-startup --python tools/blender/build_cars.py -- .`)
@@ -60,6 +61,8 @@ Peli on tehty [Godot 4.7](https://godotengine.org):llä (Forward+). Avaa kansio 
 - `env/retro_style.tres`: Retro-tyylin säädöt
 
 **Haarat ja julkaisut:** uudet muutokset tehdään `dev`-haaraan. Jokaisesta devin pushista GitHub Actions tekee testattavat Windows- ja Mac-buildit (Actions-välilehti → ajon artefaktit). Kun muutokset on testattu, dev yhdistetään `master`iin, ja siitä syntyy automaattisesti uusi release.
+
+**Versiointi:** versio (esim. `0.3.0`) on `project.godot`-tiedostossa (`application/config/version`), ja se näkyy päävalikossa. Muutokset kirjataan [`CHANGELOG.md`](CHANGELOG.md):n ylimpään kohtaan. Ennen masteriin yhdistämistä kohdan otsikkoon merkitään julkaisupäivä. Master-build julkaisee version tagilla `v0.3.0` ja käyttää muutoslokin kohtaa release-muistiinpanoina. Build ei julkaise mitään, jos versio on jo julkaistu tai sen otsikosta puuttuu päivämäärä.
 
 Buildin voi tehdä myös itse:
 

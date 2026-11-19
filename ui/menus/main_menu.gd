@@ -81,6 +81,9 @@ func _build_logo() -> void:
 	dash.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	tagline.add_child(dash)
 	tagline.add_child(UiStyle.make_caption(tr("ISOMETRINEN RALLI · 1–4 PELAAJAA"), UiStyle.INFO))
+	var version: String = str(ProjectSettings.get_setting("application/config/version", ""))
+	if not version.is_empty():
+		tagline.add_child(UiStyle.make_caption("v" + version))
 
 
 func _add_item(column: VBoxContainer, title: String, subtitle: String, action: Callable) -> ChamferButton:

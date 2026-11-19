@@ -10,6 +10,9 @@ Versio on tiedostossa `project.godot` (`application/config/version`). Ylin kohta
 
 ## [0.4.0] - julkaisematon
 
+### Muutettu
+- Päävalikon versionumero on siirretty oikeaan alanurkkaan.
+
 ## [0.3.0] - 2026-11-19
 
 ### Lisätty

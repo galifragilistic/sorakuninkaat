@@ -16,6 +16,8 @@ extends MenuScreen
 ## Size of the item that has focus.
 @export var focused_item_size: Vector2 = Vector2(372.0, 76.0)
 @export var controllers_box_width: float = 400.0
+## Gap between the version number and the bottom-right corner.
+@export var version_margin: Vector2 = Vector2(16.0, 8.0)
 
 var _first_item: ChamferButton
 var _device_labels: Array[Label] = []
@@ -45,6 +47,7 @@ func _build() -> void:
 	_add_item(column, tr("ASETUKSET"), tr("Grafiikka ja pelisäännöt"), go_to.bind(SETTINGS))
 	_add_item(column, tr("LOPETA"), tr("Sulje peli"), _on_quit)
 	_build_controllers_box()
+	_build_version()
 	MenuKit.add_hints(self, [[InputPrompts.Prompt.ACCEPT, tr("Valitse")]])
 
 
@@ -81,9 +84,6 @@ func _build_logo() -> void:
 	dash.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	tagline.add_child(dash)
 	tagline.add_child(UiStyle.make_caption(tr("ISOMETRINEN RALLI · 1–4 PELAAJAA"), UiStyle.INFO))
-	var version: String = str(ProjectSettings.get_setting("application/config/version", ""))
-	if not version.is_empty():
-		tagline.add_child(UiStyle.make_caption("v" + version))
 
 
 func _add_item(column: VBoxContainer, title: String, subtitle: String, action: Callable) -> ChamferButton:
@@ -150,6 +150,22 @@ func _build_controllers_box() -> void:
 		var device: Label = UiStyle.make_label("", UiStyle.FONT_MEDIUM, 14)
 		row.add_child(device)
 		_device_labels.append(device)
+
+
+## Game version (application/config/version) in the bottom-right corner.
+func _build_version() -> void:
+	var version: String = str(ProjectSettings.get_setting("application/config/version", ""))
+	if version.is_empty():
+		return
+	var label: Label = UiStyle.make_caption("v" + version)
+	label.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+	label.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	label.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	label.offset_right = -version_margin.x
+	label.offset_left = -version_margin.x
+	label.offset_bottom = -version_margin.y
+	label.offset_top = -version_margin.y
+	add_child(label)
 
 
 func _update_devices() -> void:

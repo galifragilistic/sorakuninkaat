@@ -179,6 +179,8 @@ var _tunnel_ranges: Array[Vector2] = []
 var _terrain: TrackTerrain
 
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
+## Rng state after the ground is coloured, so a road rebuild uses the same lane colours.
+var _road_rng_state: int = 0
 
 
 func _ready() -> void:
@@ -187,6 +189,7 @@ func _ready() -> void:
 	_resolve_structures()
 	_build_ground()
 	_build_walls()
+	_road_rng_state = _rng.state
 	_build_road()
 	_build_start_line()
 	_build_checkpoints()
@@ -196,6 +199,40 @@ func _ready() -> void:
 		var scenery: TrackScenery = child as TrackScenery
 		if scenery != null:
 			scenery.build(self)
+
+
+## Replaces the road, gates and structures. Ground, walls and trees stay.
+## ponytail: every frame while a point is dragged; the editor does a full rebuild on release.
+func rebuild_road() -> void:
+	_drop_road()
+	_samples = PackedVector3Array()
+	_sample_on_bridge = PackedByteArray()
+	_point_offsets = PackedFloat32Array()
+	_bridge_ranges.clear()
+	_tunnel_ranges.clear()
+	checkpoints.clear()
+	_gate_glows.clear()
+	_rng.state = _road_rng_state
+	_build_curve()
+	_resolve_structures()
+	_build_road()
+	_build_start_line()
+	_build_checkpoints()
+	_build_structures()
+
+
+func _drop_road() -> void:
+	var doomed: Array[Node] = []
+	for child: Node in get_children():
+		var node_name: String = String(child.name)
+		if child == path or node_name == "Path" or node_name == "StartLine" \
+				or node_name.begins_with("Road_") or node_name.begins_with("Checkpoint") \
+				or node_name.begins_with("Bridge_") or node_name.begins_with("Tunnel_"):
+			doomed.append(child)
+	path = null
+	for child: Node in doomed:
+		remove_child(child)
+		child.free()
 
 
 func get_length() -> float:

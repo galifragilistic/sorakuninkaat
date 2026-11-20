@@ -352,9 +352,23 @@ func get_bridge_ranges(curve: Curve3D, offsets: PackedFloat32Array) -> Array[Vec
 
 ## Builds the track node; it builds its world when it enters the tree.
 func build_track() -> Track:
-	var theme: TrackTheme = get_theme()
 	var track: Track = Track.new()
 	track.name = "CustomTrack"
+	var built: Dictionary = _fill_road(track)
+	var ranges: Array[Vector2] = []
+	ranges.assign(built["ranges"])
+	track.road_hills = _make_road_hills(built["curve"] as Curve3D, ranges)
+	_add_scenery(track, built)
+	return track
+
+
+## Copies the road shape onto a track that is already built. Terrain and trees stay.
+func apply_road(track: Track) -> void:
+	_fill_road(track)
+
+
+func _fill_road(track: Track) -> Dictionary:
+	var theme: TrackTheme = get_theme()
 	track.track_name = display_name
 	track.control_points = points
 	track.road_width = road_width
@@ -398,7 +412,6 @@ func build_track() -> Track:
 				busy.append(Vector2(fraction - JUMP_CLEARANCE, fraction + JUMP_CLEARANCE))
 	track.bridges = bridges
 	track.tunnels = tunnels
-	track.road_hills = _make_road_hills(curve, bridge_ranges)
 	# One road section per run of stretches with the same surface.
 	var sections: Array[SurfaceData] = []
 	var starts: PackedFloat32Array = PackedFloat32Array()
@@ -410,10 +423,14 @@ func build_track() -> Track:
 	track.road_sections = sections
 	track.road_section_starts = starts
 	track.road_surface = sections[0]
+	return {"curve": curve, "ranges": bridge_ranges, "busy": busy, "jumps": jumps, "look_seed": look_seed}
 
+
+func _add_scenery(track: Track, built: Dictionary) -> void:
+	var theme: TrackTheme = get_theme()
 	var scenery: TrackScenery = TrackScenery.new()
 	scenery.name = "Scenery"
-	scenery.scenery_seed = look_seed
+	scenery.scenery_seed = int(built["look_seed"])
 	scenery.lake_enabled = false
 	# The theme's tree count is for the normal map size; bigger maps get more.
 	var default_ground: Vector2 = (AREA_SIZES[DEFAULT_AREA] + Vector2.ONE * GROUND_BORDER) * 2.0
@@ -423,10 +440,12 @@ func build_track() -> Track:
 	scenery.tree_count = roundi(float(theme.tree_count) * forest_share * area_scale)
 	scenery.props = props
 	scenery.tree_style = theme.tree_style
-	scenery.jumps = jumps
+	scenery.jumps = built["jumps"] as PackedFloat32Array
 	var lamps: PackedVector2Array = PackedVector2Array()
 	var side: float = 1.0
 	var lamp: float = LAMP_START
+	var busy: Array[Vector2] = []
+	busy.assign(built["busy"])
 	while lamp < 1.0:
 		if not _is_busy(lamp, busy):
 			lamps.append(Vector2(lamp, side))
@@ -435,7 +454,6 @@ func build_track() -> Track:
 	scenery.lamps = lamps
 	# Hay bales are placed by hand in the editor.
 	track.add_child(scenery)
-	return track
 
 
 ## Menu entry for this design.

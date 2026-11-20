@@ -1,17 +1,23 @@
 extends MenuScreen
-## Track editor: draw a closed road on the map, set road heights for hills and
-## bridges, mark bridges, tunnels and jumps, then save the track or take it
-## for a test drive. The design open here is kept as a draft between visits.
+## Track editor: the live race map sits beside the settings. Draw a closed road on it,
+## set road heights for hills and bridges, mark bridges, tunnels and jumps,
+## then save the track or take it for a test drive. Settings sit in a side
+## window that can be hidden. The design open here is kept as a draft between visits.
 
 @export_group("Layout")
-@export var map_rect: Rect2 = Rect2(56.0, 96.0, 820.0, 468.0)
-@export var profile_gap: float = 10.0
 @export var profile_height: float = 92.0
-@export var panel_position: Vector2 = Vector2(896.0, 96.0)
+@export var panel_top: float = 24.0
+@export var panel_margin: float = 16.0
 @export var panel_width: float = 328.0
+## How solid the settings window is. The map shows through the rest.
+@export_range(0.35, 0.85, 0.01) var panel_alpha: float = 0.62
 ## Vertical gap between the rows of the side panel.
 @export var panel_gap: int = 3
 @export var spinner_value_width: float = 108.0
+## Shortest pause between rebuilds of the race map while editing (s).
+@export var world_rebuild_delay: float = 0.2
+## Terrain waits this long after the last height-wheel notch (s).
+@export var height_settle_delay: float = 0.4
 @export var open_list_size: Vector2 = Vector2(460.0, 360.0)
 @export var help_font_size: int = 13
 ## KIERRÄ turns the selected object by this many rotation steps.
@@ -27,8 +33,15 @@ extends MenuScreen
 const FEATURE_NAMES: Array[String] = ["Ei mitään", "Silta", "Tunneli", "Hyppyri"]
 
 var _design: TrackDesign
+var _world: TrackEditorWorld
 var _canvas: TrackEditorCanvas
 var _profile: TrackProfile
+var _panel: ChamferPanel
+var _hide_button: ChamferButton
+var _show_settings_button: ChamferButton
+var _hints: HBoxContainer
+var _world_dirty: bool = false
+var _world_next_msec: int = 0
 var _name_button: ChamferButton
 var _theme_spinner: OptionSpinner
 var _width_spinner: OptionSpinner
@@ -71,12 +84,18 @@ func get_backdrop() -> Backdrop:
 
 
 func _build() -> void:
-	MenuKit.add_header(self, tr("RATAEDITORI"))
 	_build_map()
 	_build_panel()
-	MenuKit.add_hints(self, [
+	var header: HBoxContainer = MenuKit.add_header(self, tr("RATAEDITORI"))
+	header.mouse_filter = Control.MOUSE_FILTER_STOP
+	_outline(header.get_child(header.get_child_count() - 1))
+	_hints = MenuKit.add_hints(self, [
 		[InputPrompts.Prompt.TABS, tr("Vaihda valintaa")], [InputPrompts.Prompt.BACK, tr("Takaisin")],
 	])
+	_hints.mouse_filter = Control.MOUSE_FILTER_STOP
+	_outline(_hints)
+	_layout_chrome()
+	resized.connect(_layout_chrome)
 
 
 func _enter() -> void:
@@ -94,47 +113,166 @@ func _process(delta: float) -> void:
 		_status_time -= delta
 		if _status_time <= 0.0:
 			_status_label.text = ""
+	if not _world_dirty or _design == null or _canvas.is_dragging_prop():
+		return
+	# A new bend only moves the road. The ground is rebuilt when the button is released.
+	if _canvas.is_drawing():
+		_world.update_road(_design)
+		_world_dirty = false
+		return
+	if Time.get_ticks_msec() < _world_next_msec:
+		return
+	_world_dirty = false
+	_world.show_design(_design)
+	# After the build, so a slow rebuild cannot schedule the next one immediately.
+	_world_next_msec = Time.get_ticks_msec() + roundi(world_rebuild_delay * 1000.0)
+
+
+func _mark_world_dirty() -> void:
+	_world_dirty = true
+
+
+## Shows or hides the settings window. It starts visible.
+func _set_settings_visible(shown: bool) -> void:
+	_panel.visible = shown
+	_show_settings_button.visible = not shown
+	_layout_chrome()
+	if shown:
+		_hide_button.grab_focus()
+	else:
+		_show_settings_button.grab_focus()
+
+
+func _layout_chrome() -> void:
+	if _profile == null:
+		return
+	var panel_space: float = panel_width + panel_margin * 2.0 if _panel != null and _panel.visible else panel_margin
+	_profile.offset_left = panel_margin
+	_profile.offset_right = -panel_space
+	_profile.offset_bottom = -panel_margin
+	_profile.offset_top = -(profile_height + panel_margin)
+	if _hints != null:
+		var above: float = profile_height + panel_margin + 26.0
+		_hints.offset_top = -above
+		_hints.offset_bottom = -above
+	if _show_settings_button != null:
+		_show_settings_button.position = Vector2(size.x - panel_margin - _show_settings_button.custom_minimum_size.x, panel_top)
+	# Below the header, above the hints and the height profile, clear of the settings.
+	var map_top: float = 88.0
+	var map_bottom: float = profile_height + panel_margin + 48.0
+	_place_map(_world, map_top, panel_space, map_bottom)
+	_place_map(_canvas, map_top, panel_space, map_bottom)
+	if _help_label == null:
+		return
+	var map_width: float = maxf(120.0, size.x - panel_margin - panel_space)
+	var map_height: float = maxf(80.0, size.y - map_top - map_bottom)
+	_help_label.position = Vector2(8.0, 8.0)
+	_help_label.size = Vector2(map_width - 16.0, 56.0)
+	_status_label.position = Vector2(8.0, map_height - 52.0)
+	_status_label.size = Vector2(_help_label.size.x, 44.0)
+
+
+func _place_map(control: Control, top: float, right: float, bottom: float) -> void:
+	if control == null:
+		return
+	control.offset_left = panel_margin
+	control.offset_top = top
+	control.offset_right = -right
+	control.offset_bottom = -bottom
+
+
+## Dark edge so labels stay readable on the bright map.
+func _outline(node: Node) -> void:
+	var label: Label = node as Label
+	if label != null:
+		label.add_theme_constant_override("outline_size", 6)
+		label.add_theme_color_override("font_outline_color", Color(UiStyle.BASE, 0.92))
+		return
+	for child: Node in node.get_children():
+		_outline(child)
 
 
 # --- Building ------------------------------------------------------------
 
 func _build_map() -> void:
+	_world = TrackEditorWorld.new()
+	_world.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(_world)
+
 	_canvas = TrackEditorCanvas.new()
-	_canvas.position = map_rect.position
-	_canvas.size = map_rect.size
+	_canvas.world = _world
+	_canvas.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(_canvas)
 	_canvas.selection_changed.connect(_on_selection_changed)
 	_canvas.prop_selection_changed.connect(_on_prop_selection_changed.unbind(1))
 	_canvas.design_changed.connect(_on_design_changed)
+	_canvas.preview_changed.connect(_mark_world_dirty)
 
-	var help: Label = UiStyle.make_label("", UiStyle.FONT_MEDIUM, help_font_size, UiStyle.TEXT_SECONDARY)
+	var help: Label = UiStyle.make_label("", UiStyle.FONT_MEDIUM, help_font_size, UiStyle.TEXT)
 	_help_label = help
-	help.position = Vector2(10.0, 8.0)
-	help.size.x = map_rect.size.x - 20.0
 	help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	help.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	help.mouse_filter = Control.MOUSE_FILTER_STOP
+	_outline(help)
 	_canvas.add_child(help)
 
 	_status_label = UiStyle.make_label("", UiStyle.FONT_SEMIBOLD, 16, UiStyle.WARNING)
-	_status_label.position = Vector2(10.0, map_rect.size.y - 30.0)
-	_status_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_status_label.mouse_filter = Control.MOUSE_FILTER_STOP
+	_outline(_status_label)
 	_canvas.add_child(_status_label)
 
 	_profile = TrackProfile.new()
 	_profile.canvas = _canvas
-	_profile.position = Vector2(map_rect.position.x, map_rect.end.y + profile_gap)
-	_profile.size = Vector2(map_rect.size.x, profile_height)
+	_profile.background_color = Color("#0a0d18eb")
+	_profile.anchor_left = 0.0
+	_profile.anchor_right = 1.0
+	_profile.anchor_top = 1.0
+	_profile.anchor_bottom = 1.0
+	_profile.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_profile.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	add_child(_profile)
 	_profile.point_picked.connect(func(index: int) -> void: _canvas.select(index))
 
 
 func _build_panel() -> void:
-	var panel: ChamferPanel = ChamferPanel.create_panel(Vector4(14.0, 12.0, 14.0, 14.0))
-	panel.position = panel_position
-	panel.custom_minimum_size.x = panel_width
-	add_child(panel)
+	_panel = ChamferPanel.create_panel(Vector4(14.0, 12.0, 14.0, 14.0))
+	_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	_panel.fill_color = Color(UiStyle.PANEL.r, UiStyle.PANEL.g, UiStyle.PANEL.b, panel_alpha)
+	_panel.anchor_left = 1.0
+	_panel.anchor_right = 1.0
+	_panel.anchor_top = 0.0
+	_panel.anchor_bottom = 1.0
+	_panel.offset_left = -(panel_width + panel_margin)
+	_panel.offset_right = -panel_margin
+	_panel.offset_top = panel_top
+	_panel.offset_bottom = -panel_margin
+	_panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	add_child(_panel)
+
+	var outer: VBoxContainer = MenuKit.make_vbox(panel_gap)
+	outer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	outer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_panel.add_child(outer)
+	var hide_row: HBoxContainer = MenuKit.make_hbox(6)
+	outer.add_child(hide_row)
+	_hide_button = _add_button(hide_row, tr("PIILOTA"), func() -> void: _set_settings_visible(false))
+
+	var scroll: ScrollContainer = ScrollContainer.new()
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.follow_focus = true
+	outer.add_child(scroll)
 	var column: VBoxContainer = MenuKit.make_vbox(panel_gap)
-	panel.add_child(column)
+	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(column)
+
+	_show_settings_button = ChamferButton.create(tr("ASETUKSET"), 14, Vector4(12.0, 9.0, 12.0, 9.0))
+	_show_settings_button.label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_show_settings_button.visible = false
+	_show_settings_button.pressed.connect(func() -> void: _set_settings_visible(true))
+	_show_settings_button.custom_minimum_size = Vector2(148.0, 44.0)
+	add_child(_show_settings_button)
 
 	var mode_row: HBoxContainer = MenuKit.make_hbox(6)
 	column.add_child(mode_row)
@@ -248,9 +386,9 @@ func _build_prop_section(column: VBoxContainer) -> void:
 	var row: HBoxContainer = MenuKit.make_hbox(6)
 	_prop_section.add_child(row)
 	_prop_buttons.append(_add_button(row, tr("KIERRÄ"), func() -> void:
-		_canvas.rotate_prop(_canvas.selected_prop, prop_rotate_steps)))
+		_canvas.rotate_selected(prop_rotate_steps)))
 	_prop_buttons.append(_add_button(row, tr("POISTA"), func() -> void:
-		_canvas.remove_prop(_canvas.selected_prop)))
+		_canvas.remove_selected()))
 
 
 func _set_mode(mode: TrackEditorCanvas.Mode) -> void:
@@ -261,16 +399,20 @@ func _set_mode(mode: TrackEditorCanvas.Mode) -> void:
 	_point_section.visible = not props
 	_prop_section.visible = props
 	if props:
-		_help_label.text = tr("Vasen: lisää ja siirrä esinettä · Oikea: poista · Rulla esineen päällä: kierrä (Shift nopeasti) · Rulla: zoomaa · Keskinappi: siirrä")
+		_help_label.text = tr("Vasen tyhjään: lisää · Vedä tyhjästä: valitse useita · Vedä esineestä: siirrä valitut · Oikea: poista valitut · Rulla: kierrä (Shift nopeasti) · Keskinappi: siirrä")
 	else:
 		_help_label.text = tr("Vasen: lisää ja siirrä · Oikea: poista · Rulla pisteen päällä: korkeus (Shift nopeasti) · Rulla: zoomaa · Keskinappi: siirrä")
 	_on_prop_selection_changed()
 
 
 func _on_prop_selection_changed() -> void:
-	_prop_caption.text = tr("ESINEET %d / %d") % [_design.props.size(), TrackDesign.MAX_PROPS]
+	var chosen: int = _canvas.selected_props.size()
+	if chosen > 1:
+		_prop_caption.text = tr("ESINEET %d / %d · %d valittu") % [_design.props.size(), TrackDesign.MAX_PROPS, chosen]
+	else:
+		_prop_caption.text = tr("ESINEET %d / %d") % [_design.props.size(), TrackDesign.MAX_PROPS]
 	for button: ChamferButton in _prop_buttons:
-		button.disabled = _canvas.selected_prop < 0
+		button.disabled = chosen == 0
 
 
 func _add_spinner(column: VBoxContainer, title: String, options: PackedStringArray) -> OptionSpinner:
@@ -307,6 +449,7 @@ func _show_design(design: TrackDesign, selected: int, fit: bool) -> void:
 	_canvas.design = design
 	if fit:
 		_canvas.fit_view()
+		_canvas.fit_view.call_deferred()
 	_theme_spinner.index = design.theme_index
 	_width_spinner.index = roundi(design.road_width - TrackDesign.ROAD_WIDTH_RANGE.x)
 	_forest_spinner.index = design.forest
@@ -340,6 +483,10 @@ func _on_selection_changed(index: int) -> void:
 
 
 func _on_design_changed() -> void:
+	var defer_terrain: bool = _canvas.consume_terrain_defer()
+	_mark_world_dirty()
+	# Height-wheel notches reset the wait, so the ground is built once the scroll stops.
+	_world_next_msec = Time.get_ticks_msec() + roundi(height_settle_delay * 1000.0) if defer_terrain else Time.get_ticks_msec()
 	_record_change()
 	_on_selection_changed(_canvas.selected)
 	_on_prop_selection_changed()
@@ -594,6 +741,7 @@ func _on_name_confirmed(track_name: String) -> void:
 	_design.display_name = track_name
 	_update_name()
 	CustomTracks.save_draft(_design)
+	_mark_world_dirty()
 	if _after_naming.is_valid():
 		_after_naming.call()
 

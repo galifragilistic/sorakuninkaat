@@ -8,7 +8,7 @@ Kaikki pelaajalle näkyvät muutokset kirjataan tähän. Versiot noudattavat [se
 
 Versio on tiedostossa `project.godot` (`application/config/version`). Ylin kohta kertoo seuraavan version, ja siihen lisätään muutokset sitä mukaa kuin niitä tehdään `dev`-haaraan. Ennen kuin `dev` yhdistetään `master`iin, otsikon *julkaisematon* vaihdetaan julkaisupäiväksi. Master-build julkaisee version tagilla `v<versio>` ja tämän kohdan release-muistiinpanoina.
 
-## [0.4.0] - julkaisematon
+## [0.4.0] - 2026-11-20
 
 ### Muutettu
 - Verkkopelin isäntä näkee julkisen IP-osoitteensa, johon muut voivat liittyä internetin yli. Lähiverkkopelissä näkyy edelleen paikallinen osoite.
@@ -78,7 +78,7 @@ Ensimmäinen julkaisu.
 - Painikevihjeet vaihtuvat käytössä olevan laitteen mukaan.
 - Windows- ja macOS-buildit.
 
-[0.4.0]: https://github.com/galifragilistic/sorakuninkaat/compare/v0.3.1...dev
+[0.4.0]: https://github.com/galifragilistic/sorakuninkaat/releases/tag/v0.4.0
 [0.3.1]: https://github.com/galifragilistic/sorakuninkaat/releases/tag/v0.3.1
 [0.3.0]: https://github.com/galifragilistic/sorakuninkaat/releases/tag/v0.3.0
 [0.2.1]: https://github.com/galifragilistic/sorakuninkaat/releases/tag/v2026.11.19-13

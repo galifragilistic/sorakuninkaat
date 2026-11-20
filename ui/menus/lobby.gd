@@ -583,7 +583,7 @@ func _build_net_panel() -> void:
 	_address_field.add_theme_font_override("font", UiStyle.FONT_MEDIUM)
 	_address_field.add_theme_font_size_override("font_size", 18)
 	_address_field.add_theme_stylebox_override("normal", _make_field_style(UiStyle.LINE))
-	_address_field.add_theme_stylebox_override("focus", _make_field_style(UiStyle.ACCENT))
+	_address_field.add_theme_stylebox_override("focus", _make_field_style(UiStyle.TEXT))
 	_address_field.text_submitted.connect(func(_text: String) -> void: _join_address())
 	join_row.add_child(_address_field)
 	_join_button = ChamferButton.create(tr("LIITY"), 18, Vector4(24.0, 0.0, 24.0, 0.0))

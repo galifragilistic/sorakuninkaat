@@ -13,6 +13,8 @@ extends MenuScreen
 @export var panel_width: float = 330.0
 @export var confirm_size: Vector2 = Vector2(200.0, 56.0)
 
+const SWATCH_COLUMNS: int = 5
+
 var _player: int = 0
 var _car_index: int = 0
 var _color: Color = Color.WHITE
@@ -91,7 +93,6 @@ func _build_list() -> void:
 		var car: CarStats = Catalog.CARS[i]
 		var button: ChamferButton = ChamferButton.create(car.display_name, 18, Vector4(16.0, 0.0, 16.0, 0.0))
 		button.custom_minimum_size = Vector2(list_width, list_row_height)
-		button.selected_color = UiStyle.ACCENT
 		button.add_right_label(tr("LUOKKA %s") % car.car_class, UiStyle.caps_font(), UiStyle.MIN_FONT_SIZE)
 		button.focused.connect(_show_car.bind(i))
 		# Picking a car moves on to its paint; VAHVISTA confirms everything.
@@ -158,7 +159,7 @@ func _build_stats_panel() -> void:
 
 	column.add_child(UiStyle.make_caption(tr("VÄRI")))
 	var grid: GridContainer = GridContainer.new()
-	grid.columns = 5
+	grid.columns = SWATCH_COLUMNS
 	grid.add_theme_constant_override("h_separation", 6)
 	grid.add_theme_constant_override("v_separation", 4)
 	column.add_child(grid)
@@ -168,7 +169,6 @@ func _build_stats_panel() -> void:
 		swatch.pressed.connect(_on_color_picked.bind(paint))
 		grid.add_child(swatch)
 		_swatches.append(swatch)
-
 	_pattern_spinner = OptionSpinner.create(
 		tr("Kuvio"), PackedStringArray([
 			tr("Kilparaita"), tr("Yksivärinen"), tr("Sivuraita"), tr("Kaksivärinen"), tr("Shakkiruudut"),
@@ -193,6 +193,36 @@ func _build_stats_panel() -> void:
 		_number_spot = index as PlayerSetup.NumberSpot
 		_update_paint())
 	column.add_child(_number_spinner)
+
+
+## Left/right stays on the colour row. The row's left edge goes to the current
+## car; the right edge wraps. Automatic search would pick the spinner below,
+## because the last row is shorter than that spinner.
+func _wire_swatch_focus() -> void:
+	var count: int = _swatches.size()
+	var car: ChamferButton = _car_buttons[_car_index]
+	for i: int in count:
+		var swatch: ColorSwatch = _swatches[i]
+		var row_start: int = (i / SWATCH_COLUMNS) * SWATCH_COLUMNS
+		var row_end: int = mini(row_start + SWATCH_COLUMNS, count) - 1
+		var left: Control = _swatches[i - 1] if i > row_start else car
+		swatch.focus_neighbor_left = swatch.get_path_to(left)
+		swatch.focus_neighbor_right = swatch.get_path_to(_swatches[i + 1 if i < row_end else row_start])
+	# Up and down stay in the car list. The last car wraps to the first.
+	# Right is the only way from a car to its paint.
+	var paint: ColorSwatch = _swatches[0]
+	for swatch: ColorSwatch in _swatches:
+		if swatch.color.is_equal_approx(_color):
+			paint = swatch
+			break
+	var cars: int = _car_buttons.size()
+	for i: int in cars:
+		var button: ChamferButton = _car_buttons[i]
+		if i > 0:
+			button.focus_neighbor_top = button.get_path_to(_car_buttons[i - 1])
+		button.focus_neighbor_bottom = button.get_path_to(_car_buttons[0 if i == cars - 1 else i + 1])
+		button.focus_neighbor_left = button.get_path_to(button)
+		button.focus_neighbor_right = button.get_path_to(paint)
 
 
 func _build_confirm() -> void:
@@ -224,18 +254,21 @@ func _show_car(index: int) -> void:
 		_stat_bars[i].value = values[i]
 		_stat_values[i].text = "%d/%d" % [values[i], CarStats.STAT_MAX]
 	_preview.show_car(_color, _pattern, car, _number_spot)
+	if not _swatches.is_empty():
+		_wire_swatch_focus()
 
 
 func _update_paint() -> void:
 	for swatch: ColorSwatch in _swatches:
 		swatch.selected = swatch.color.is_equal_approx(_color)
 	_preview.show_car(_color, _pattern, Catalog.CARS[_car_index], _number_spot)
+	if not _swatches.is_empty():
+		_wire_swatch_focus()
 
 
 func _on_color_picked(paint: Color) -> void:
 	_color = paint
 	_update_paint()
-	_pattern_spinner.grab_focus()
 
 
 ## Moves the focus from the car list to the swatch of the current colour.

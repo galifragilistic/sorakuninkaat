@@ -22,7 +22,11 @@ func _init() -> void:
 	focus_mode = Control.FOCUS_ALL
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	custom_minimum_size = Vector2.ONE * (swatch_size + (ring_gap + ring_width) * 2.0)
+	# Room for the selection ring and, outside it, the cursor ring.
+	var ring_span: float = ring_gap + ring_width
+	custom_minimum_size = Vector2.ONE * (swatch_size + ring_span * 4.0 + 2.0)
+	# The ring is drawn here. The engine focus style would add a second border.
+	add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 	focus_entered.connect(queue_redraw)
 	focus_exited.connect(queue_redraw)
 
@@ -44,8 +48,10 @@ func _draw() -> void:
 	var radius: float = swatch_size * 0.5
 	draw_circle(center, radius, color)
 	draw_arc(center, radius, 0.0, TAU, 40, UiStyle.LINE, 1.5, true)
-	# Focus is the accent ring; the chosen colour keeps a white ring.
+	# Orange ring for the chosen colour, white ring outside it for the cursor.
+	var ring_radius: float = radius + ring_gap + ring_width * 0.5
+	if selected:
+		draw_arc(center, ring_radius, 0.0, TAU, 40, UiStyle.ACCENT, ring_width, true)
 	if has_focus():
-		draw_arc(center, radius + ring_gap + ring_width * 0.5, 0.0, TAU, 40, UiStyle.ACCENT, ring_width + 1.0, true)
-	elif selected:
-		draw_arc(center, radius + ring_gap + ring_width * 0.5, 0.0, TAU, 40, UiStyle.TEXT, ring_width, true)
+		var cursor_radius: float = ring_radius + (ring_gap + ring_width if selected else 0.0)
+		draw_arc(center, cursor_radius, 0.0, TAU, 40, UiStyle.TEXT, ring_width + 1.0, true)

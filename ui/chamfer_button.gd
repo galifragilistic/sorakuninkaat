@@ -1,26 +1,23 @@
 class_name ChamferButton
 extends ChamferPanel
-## Focusable chamfered button. The focused element is drawn fully in the accent
-## colour (SPEC.md section 6: "valittu tila = täysi väri"). A button can also be
-## "selected" (the chosen tab, filter or option), shown in its selected colour.
+## Focusable chamfered button. Focus is a white border. A made choice fills
+## the button with the accent colour. Both can show at once.
 
 signal pressed
 signal focused
 
 const UI_SOUND_DB: float = -14.0
 
-## Fill while the button holds focus.
 @export var accent_color: Color = UiStyle.ACCENT
-## Fill while selected but not focused.
-@export var selected_color: Color = UiStyle.INFO
+## Fill while this button is the made choice.
+@export var selected_color: Color = UiStyle.ACCENT
 @export var normal_color: Color = UiStyle.BUTTON
 ## Call-to-action look: tinted and outlined in the accent colour even without focus.
 @export var primary: bool = false:
 	set(value):
 		primary = value
 		_update_style()
-## For large cards: focus is shown as an accent outline and tint instead of a
-## solid fill, so the card's contents stay readable.
+## Large cards keep a thin idle border so the panel edge stays visible.
 @export var outline_focus: bool = false:
 	set(value):
 		outline_focus = value
@@ -68,6 +65,9 @@ func _init() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	focus_mode = Control.FOCUS_ALL
 	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	# The white cursor border is drawn by this control. The engine focus
+	# style would add a second outline.
+	add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 	row = HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -143,14 +143,6 @@ func _update_style() -> void:
 	border_width = 0.0
 	if disabled:
 		fill_color = Color(normal_color, normal_color.a * 0.55)
-	elif has_focus() and outline_focus:
-		fill_color = tinted
-		border_width = outline_width
-		border_color = accent_color
-	elif has_focus() or (_hovered and focus_mode == Control.FOCUS_NONE):
-		# A mouse-only button (no focus) lights up under the cursor instead.
-		fill_color = accent_color
-		has_fill = true
 	elif selected:
 		fill_color = selected_color
 		has_fill = true
@@ -160,10 +152,14 @@ func _update_style() -> void:
 		border_color = accent_color
 	else:
 		fill_color = normal_color
-	if outline_focus and border_width == 0.0:
-		# Cards keep the standard thin panel border when idle.
+	if outline_focus and border_width == 0.0 and not has_focus():
 		border_width = 2.0
 		border_color = UiStyle.LINE
+	# Cursor: white border. A mouse-only button cannot take focus, so hover
+	# draws the same border.
+	if has_focus() or (_hovered and focus_mode == Control.FOCUS_NONE):
+		border_width = outline_width
+		border_color = UiStyle.TEXT
 
 	var text_color: Color = UiStyle.TEXT
 	var secondary_color: Color = UiStyle.TEXT_SECONDARY

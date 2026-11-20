@@ -64,9 +64,10 @@ var apply_local_damage: bool = true
 ## Largest share of the friction circle that drive/brake force may use.
 ## The rest is always left for cornering.
 @export_range(0.1, 1.0, 0.01) var max_longitudinal_share: float = 0.8
-## The same for two-wheel-drive cars, whose driven axle carries all the power
-## and would otherwise spin out under throttle.
-@export_range(0.1, 1.0, 0.01) var two_wheel_drive_share: float = 0.55
+## Share of the driven axle's friction circle that throttle may use on a
+## two-wheel-drive car. Kept low: the rest of the power is applied at the
+## centre of mass, and a large share here just makes the driven axle slide.
+@export_range(0.1, 1.0, 0.01) var two_wheel_drive_share: float = 0.3
 ## Tyre forces are applied this far above the contact point to limit body roll.
 @export var tire_force_height: float = 0.2
 
@@ -527,6 +528,11 @@ func _simulate_wheel(
 	var long_speed: float = point_velocity.dot(forward)
 	var lat_speed: float = point_velocity.dot(right)
 	var axle_grip: float = front_grip_scale if is_front else rear_grip_scale
+	# RWD already puts the whole engine through the rear. A looser rear on top
+	# of that steps out as soon as the car is fast. Throttle still spends part
+	# of the rear friction circle, so it can slide without swapping ends.
+	if not is_front and stats.drivetrain == CarStats.Drivetrain.RWD:
+		axle_grip = front_grip_scale
 	var max_friction: float = tire_friction * surface_grip * grip_multiplier * axle_grip * load_force
 	max_friction *= damage.get_grip_multiplier() * weather_grip
 
@@ -540,20 +546,36 @@ func _simulate_wheel(
 	if brake_limit > 0.0:
 		long_force += clampf(-long_speed * brake_response * wheel_mass, -brake_limit, brake_limit)
 	long_force -= long_speed * rolling_drag * wheel_mass
-	var share: float = max_longitudinal_share
-	if stats.get_driven_wheel_count() < WHEEL_COUNT:
-		share = two_wheel_drive_share
-	var long_limit: float = max_friction * share
-	long_force = clampf(long_force, -long_limit, long_limit)
+	# 2WD sends the whole engine through one axle. That axle also spends the
+	# undriven wheels' longitudinal budget, so the acceleration stat is real.
+	# two_wheel_drive_share only reserves cornering grip on the driven axle.
+	var driven_2wd: bool = (
+		stats.get_driven_wheel_count() < WHEEL_COUNT and stats.is_wheel_driven(is_front)
+	)
+	var drive_scale: float = 1.0
+	if driven_2wd:
+		var driven_scale: float = rear_grip_scale if not is_front else front_grip_scale
+		var undriven_scale: float = front_grip_scale if not is_front else rear_grip_scale
+		drive_scale = 1.0 + undriven_scale / driven_scale
+	var grip_limit: float = max_friction * max_longitudinal_share
+	long_force = clampf(long_force, -grip_limit * drive_scale, grip_limit * drive_scale)
+	var circle_share: float = two_wheel_drive_share if driven_2wd else max_longitudinal_share
+	var circle_long: float = clampf(long_force, -max_friction * circle_share, max_friction * circle_share)
+	# Power past the tyre still accelerates the car, but from the centre of
+	# mass. At the rear contact the outside wheel would shove harder in a
+	# corner and spin the car.
+	var extra_long: float = long_force - circle_long
+	if extra_long != 0.0:
+		apply_central_force(forward * extra_long)
 
 	# Lateral: cancel side slip with whatever is left of the friction circle.
-	var lat_limit: float = sqrt(maxf(0.0, max_friction * max_friction - long_force * long_force))
+	var lat_limit: float = sqrt(maxf(0.0, max_friction * max_friction - circle_long * circle_long))
 	if handbrake and not is_front:
 		lat_limit *= handbrake_grip
 	var lat_force: float = clampf(-lat_speed * tire_response * wheel_mass, -lat_limit, lat_limit)
 
 	var force_point: Vector3 = contact + up * tire_force_height
-	apply_force(forward * long_force + right * lat_force, force_point - global_position)
+	apply_force(forward * circle_long + right * lat_force, force_point - global_position)
 	return surface
 
 

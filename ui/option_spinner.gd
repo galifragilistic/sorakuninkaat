@@ -47,6 +47,11 @@ func _init() -> void:
 	_value_label.custom_minimum_size.x = value_width
 	add_child(_value_label)
 	_add_arrow(UiGlyph.Kind.CHEVRON_RIGHT)
+	var focus_box: StyleBoxFlat = StyleBoxFlat.new()
+	focus_box.draw_center = false
+	focus_box.set_border_width_all(3)
+	focus_box.border_color = UiStyle.TEXT
+	add_theme_stylebox_override("focus", focus_box)
 	focus_entered.connect(_update_style)
 	focus_exited.connect(_update_style)
 	_update_style()
@@ -102,6 +107,7 @@ func _update_style() -> void:
 	var can_change: bool = options.size() > 1 and editable
 	_title_label.add_theme_color_override("font_color", UiStyle.TEXT if active else UiStyle.TEXT_SECONDARY)
 	for i: int in _arrows.size():
-		_arrows[i].fill_color = UiStyle.ACCENT if active and can_change else UiStyle.BUTTON
-		var glyph_color: Color = UiStyle.TEXT_ON_ACCENT if active else UiStyle.TEXT
-		_glyphs[i].color = glyph_color if can_change else UiStyle.TEXT_DISABLED
+		_arrows[i].fill_color = UiStyle.BUTTON
+		_arrows[i].border_width = 3.0 if active else 0.0
+		_arrows[i].border_color = UiStyle.TEXT
+		_glyphs[i].color = UiStyle.TEXT if can_change else UiStyle.TEXT_DISABLED

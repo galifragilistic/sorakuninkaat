@@ -205,7 +205,6 @@ func _add_option_row(column: VBoxContainer, caption: String, options: Array, act
 		var chip: ChamferButton = ChamferButton.create(option_text, 14, Vector4(6.0, 9.0, 6.0, 9.0))
 		chip.label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		chip.selected_color = UiStyle.TEXT
 		chip.selected = i == active
 		row.add_child(chip)
 		chips.append(chip)

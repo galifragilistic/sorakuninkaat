@@ -13,8 +13,11 @@ enum Tab { SPLIT, LAN, INTERNET }
 @export var cards_position: Vector2 = Vector2(56.0, 110.0)
 @export var card_size: Vector2 = Vector2(382.0, 236.0)
 @export var card_gap: int = 16
+@export var card_chamfer: float = 14.0
 @export var card_bar_height: float = 5.0
-@export var card_preview_size: Vector2 = Vector2(190.0, 150.0)
+## Narrow enough to leave room for the longest car name between the arrows.
+@export var card_preview_size: Vector2 = Vector2(150.0, 136.0)
+@export var card_car_font_size: int = 18
 @export var settings_position: Vector2 = Vector2(852.0, 110.0)
 @export var settings_width: float = 372.0
 @export var track_thumb_size: Vector2 = Vector2(104.0, 72.0)
@@ -34,6 +37,9 @@ var _name_labels: Array[Label] = []
 var _device_labels: Array[Label] = []
 var _car_labels: Array[Label] = []
 var _status_chips: Array[ChamferPanel] = []
+## What A does next on your own card (pick a car, be ready, pick again).
+var _ready_rows: Array[Control] = []
+var _ready_hints: Array[PromptHint] = []
 var _previews: Array[CarPreview] = []
 
 var _settings_panel: ChamferPanel
@@ -63,6 +69,7 @@ var _own_address_label: Label
 var _net_status_label: Label
 var _name_dialog: NameDialog
 var _name_dialog_player: int = -1
+var _leave_dialog: ConfirmDialog
 ## Per slot: the card is open for picking a car with left / right.
 var _choosing: Array[bool] = []
 ## The player who opened the lobby: they alone change the race settings and
@@ -118,8 +125,8 @@ func _get_initial_focus() -> Control:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	# The name dialog handles its own input while it is open.
-	if _name_dialog != null:
+	# A dialog handles its own input while it is open.
+	if _has_dialog():
 		return
 	if event.is_action_pressed(InputManager.ACTION_TAB_PREVIOUS):
 		get_viewport().set_input_as_handled()
@@ -205,13 +212,42 @@ func _on_back() -> void:
 		_stop_choosing(focused)
 		return
 	if Network.role != Network.Role.OFFLINE:
-		# First B leaves the network game, the next one leaves the lobby.
-		Network.leave()
+		# First B leaves the network game (after asking, once connected), the
+		# next one leaves the lobby.
+		if Network.connecting:
+			Network.leave()
+		else:
+			_open_leave_dialog()
 		return
 	# Leaving the lobby empties the other slots, so single player stays single.
 	for i: int in range(1, GameState.MAX_PLAYERS):
 		_leave(i)
 	go_to(MAIN)
+
+
+func _has_dialog() -> bool:
+	return _name_dialog != null or _leave_dialog != null
+
+
+func _open_leave_dialog() -> void:
+	var message: String = tr("Muut pelaajat jäävät aulaan ilman sinua.")
+	if Network.is_host():
+		message = tr("Peli päättyy kaikilta pelaajilta.")
+	_leave_dialog = ConfirmDialog.create(tr("POISTU PELISTÄ?"), message, tr("POISTU"))
+	_leave_dialog.confirmed.connect(Network.leave)
+	_leave_dialog.cancelled.connect(func() -> void:
+		_close_leave_dialog()
+		_keep_focus_on_own_card())
+	add_child(_leave_dialog)
+
+
+func _close_leave_dialog() -> void:
+	if _leave_dialog == null:
+		return
+	# Out of the tree at once, so its button lets go of the focus now.
+	remove_child(_leave_dialog)
+	_leave_dialog.queue_free()
+	_leave_dialog = null
 
 
 # --- Tabs ----------------------------------------------------------------
@@ -262,6 +298,8 @@ func _apply_tab() -> void:
 		Network.start_discovery()
 	else:
 		Network.stop_discovery()
+	if _tab == Tab.INTERNET:
+		Network.fetch_public_address()
 	if _tab == Tab.SPLIT and Network.role == Network.Role.OFFLINE:
 		GameState.mode = GameState.Mode.MULTI
 	_rebuild_server_list()
@@ -288,7 +326,7 @@ func _build_cards() -> void:
 	for i: int in GameState.MAX_PLAYERS:
 		var card: ChamferButton = ChamferButton.new()
 		card.outline_focus = true
-		card.chamfer = 14.0
+		card.chamfer = card_chamfer
 		card.normal_color = UiStyle.PANEL
 		card.set_padding(Vector4.ZERO)
 		card.custom_minimum_size = card_size
@@ -312,10 +350,16 @@ func _build_joined_view(parent: Control, player: int) -> Control:
 	view.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	parent.add_child(view)
 
-	var bar: ColorRect = ColorRect.new()
-	bar.color = GameState.get_player_color(player)
+	# The bar's left end follows the card's cut corner instead of sticking out.
+	var bar: Control = Control.new()
 	bar.custom_minimum_size.y = card_bar_height
 	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var bar_color: Color = GameState.get_player_color(player)
+	bar.draw.connect(func() -> void:
+		bar.draw_colored_polygon(PackedVector2Array([
+			Vector2(card_chamfer, 0.0), Vector2(bar.size.x, 0.0),
+			bar.size, Vector2(card_chamfer - bar.size.y, bar.size.y),
+		]), bar_color))
 	view.add_child(bar)
 
 	var content: MarginContainer = MarginContainer.new()
@@ -361,14 +405,29 @@ func _build_joined_view(parent: Control, player: int) -> Control:
 	var caption: Label = UiStyle.make_caption(tr("AUTO"))
 	caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	details.add_child(caption)
-	var car_label: Label = UiStyle.make_label("", UiStyle.FONT_DISPLAY, 20)
+	var car_label: Label = UiStyle.make_label("", UiStyle.FONT_DISPLAY, card_car_font_size)
 	car_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	# A name too long for the card wraps instead of pushing the card wider.
+	car_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	details.add_child(car_label)
 	_car_labels.append(car_label)
+
+	# Status and the next step for A share the card's full width, so the
+	# wide pixel font of the retro style fits too.
+	var footer: HBoxContainer = MenuKit.make_hbox(14)
+	footer.alignment = BoxContainer.ALIGNMENT_END
+	column.add_child(footer)
+	# PromptHint hides itself when the device has no key for it, so the row
+	# around it carries the card's own visibility.
+	var ready_row: HBoxContainer = MenuKit.make_hbox(0)
+	footer.add_child(ready_row)
+	_ready_rows.append(ready_row)
+	var ready_hint: PromptHint = MenuKit.make_hint(InputPrompts.Prompt.ACCEPT, "")
+	ready_row.add_child(ready_hint)
+	_ready_hints.append(ready_hint)
 	var status: ChamferPanel = MenuKit.make_chip("", UiStyle.SUCCESS, 14)
-	status.size_flags_horizontal = Control.SIZE_SHRINK_END
 	status.set_padding(Vector4(12.0, 4.0, 12.0, 4.0))
-	details.add_child(status)
+	footer.add_child(status)
 	_status_chips.append(status)
 	return view
 
@@ -602,14 +661,14 @@ func _join(address: String, port: int) -> void:
 
 
 func _on_session_changed() -> void:
+	# Leaving (or losing) the game answers the question.
+	if not Network.is_online():
+		_close_leave_dialog()
 	# Look for games again after leaving one.
 	if _tab == Tab.LAN and Network.role == Network.Role.OFFLINE:
 		Network.start_discovery()
 	_refresh()
-	if _is_online():
-		var target: Control = _cards[_get_own_slot()]
-		target.grab_focus.call_deferred()
-	elif _net_panel.visible and not _has_focus_inside(_net_panel) and not _host_button.disabled:
+	if not _is_online() and _net_panel.visible and not _has_focus_inside(_net_panel) and not _host_button.disabled:
 		_host_button.grab_focus.call_deferred()
 
 
@@ -637,16 +696,21 @@ func _refresh() -> void:
 		_refresh_net_panel()
 
 
+## The host's address for the others to join; clients see nothing here.
 func _refresh_session_label() -> void:
 	_session_label.text = ""
-	if not _is_online():
+	if not _is_online() or not Network.is_host():
 		return
-	if Network.is_host():
-		var addresses: PackedStringArray = Network.get_local_addresses()
-		var address: String = addresses[0] if not addresses.is_empty() else "127.0.0.1"
-		_session_label.text = tr("Isäntä · %s : %d") % [address, Network.DEFAULT_PORT]
-	else:
-		_session_label.text = tr("Yhdistetty isäntään · %s poistuu") % InputPrompts.get_button_name(InputPrompts.Prompt.BACK)
+	var addresses: PackedStringArray = Network.get_local_addresses()
+	var address: String = addresses[0] if not addresses.is_empty() else "127.0.0.1"
+	# Over the internet the others need the router's address; the local one
+	# is left as a fallback if the lookup failed.
+	if Network.kind == Network.Kind.INTERNET:
+		if not Network.public_address.is_empty():
+			address = Network.public_address
+		elif Network.is_fetching_public_address():
+			address = tr("osoitetta haetaan…")
+	_session_label.text = tr("Isäntä · %s : %d") % [address, Network.DEFAULT_PORT]
 
 
 func _refresh_net_panel() -> void:
@@ -659,7 +723,11 @@ func _refresh_net_panel() -> void:
 	_lan_section.visible = is_lan
 	_ip_section.visible = not is_lan
 	var addresses: PackedStringArray = Network.get_local_addresses()
-	_own_address_label.text = tr("Oma osoitteesi: %s") % (", ".join(addresses) if not addresses.is_empty() else "–")
+	var local: String = ", ".join(addresses) if not addresses.is_empty() else "–"
+	if Network.public_address.is_empty():
+		_own_address_label.text = tr("Oma osoitteesi: %s") % local
+	else:
+		_own_address_label.text = tr("Julkinen osoitteesi: %s · lähiverkossa: %s") % [Network.public_address, local]
 	var busy: bool = Network.connecting
 	_host_button.disabled = busy
 	_join_button.disabled = busy
@@ -673,12 +741,15 @@ func _refresh_net_panel() -> void:
 
 func _refresh_cards() -> void:
 	var online: bool = _is_online()
+	var own_slot: int = Network.local_slot if online else OWNER_SLOT
 	for i: int in GameState.MAX_PLAYERS:
 		var setup: PlayerSetup = GameState.players[i]
 		_joined_views[i].visible = setup.joined
 		_empty_views[i].visible = not setup.joined
+		_ready_rows[i].visible = false
 		if not setup.joined or setup.is_ai:
 			_choosing[i] = false
+		_set_card_reachable(i, i == own_slot or (_can_manage_slots() and (not setup.joined or setup.is_ai)))
 		if not setup.joined:
 			var accept_pad: String = "A"
 			var secondary: String = InputPrompts.get_button_name(InputPrompts.Prompt.SECONDARY)
@@ -704,13 +775,43 @@ func _refresh_cards() -> void:
 			continue
 		_name_labels[i].text = GameState.get_player_name(i)
 		_device_labels[i].text = _get_device_text(i, setup)
+		var hint: String = tr("Valitse auto")
 		if _choosing[i]:
 			_car_labels[i].text = tr("◀ %s ▶") % tr(setup.stats.display_name)
 			MenuKit.set_chip(_status_chips[i], tr("VALITSEE AUTOA"), UiStyle.ACCENT)
+			hint = tr("Valmis")
 		elif setup.is_ready:
 			MenuKit.set_chip(_status_chips[i], tr("VALMIS"), UiStyle.SUCCESS)
+			hint = tr("Vaihda autoa")
 		else:
 			MenuKit.set_chip(_status_chips[i], tr("EI VALMIS"), UiStyle.WARNING)
+		_ready_rows[i].visible = i == own_slot
+		_ready_hints[i].set_text(hint)
+	_keep_focus_on_own_card()
+
+
+## Whoever runs the lobby (player 1, or the host online) adds and removes
+## computer drivers on the free slots.
+func _can_manage_slots() -> bool:
+	return not _is_online() or Network.is_host()
+
+
+## The menu focus only goes to cards this machine may act on: never to
+## another player's card, and on a network client only to its own.
+func _set_card_reachable(player: int, reachable: bool) -> void:
+	var card: ChamferButton = _cards[player]
+	card.focus_mode = Control.FOCUS_ALL if reachable else Control.FOCUS_NONE
+	card.mouse_filter = Control.MOUSE_FILTER_STOP if reachable else Control.MOUSE_FILTER_IGNORE
+
+
+## Puts the focus back on this machine's card when it has nowhere to be, e.g.
+## after the card it was on went to another player.
+func _keep_focus_on_own_card() -> void:
+	if _has_dialog() or not _cards_grid.visible or get_viewport().gui_get_focus_owner() != null:
+		return
+	var own_slot: int = Network.local_slot if _is_online() else OWNER_SLOT
+	if own_slot >= 0 and _cards[own_slot].focus_mode != Control.FOCUS_NONE:
+		_cards[own_slot].grab_focus.call_deferred()
 
 
 func _get_device_text(slot: int, setup: PlayerSetup) -> String:
@@ -859,6 +960,8 @@ func _leave(player: int) -> void:
 
 
 func _open_car_select(player: int) -> void:
+	# Ready again only once the car is confirmed there.
+	_set_ready(player, false)
 	go_to(CAR_SELECT, {
 		"player": player, "return_to": LOBBY, "return_context": {"focus_player": player, "tab": _tab},
 	})
@@ -892,7 +995,7 @@ func _on_card_focus_exited(player: int) -> void:
 ## Split screen: the keys and gamepads of players 2-4 drive their own cards
 ## and never move the menu focus, which belongs to player 1.
 func _input(event: InputEvent) -> void:
-	if _tab != Tab.SPLIT or _is_online() or _name_dialog != null or not _cards_grid.visible:
+	if _tab != Tab.SPLIT or _is_online() or _has_dialog() or not _cards_grid.visible:
 		return
 	var slot: int = InputManager.get_event_slot(event)
 	if slot <= OWNER_SLOT:
@@ -900,6 +1003,15 @@ func _input(event: InputEvent) -> void:
 	# Key releases go on, so the input manager sees the right Shift let go.
 	if event is InputEventKey and not event.is_pressed():
 		return
+	if event is InputEventKey:
+		var setup: PlayerSetup = GameState.players[slot]
+		# Until the arrow-key player joins, only their join key is theirs and
+		# player 1 steers the menu with the arrows and Enter. Their reset key
+		# (Enter) does nothing here, so it always stays player 1's.
+		if (not setup.joined or setup.is_ai) and not InputManager.is_slot_accept(event, slot):
+			return
+		if InputManager.is_slot_reset_key(event, slot):
+			return
 	get_viewport().set_input_as_handled()
 	_on_player_input(slot, event)
 

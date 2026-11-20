@@ -351,5 +351,13 @@ func is_slot_accept(event: InputEvent, slot: int) -> bool:
 	return _get_physical_key(key) == KEYBOARD_LAYOUTS[_devices[slot]][Action.HANDBRAKE]
 
 
+## The slot's reset key (Enter for the arrow keys).
+func is_slot_reset_key(event: InputEvent, slot: int) -> bool:
+	var key: InputEventKey = event as InputEventKey
+	if key == null or not KEYBOARD_LAYOUTS.has(_devices[slot]):
+		return false
+	return _get_physical_key(key) == KEYBOARD_LAYOUTS[_devices[slot]][Action.RESET]
+
+
 func _get_physical_key(key: InputEventKey) -> Key:
 	return key.physical_keycode if key.physical_keycode != KEY_NONE else key.keycode

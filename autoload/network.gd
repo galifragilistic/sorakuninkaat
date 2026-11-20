@@ -35,6 +35,9 @@ const SERVER_EXPIRY: float = 3.5
 const REJECT_GRACE: float = 0.5
 ## Address prefixes in order of how likely they are to be the LAN address.
 const PREFERRED_PREFIXES: Array[String] = ["192.168.", "10.", "172."]
+## Answers with the caller's public IPv4 address as plain text.
+const PUBLIC_ADDRESS_URL: String = "https://api.ipify.org"
+const PUBLIC_ADDRESS_TIMEOUT: float = 5.0
 
 var role: Role = Role.OFFLINE
 var kind: Kind = Kind.LAN
@@ -50,6 +53,8 @@ var remote_damage: bool = true
 var last_error: String = ""
 ## Games heard on the LAN: "address:port" -> {address, port, name, players, racing, expires}.
 var servers: Dictionary = {}
+## This machine's address on the internet, "" until fetch_public_address() finds it.
+var public_address: String = ""
 
 ## The running race's NetSync on this machine, or null (set by NetSync itself).
 var race_sync: NetSync
@@ -60,6 +65,7 @@ var _loaded_peers: Array[int] = []
 var _announcer: PacketPeerUDP
 var _listener: PacketPeerUDP
 var _announce_timer: float = 0.0
+var _address_request: HTTPRequest
 ## Client: the custom track design last received from the host, as JSON.
 var _received_design: String = ""
 
@@ -101,6 +107,33 @@ func _address_rank(address: String) -> int:
 		if address.begins_with(PREFERRED_PREFIXES[i]):
 			return i
 	return PREFERRED_PREFIXES.size()
+
+
+## Asks an outside service for public_address, which the local addresses
+## behind a router are not. Emits lobby_updated when the answer (or failure) is in.
+func fetch_public_address() -> void:
+	if not public_address.is_empty() or _address_request != null:
+		return
+	_address_request = HTTPRequest.new()
+	_address_request.timeout = PUBLIC_ADDRESS_TIMEOUT
+	_address_request.request_completed.connect(_on_public_address_received)
+	add_child(_address_request)
+	if _address_request.request(PUBLIC_ADDRESS_URL) != OK:
+		_address_request.queue_free()
+		_address_request = null
+
+
+func is_fetching_public_address() -> bool:
+	return _address_request != null
+
+
+func _on_public_address_received(result: int, code: int, _headers: PackedStringArray, body: PackedByteArray) -> void:
+	_address_request.queue_free()
+	_address_request = null
+	var address: String = body.get_string_from_utf8().strip_edges()
+	if result == HTTPRequest.RESULT_SUCCESS and code == 200 and address.is_valid_ip_address():
+		public_address = address
+	lobby_updated.emit()
 
 
 # --- Session -------------------------------------------------------------

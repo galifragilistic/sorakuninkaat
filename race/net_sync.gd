@@ -4,7 +4,8 @@ extends Node
 ## Host: drives remote players' cars with the inputs they send, and sends
 ## everyone car snapshots, race state and race events.
 ## Client: sends its own input every tick, shows the cars from the host's
-## snapshots slightly in the past (so it can interpolate smoothly) and mirrors
+## snapshots slightly in the past (so it can interpolate smoothly; cars near
+## its own one are carried forward to the own car's time) and mirrors
 ## the host's race state into its own RaceManager.
 ## The node must have the same path on every machine.
 
@@ -46,6 +47,24 @@ const FLOATS_PER_CAR: int = 12
 ## two copies wedged on different sides of a post) also jumps (s, m).
 @export var correction_stuck_seconds: float = 1.0
 @export var correction_stuck_distance: float = 2.5
+
+@export_group("Car contact")
+## Client: the own car runs ahead of the host's newest state, while the other
+## cars are shown slightly behind it. Other cars nearer than this to the own
+## car are moved to the own car's time, so the two do not overlap or miss
+## each other; over the blend distance they ease back into the past (m).
+@export var time_match_distance: float = 10.0
+@export var time_match_blend: float = 8.0
+## Client: the own car does not collide with the other cars itself; the host
+## decides every collision. While the host has the own car this close to
+## another car, the corrections below take over from the gentle ones (m).
+@export var contact_distance: float = 5.0
+@export var contact_blend: float = 2.0
+## Shares of the remaining position, velocity and heading difference removed
+## per second during contact.
+@export var contact_position_rate: float = 20.0
+@export var contact_velocity_rate: float = 12.0
+@export var contact_rotation_rate: float = 12.0
 ## Host: a remote input older than this counts as released (s).
 @export var input_timeout: float = 0.5
 ## Host: start without players who have not loaded the race by then (s).
@@ -262,6 +281,12 @@ func _setup_client() -> void:
 			_cars[i].apply_local_damage = false
 		else:
 			_cars[i].make_puppet(input)
+	if _predicted_index >= 0:
+		# Hitting the frozen copies of the other cars would bounce the own car
+		# off immovable bodies in the wrong place and fight the host's result.
+		for i: int in _cars.size():
+			if i != _predicted_index:
+				_cars[_predicted_index].ignore_car(_cars[i])
 	Network.report_race_loaded()
 
 
@@ -297,12 +322,20 @@ func _apply_snapshots() -> void:
 	var a: PackedFloat32Array = older[1]
 	var b: PackedFloat32Array = newer[1]
 	var car_count: int = mini(_cars.size(), mini(a.size(), b.size()) / FLOATS_PER_CAR)
+	var own_car: Car = _cars[_predicted_index] if _predicted_index >= 0 else null
+	var lead: float = _get_prediction_lead()
 	for i: int in car_count:
 		if i == _predicted_index:
 			continue
 		var base: int = i * FLOATS_PER_CAR
 		var origin: Vector3 = _vec3(a, base).lerp(_vec3(b, base), weight)
 		var rotation_quat: Quaternion = _quat(a, base + 3).slerp(_quat(b, base + 3), weight)
+		if own_car != null and _latest_snapshot.size() >= base + FLOATS_PER_CAR:
+			var ahead: Vector3 = _vec3(_latest_snapshot, base) + _vec3(_latest_snapshot, base + 7) * lead
+			var distance: float = own_car.global_position.distance_to(ahead)
+			var share: float = _get_nearness(distance, time_match_distance, time_match_blend)
+			origin = origin.lerp(ahead, share)
+			rotation_quat = rotation_quat.slerp(_quat(_latest_snapshot, base + 3), share)
 		var car: Car = _cars[i]
 		car.global_transform = Transform3D(Basis(rotation_quat), origin)
 		car.puppet_velocity = _vec3(a, base + 7).lerp(_vec3(b, base + 7), weight)
@@ -326,8 +359,7 @@ func _correct_predicted_car(delta: float) -> void:
 	var base: int = _predicted_index * FLOATS_PER_CAR
 	var host_velocity: Vector3 = _vec3(_latest_snapshot, base + 7)
 	var host_rotation: Quaternion = _quat(_latest_snapshot, base + 3)
-	var lead: float = minf(_clock - _latest_arrival + _get_round_trip(), max_prediction_lead)
-	var target: Vector3 = _vec3(_latest_snapshot, base) + host_velocity * lead
+	var target: Vector3 = _vec3(_latest_snapshot, base) + host_velocity * _get_prediction_lead()
 	var error: Vector3 = target - car.global_position
 	var current_rotation: Quaternion = car.global_basis.get_rotation_quaternion()
 	var angle_error: float = rad_to_deg(current_rotation.angle_to(host_rotation))
@@ -343,14 +375,42 @@ func _correct_predicted_car(delta: float) -> void:
 		car.reset_physics_interpolation()
 		correction_jumps += 1
 		return
-	var excess: float = error.length() - correction_dead_zone
+	var contact: float = _get_host_contact()
+	var dead_zone: float = lerpf(correction_dead_zone, 0.0, contact)
+	var position_rate: float = lerpf(correction_position_rate, contact_position_rate, contact)
+	var velocity_rate: float = lerpf(correction_velocity_rate, contact_velocity_rate, contact)
+	var rotation_dead_zone: float = lerpf(correction_rotation_dead_zone, 0.0, contact)
+	var rotation_rate: float = lerpf(correction_rotation_rate, contact_rotation_rate, contact)
+	var excess: float = error.length() - dead_zone
 	if excess > 0.0:
-		car.global_position += error.normalized() * excess * minf(1.0, correction_position_rate * delta)
-	car.linear_velocity = car.linear_velocity.lerp(host_velocity, minf(1.0, correction_velocity_rate * delta))
-	if angle_error > correction_rotation_dead_zone:
-		var share: float = (angle_error - correction_rotation_dead_zone) / angle_error
-		var turn: float = minf(1.0, correction_rotation_rate * delta) * share
+		car.global_position += error.normalized() * excess * minf(1.0, position_rate * delta)
+	car.linear_velocity = car.linear_velocity.lerp(host_velocity, minf(1.0, velocity_rate * delta))
+	if angle_error > rotation_dead_zone:
+		var share: float = (angle_error - rotation_dead_zone) / angle_error
+		var turn: float = minf(1.0, rotation_rate * delta) * share
 		car.global_basis = Basis(current_rotation.slerp(host_rotation, turn))
+
+
+## Client: how far the host's newest state is carried forward to reach this
+## machine's time (s).
+func _get_prediction_lead() -> float:
+	return minf(_clock - _latest_arrival + _get_round_trip(), max_prediction_lead)
+
+
+## Client: 1 while the host has the own car touching another car, easing to 0
+## over contact_blend.
+func _get_host_contact() -> float:
+	var own: Vector3 = _vec3(_latest_snapshot, _predicted_index * FLOATS_PER_CAR)
+	var nearest: float = INF
+	for i: int in _latest_snapshot.size() / FLOATS_PER_CAR:
+		if i != _predicted_index:
+			nearest = minf(nearest, own.distance_to(_vec3(_latest_snapshot, i * FLOATS_PER_CAR)))
+	return _get_nearness(nearest, contact_distance, contact_blend)
+
+
+## 1 up to near, falling to 0 over blend beyond it.
+func _get_nearness(distance: float, near: float, blend: float) -> float:
+	return 1.0 - clampf((distance - near) / maxf(blend, 0.001), 0.0, 1.0)
 
 
 ## Client: round trip time to the host in seconds (0 if unknown).

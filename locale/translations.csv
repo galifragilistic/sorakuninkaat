@@ -310,7 +310,6 @@ Välilehti,Tab
 Välilyönti,Space
 Väri / tekoäly,Colour / computer
 YKSINPELI,SINGLE PLAYER
-Yhdistetty isäntään · %s poistuu,Connected to the host · %s leaves
 Yhdistetään…,Connecting…
 Yhteys isäntään katkesi,Lost the connection to the host
 Yhteyttä peliin ei saatu,Could not reach the game
@@ -326,3 +325,10 @@ tai lisää tekoälykuski painamalla %s,or add a computer driver with %s
 ÄÄNTEN SÄÄTÖ · F2,SOUND TUNING · F2
 Äänenvoimakkuus,Volume
 ◀ %s ▶,◀ %s ▶
+PERUUTA,CANCEL
+POISTU,LEAVE
+POISTU PELISTÄ?,LEAVE THE GAME?
+Muut pelaajat jäävät aulaan ilman sinua.,The other players stay in the lobby without you.
+Peli päättyy kaikilta pelaajilta.,The game ends for every player.
+osoitetta haetaan…,looking up address…
+Julkinen osoitteesi: %s · lähiverkossa: %s,Your public address: %s · on the LAN: %s

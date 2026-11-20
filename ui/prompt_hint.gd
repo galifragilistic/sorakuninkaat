@@ -37,6 +37,10 @@ func _exit_tree() -> void:
 	InputManager.prompt_style_changed.disconnect(_on_prompt_style_changed)
 
 
+func set_text(text: String) -> void:
+	_label.text = text
+
+
 func _on_prompt_style_changed(_style: InputManager.PromptStyle) -> void:
 	_update_style()
 

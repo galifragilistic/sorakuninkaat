@@ -10,6 +10,18 @@ Versio on tiedostossa `project.godot` (`application/config/version`). Ylin kohta
 
 ## [0.4.0] - julkaisematon
 
+### Muutettu
+- Verkkopelin isäntä näkee julkisen IP-osoitteensa, johon muut voivat liittyä internetin yli. Lähiverkkopelissä näkyy edelleen paikallinen osoite.
+- Verkkopelistä poistuminen kysyy vahvistuksen.
+- Moninpeliaulassa kohdistin liikkuu vain pelaajalla 1 (verkossa isännällä), eikä se mene muiden pelaajien korteille. Muut pelaajat ohjaavat vain omaa korttiaan.
+- Oma kortti kertoo, mitä A-nappi tekee seuraavaksi (valitse auto, valmis, vaihda autoa). Autovalintaan siirtyminen poistaa valmis-tilan, kunnes auto on vahvistettu.
+
+### Korjattu
+- Verkkopelissä autojen väliset törmäykset eivät enää nyi asiakkaalla, eivätkä autot mene toistensa sisään.
+- Pitkä auton nimi (Vanha Valtias) ei enää vuoda pelaajakortin yli.
+- Pelaajakortin värillinen yläreuna seuraa kortin viistettyä kulmaa.
+- Asiakkaan aulasta poistettiin turha *Yhdistetty isäntään* -teksti.
+
 ## [0.3.1] - 2026-11-19
 
 ### Muutettu

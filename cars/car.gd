@@ -167,6 +167,8 @@ var _air_time: float = 0.0
 var _landing_dust_left: float = 0.0
 var _smoke: Dust
 var _idle_input: PlayerInput = PlayerInput.new()
+## Bodies the wheel rays look through: this car and any car it ignores.
+var _ray_exclude: Array[RID] = []
 ## Rolling angle of each wheel mesh, its resting orientation and which way its
 ## axle points (the meshes are turned on their side in the scene).
 var _wheel_spin: PackedFloat32Array = PackedFloat32Array([0.0, 0.0, 0.0, 0.0])
@@ -199,6 +201,7 @@ func _ready() -> void:
 		_wheel_mesh_basis.append(wheel_mesh.basis)
 		_wheel_axle_sign.append(signf((wheel_mesh.basis * Vector3.UP).x))
 	_idle_input.handbrake = true
+	_ray_exclude.append(get_rid())
 	set_model(stats)
 	_apply_player_color()
 	_update_headlights()
@@ -272,6 +275,12 @@ func make_puppet(visual_input: PlayerInput) -> void:
 	freeze = true
 	input_source = visual_input
 	controls_enabled = true
+
+
+## Drives through the other car: neither the body nor the wheels touch it.
+func ignore_car(other: Car) -> void:
+	add_collision_exception_with(other)
+	_ray_exclude.append(other.get_rid())
 
 
 ## Throttle input used on the last physics tick (0..1).
@@ -467,7 +476,7 @@ func _simulate_wheel(
 	var ray_length: float = suspension_rest_length + wheel_radius
 	var ray_start: Vector3 = global_transform * _mount_points[index]
 	var query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(
-		ray_start, ray_start - up * ray_length, collision_mask, [get_rid()]
+		ray_start, ray_start - up * ray_length, collision_mask, _ray_exclude
 	)
 	var hit: Dictionary = space.intersect_ray(query)
 	var wheel_node: Node3D = _wheel_nodes[index]

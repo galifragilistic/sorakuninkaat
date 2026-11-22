@@ -13,17 +13,17 @@ enum Ground { ASPHALT, LOOSE, SNOW }
 @export_group("Engine")
 ## Firing frequency (Hz) at idle and at the shift point. A four-cylinder fires
 ## twice per revolution: 30 Hz is 900 rpm, 230 Hz about 6900 rpm.
-@export var idle_frequency: float = 33.0
+@export var idle_frequency: float = 29.5
 @export var redline_frequency: float = 253.0
 ## Extra firing frequency (Hz) while the throttle is open.
 @export var throttle_frequency: float = 5.0
 ## Revs where the low layer hands over to the high one (start, end).
 @export var layer_blend_revs: Vector2 = Vector2(0.34, 0.72)
-@export var engine_volume_db_range: Vector2 = Vector2(-19.5, -13.5)
+@export var engine_volume_db_range: Vector2 = Vector2(-19.5, -1.5)
 ## Off-throttle layer level compared with the throttle layers (dB).
 @export var overrun_volume_db: float = -3.0
 ## How fast the throttle layers fade in and out (1/s).
-@export var load_response: float = 12.0
+@export var load_response: float = 11.5
 ## Revs right after shifting up into second gear and above (0 idle .. 1 shift point).
 @export_range(0.0, 1.0, 0.01) var shift_drop_revs: float = 0.42
 ## Revs never fall below this share of the throttle, so pulling away sounds busy.
@@ -37,7 +37,7 @@ enum Ground { ASPHALT, LOOSE, SNOW }
 @export var shift_time: float = 0.14
 @export var shift_volume_db: float = -6.0
 ## Clunk of the gearbox on every change.
-@export var shift_sound_db: float = -17.5
+@export var shift_sound_db: float = -18.0
 
 @export_group("Backfire")
 ## Lifting off above these revs may make the exhaust pop.
@@ -48,7 +48,7 @@ enum Ground { ASPHALT, LOOSE, SNOW }
 ## Pops per lift (min, max) and the gap between them (s).
 @export var backfire_count: Vector2i = Vector2i(1, 3)
 @export var backfire_gap: Vector2 = Vector2(0.05, 0.14)
-@export var backfire_volume_db: float = -35.5
+@export var backfire_volume_db: float = -36.0
 @export var backfire_pitch_range: Vector2 = Vector2(0.85, 1.2)
 ## Throttle above this and then below release_throttle counts as lifting off.
 @export var lift_throttle: Vector2 = Vector2(0.6, 0.1)
@@ -56,7 +56,7 @@ enum Ground { ASPHALT, LOOSE, SNOW }
 @export_group("Gearbox whine")
 @export var whine_volume_db: float = -58.0
 ## The whine fades in from this speed (m/s) and is full at whine_full_speed.
-@export var whine_min_speed: float = 8.0
+@export var whine_min_speed: float = 7.5
 @export var whine_full_speed: float = 35.0
 ## Pitch at standstill and at top speed.
 @export var whine_pitch_range: Vector2 = Vector2(0.3, 0.5)

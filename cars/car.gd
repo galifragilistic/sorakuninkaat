@@ -40,7 +40,7 @@ var apply_local_damage: bool = true
 ## Peak acceleration in m/s^2.
 @export var acceleration_range: Vector2 = Vector2(6.0, 14.0)
 ## Grip multiplier from the car's grip stat for the current surface.
-@export var grip_multiplier_range: Vector2 = Vector2(0.85, 1.15)
+@export var grip_multiplier_range: Vector2 = Vector2(0.84, 1.15)
 
 @export_group("Chassis")
 @export var wheel_base: float = 2.4
@@ -56,18 +56,18 @@ var apply_local_damage: bool = true
 
 @export_group("Tyres")
 ## Base friction coefficient, multiplied by surface grip and the car's grip stat.
-@export var tire_friction: float = 1.8
+@export var tire_friction: float = 2.1
 ## How quickly sideways slip is cancelled (1/s). Keep well below the physics tick rate.
 @export var tire_response: float = 18.0
 @export_range(0.5, 1.2, 0.01) var front_grip_scale: float = 1.0
-@export_range(0.5, 1.2, 0.01) var rear_grip_scale: float = 0.85
+@export_range(0.5, 1.2, 0.01) var rear_grip_scale: float = 0.84
 ## Largest share of the friction circle that drive/brake force may use.
 ## The rest is always left for cornering.
 @export_range(0.1, 1.0, 0.01) var max_longitudinal_share: float = 0.8
 ## Share of the driven axle's friction circle that throttle may use on a
-## two-wheel-drive car. Kept low: the rest of the power is applied at the
-## centre of mass, and a large share here just makes the driven axle slide.
-@export_range(0.1, 1.0, 0.01) var two_wheel_drive_share: float = 0.3
+## two-wheel-drive car. Kept below 1: the rest of the power is applied at the
+## centre of mass, and too large a share just makes the driven axle slide.
+@export_range(0.1, 1.0, 0.01) var two_wheel_drive_share: float = 0.56
 ## Tyre forces are applied this far above the contact point to limit body roll.
 @export var tire_force_height: float = 0.2
 
@@ -77,7 +77,7 @@ var apply_local_damage: bool = true
 ## Steering input slew rate (full lock per second).
 @export var steer_speed: float = 5.0
 ## Extra steering lock per degree of body slip angle.
-@export_range(0.0, 2.0, 0.05) var countersteer_gain: float = 1.0
+@export_range(0.0, 2.0, 0.05) var countersteer_gain: float = 0.95
 ## Below this speed (m/s) the car is not considered to be sliding.
 @export var slip_min_speed: float = 3.0
 

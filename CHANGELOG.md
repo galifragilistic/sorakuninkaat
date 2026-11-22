@@ -12,6 +12,7 @@ Versio on tiedostossa `project.godot` (`application/config/version`). Ylin kohta
 
 ### Muutettu
 - Autojen äänet on viritetty uudelleen: moottori kuuluu kovemmin kaasulla, tyhjäkäynti on matalampi ja vaihteiston ulina alkaa aiemmin.
+- Ajotuntuma on viritetty uudelleen: renkaat pitävät paremmin ja kaksivetoiset autot saavat enemmän tehoa vetäville pyörille.
 
 ## [0.5.0] - 2026-11-21
 

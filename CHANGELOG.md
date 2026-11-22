@@ -8,7 +8,7 @@ Kaikki pelaajalle näkyvät muutokset kirjataan tähän. Versiot noudattavat [se
 
 Versio on tiedostossa `project.godot` (`application/config/version`). Ylin kohta kertoo seuraavan version, ja siihen lisätään muutokset sitä mukaa kuin niitä tehdään `dev`-haaraan. Ennen kuin `dev` yhdistetään `master`iin, otsikon *julkaisematon* vaihdetaan julkaisupäiväksi. Master-build julkaisee version tagilla `v<versio>` ja tämän kohdan release-muistiinpanoina.
 
-## [0.6.0] - julkaisematon
+## [0.6.0] - 2026-11-22
 
 ### Lisätty
 - Lähiverkossa ja verkossa voi pelata kahdeksan pelaajaa, yksi kullakin koneella. Jaettu ruutu ja yksinpeli pysyvät neljässä.
@@ -101,7 +101,7 @@ Ensimmäinen julkaisu.
 - Painikevihjeet vaihtuvat käytössä olevan laitteen mukaan.
 - Windows- ja macOS-buildit.
 
-[0.6.0]: https://github.com/galifragilistic/sorakuninkaat/compare/v0.5.0...dev
+[0.6.0]: https://github.com/galifragilistic/sorakuninkaat/releases/tag/v0.6.0
 [0.5.0]: https://github.com/galifragilistic/sorakuninkaat/releases/tag/v0.5.0
 [0.4.0]: https://github.com/galifragilistic/sorakuninkaat/releases/tag/v0.4.0
 [0.3.1]: https://github.com/galifragilistic/sorakuninkaat/releases/tag/v0.3.1

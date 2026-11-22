@@ -36,8 +36,8 @@ enum Ground { ASPHALT, LOOSE, SNOW }
 ## Throttle cut while changing up: its length (s) and how much quieter the engine is (dB).
 @export var shift_time: float = 0.14
 @export var shift_volume_db: float = -6.0
-## Clunk of the gearbox on every change.
-@export var shift_sound_db: float = -18.0
+## Muffled knock of the gearbox on every change.
+@export var shift_sound_db: float = -26.0
 
 @export_group("Backfire")
 ## Lifting off above these revs may make the exhaust pop.

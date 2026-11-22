@@ -450,19 +450,24 @@ static func _crash(variant: int) -> PackedFloat32Array:
 	return _normalise(samples, OUTPUT_PEAK)
 
 
-## Gear change: a short mechanical clunk.
+## Gear change: a short, muffled knock. A few milliseconds of attack and a low,
+## wide resonance keep it from starting as a bright click.
 static func _shift() -> PackedFloat32Array:
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = NOISE_SEED + 70
-	var length: int = roundi(0.12 * float(MIX_RATE))
+	var length: int = roundi(0.18 * float(MIX_RATE))
 	var samples: PackedFloat32Array = PackedFloat32Array()
 	samples.resize(length)
-	var knock: Resonator = Resonator.new(1600.0, 4.0)
+	var knock: Resonator = Resonator.new(280.0, 1.1)
+	var soften: float = 1.0 - exp(-TAU * 480.0 / float(MIX_RATE))
+	var filtered: float = 0.0
 	for i: int in length:
 		var t: float = float(i) / float(MIX_RATE)
-		var clunk: float = sin(TAU * 130.0 * t) * exp(-t * 45.0)
-		var click: float = knock.process(rng.randf_range(-1.0, 1.0) * exp(-t * 300.0)) * 5.0
-		samples[i] = clunk + click
+		var attack: float = 1.0 - exp(-t * 140.0)
+		var body: float = sin(TAU * 78.0 * t) * attack * exp(-t * 16.0)
+		var noise: float = rng.randf_range(-1.0, 1.0) * attack * exp(-t * 40.0)
+		filtered = lerpf(filtered, knock.process(noise) * 3.0, soften)
+		samples[i] = body + filtered
 	return _normalise(samples, OUTPUT_PEAK)
 
 

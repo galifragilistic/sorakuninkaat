@@ -11,6 +11,7 @@ Versio on tiedostossa `project.godot` (`application/config/version`). Ylin kohta
 ## [0.6.0] - julkaisematon
 
 ### Muutettu
+- Vaihteen vaihtoääni on pehmeämpi ja hiljaisempi kolahdus.
 - Autojen äänet on viritetty uudelleen: moottori kuuluu kovemmin kaasulla, tyhjäkäynti on matalampi ja vaihteiston ulina alkaa aiemmin.
 - Ajotuntuma on viritetty uudelleen: renkaat pitävät paremmin ja kaksivetoiset autot saavat enemmän tehoa vetäville pyörille.
 

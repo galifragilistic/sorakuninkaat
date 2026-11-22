@@ -10,6 +10,9 @@ Versio on tiedostossa `project.godot` (`application/config/version`). Ylin kohta
 
 ## [0.6.0] - julkaisematon
 
+### Lisätty
+- Lähiverkossa ja verkossa voi pelata kahdeksan pelaajaa, yksi kullakin koneella. Jaettu ruutu ja yksinpeli pysyvät neljässä.
+
 ### Muutettu
 - Vaihteen vaihtoääni on pehmeämpi ja hiljaisempi kolahdus.
 - Autojen äänet on viritetty uudelleen: moottori kuuluu kovemmin kaasulla, tyhjäkäynti on matalampi ja vaihteiston ulina alkaa aiemmin.

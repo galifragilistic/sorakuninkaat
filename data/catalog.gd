@@ -46,8 +46,8 @@ const WEATHERS: Array[WeatherData] = [
 	preload("res://env/weather/snow.tres"),
 	preload("res://env/weather/fog.tres"),
 ]
-## Championship points for places 1-4.
-const POINTS: Array[int] = [10, 8, 6, 5]
+## Championship points for places 1-8. A four-car race still pays the first four.
+const POINTS: Array[int] = [10, 8, 6, 5, 4, 3, 2, 1]
 
 
 static func get_default_car() -> CarStats:

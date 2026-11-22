@@ -25,7 +25,7 @@ const DEFAULT_PORT: int = 24616
 ## the game on one machine can each listen on their own port.
 const DISCOVERY_PORT: int = 24617
 const DISCOVERY_PORT_COUNT: int = 4
-const MAX_CLIENTS: int = GameState.MAX_PLAYERS - 1
+const MAX_CLIENTS: int = GameState.MAX_NET_PLAYERS - 1
 const HOST_PEER_ID: int = 1
 const BROADCAST_ADDRESS: String = "255.255.255.255"
 ## Seconds between LAN announcements, and how long a silent game stays listed.
@@ -201,7 +201,7 @@ func leave() -> void:
 
 ## Slot 0 is this machine's player; the others are empty.
 func _reset_slots() -> void:
-	for i: int in GameState.MAX_PLAYERS:
+	for i: int in GameState.MAX_NET_PLAYERS:
 		var setup: PlayerSetup = GameState.players[i]
 		setup.joined = i == 0
 		setup.is_ai = false
@@ -303,7 +303,7 @@ func serialize_lobby() -> Dictionary:
 func _apply_lobby(state: Dictionary) -> void:
 	var slots: Array = state["slots"]
 	local_slot = -1
-	for i: int in mini(slots.size(), GameState.MAX_PLAYERS):
+	for i: int in mini(slots.size(), GameState.players.size()):
 		var data: Dictionary = slots[i]
 		var setup: PlayerSetup = GameState.players[i]
 		setup.joined = data["joined"]
@@ -428,7 +428,7 @@ func _get_sender_slot() -> int:
 
 
 func get_slot_of_peer(peer_id: int) -> int:
-	for i: int in GameState.MAX_PLAYERS:
+	for i: int in GameState.MAX_NET_PLAYERS:
 		var setup: PlayerSetup = GameState.players[i]
 		if setup.joined and not setup.is_ai and setup.peer_id == peer_id:
 			return i
@@ -544,7 +544,7 @@ func _register(player_name: String) -> void:
 	if in_race:
 		_reject(peer_id, tr("Kisa on käynnissä, yritä hetken päästä uudelleen"))
 		return
-	for i: int in range(1, GameState.MAX_PLAYERS):
+	for i: int in range(1, GameState.MAX_NET_PLAYERS):
 		var setup: PlayerSetup = GameState.players[i]
 		if not setup.joined:
 			setup.joined = true

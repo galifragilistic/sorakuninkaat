@@ -82,7 +82,7 @@ var _right_shift_held: bool = false
 func _ready() -> void:
 	# Run before any car reads its input on the same tick.
 	process_physics_priority = -100
-	for i: int in GameState.MAX_PLAYERS:
+	for i: int in GameState.MAX_LOCAL_PLAYERS:
 		_devices.append(Device.NONE)
 		_joy_ids.append(-1)
 		_inputs.append(PlayerInput.new())
@@ -196,7 +196,7 @@ func _update_prompt_style(event: InputEvent) -> void:
 func _join_joypad(joy_id: int) -> bool:
 	if _joy_ids.has(joy_id):
 		return false
-	for i: int in range(FIRST_JOYPAD_SLOT, GameState.MAX_PLAYERS):
+	for i: int in range(FIRST_JOYPAD_SLOT, GameState.MAX_LOCAL_PLAYERS):
 		if _devices[i] == Device.NONE or _devices[i] == Device.KEYBOARD_ARROWS:
 			assign_device(i, Device.JOYPAD, joy_id)
 			return true
@@ -226,7 +226,7 @@ func _on_joy_connection_changed(joy_id: int, connected: bool) -> void:
 
 
 func _physics_process(_delta: float) -> void:
-	for i: int in GameState.MAX_PLAYERS:
+	for i: int in GameState.MAX_LOCAL_PLAYERS:
 		if solo_mode and i == 0:
 			_read_solo(_inputs[i])
 			continue
@@ -316,7 +316,7 @@ func _notification(what: int) -> void:
 ## layout or a button or stick of a slot's gamepad. -1 if no slot uses it.
 func get_event_slot(event: InputEvent) -> int:
 	if event is InputEventJoypadButton or event is InputEventJoypadMotion:
-		for i: int in GameState.MAX_PLAYERS:
+		for i: int in GameState.MAX_LOCAL_PLAYERS:
 			if _devices[i] == Device.JOYPAD and _joy_ids[i] == event.device:
 				return i
 		return -1
@@ -324,7 +324,7 @@ func get_event_slot(event: InputEvent) -> int:
 	if key == null:
 		return -1
 	var physical: Key = _get_physical_key(key)
-	for i: int in GameState.MAX_PLAYERS:
+	for i: int in GameState.MAX_LOCAL_PLAYERS:
 		if not KEYBOARD_LAYOUTS.has(_devices[i]):
 			continue
 		var layout: Dictionary = KEYBOARD_LAYOUTS[_devices[i]]

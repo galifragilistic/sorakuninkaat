@@ -1,6 +1,6 @@
 # SoRalli
 
-Isometrinen rallipeli 1–4 pelaajalle samalla sohvalla tai verkossa. Lyhyitä ratoja, soraa, hyppyjä ja sladeja 90-luvun ylhäältä kuvattujen rallipelien hengessä: low-poly-grafiikka ja moderni valaistus.
+Isometrinen rallipeli neljälle pelaajalle samalla sohvalla ja kahdeksalle verkossa. Lyhyitä ratoja, soraa, hyppyjä ja sladeja 90-luvun ylhäältä kuvattujen rallipelien hengessä: low-poly-grafiikka ja moderni valaistus.
 
 ![Neljä autoa Soramontun mutkassa](docs/screenshots/hero.jpg)
 
@@ -17,7 +17,7 @@ Uusin versio löytyy [Releases-sivulta](https://github.com/galifragilistic/sorak
 - **Kuusi autoa** omilla ominaisuuksillaan, väreillä, kuvioilla ja kilpanumerolla kyljessä, katolla tai konepellillä
 - **Sää ja vuorokaudenaika:** aamu, päivä, ilta ja yö sekä aurinko, sade, lumisade ja sumu
 - **Jaettu ruutu 1–4 pelaajalle** näppäimistöillä ja ohjaimilla, tyhjille paikoille tekoälykuskit
-- **Verkkopeli** lähiverkossa tai suoralla IP-osoitteella
+- **Verkkopeli** lähiverkossa tai suoralla IP-osoitteella, enintään 8 pelaajaa
 - **Rataeditori:** piirrä oma rata, säädä korkeudet, lisää sillat, tunnelit, hyppyrit ja maisema, ja koeaja heti
 - **Kaksi grafiikkatyyliä:** oletuksena Retro (PS1/N64-henkinen: matala resoluutio, terävät pikselit, dithering ja pikselifontti) tai Moderni
 - **Suomi tai englanti:** kielen voi vaihtaa asetuksista

@@ -6,19 +6,26 @@ enum SplitLayout { VERTICAL, HORIZONTAL }
 ## NET: a network game; the lobby slots are shared through the Network autoload.
 enum Mode { SINGLE, MULTI, NET }
 
-const MAX_PLAYERS: int = 4
+## Split screen and single player on one machine.
+const MAX_LOCAL_PLAYERS: int = 4
+## LAN and internet. One human per machine; the host simulates every car.
+const MAX_NET_PLAYERS: int = 8
 ## Longest player name; fits the standings list and the results table.
 const MAX_NAME_LENGTH: int = 12
 
 const MENU_SCENE: String = "res://ui/menus/menu_root.tscn"
 const RACE_SCENE: String = "res://race/race.tscn"
 
-## Player colors P1-P4 (SPEC.md section 6).
+## Player colors P1-P8 (SPEC.md section 6). Local play uses the first four.
 const PLAYER_COLORS: Array[Color] = [
 	Color("#ff7a1a"),
 	Color("#3fd8ff"),
 	Color("#b6f03c"),
 	Color("#ff4fa3"),
+	Color("#ffc832"),
+	Color("#7b5cff"),
+	Color("#ff3b3b"),
+	Color("#3dffc8"),
 ]
 
 var mode: Mode = Mode.SINGLE
@@ -34,7 +41,7 @@ var menu_start_screen: StringName = &""
 var menu_start_context: Dictionary = {}
 ## A test drive from the track editor: leaving the race goes back to the editor.
 var test_drive: bool = false
-## Computer opponents in a single player race (0..MAX_PLAYERS - 1).
+## Computer opponents in a single player race (0..MAX_LOCAL_PLAYERS - 1).
 var ai_opponents: int = 3
 ## Indices into Catalog.WEATHERS and Catalog.TIME_PRESETS.
 var weather: int = 0
@@ -54,12 +61,18 @@ var player_count: int:
 				count += 1
 		return maxi(count, 1)
 	set(value):
-		for i: int in MAX_PLAYERS:
-			players[i].joined = i < value
+		var limit: int = get_slot_count()
+		for i: int in players.size():
+			players[i].joined = i < value and i < limit
+
+
+## Slots in the current mode: eight online, four on one machine.
+func get_slot_count() -> int:
+	return MAX_NET_PLAYERS if mode == Mode.NET else MAX_LOCAL_PLAYERS
 
 
 func _init() -> void:
-	for i: int in MAX_PLAYERS:
+	for i: int in MAX_NET_PLAYERS:
 		var setup: PlayerSetup = PlayerSetup.new()
 		setup.stats = Catalog.get_default_car()
 		setup.color = PLAYER_COLORS[i]
@@ -86,13 +99,13 @@ func get_player_name(slot: int) -> String:
 
 
 func get_player_color(player_index: int) -> Color:
-	return PLAYER_COLORS[clampi(player_index, 0, MAX_PLAYERS - 1)]
+	return PLAYER_COLORS[clampi(player_index, 0, PLAYER_COLORS.size() - 1)]
 
 
 ## Slot indices of the players taking part, in order.
 func get_joined_players() -> Array[int]:
 	var joined: Array[int] = []
-	for i: int in MAX_PLAYERS:
+	for i: int in get_slot_count():
 		if players[i].joined:
 			joined.append(i)
 	if joined.is_empty():
@@ -116,7 +129,7 @@ func build_grid() -> Dictionary:
 			grid[slot] = players[slot]
 		return grid
 	grid[0] = players[0]
-	for slot: int in range(1, mini(ai_opponents, MAX_PLAYERS - 1) + 1):
+	for slot: int in range(1, mini(ai_opponents, MAX_LOCAL_PLAYERS - 1) + 1):
 		var setup: PlayerSetup = PlayerSetup.new()
 		setup.stats = Catalog.CARS.pick_random()
 		setup.color = PLAYER_COLORS[slot]

@@ -40,7 +40,7 @@ func _build() -> void:
 	column.position = menu_position
 	add_child(column)
 	_first_item = _add_item(column, tr("YKSINPELI"), tr("Aja kisa yksin kelloa vastaan"), _on_single_player)
-	_add_item(column, tr("MONINPELI"), tr("Jaettu ruutu tai verkko · 1–4 pelaajaa"), go_to.bind(LOBBY))
+	_add_item(column, tr("MONINPELI"), tr("Jaettu ruutu 1–4 · verkko 1–8"), go_to.bind(LOBBY))
 	_add_item(column, tr("AUTOTALLI"), tr("Autot, värit ja kuviot"), go_to.bind(CAR_SELECT, {"player": 0}))
 	_add_item(column, tr("RADAT"), tr("Selaa ja valitse rata"), go_to.bind(TRACK_SELECT))
 	_add_item(column, tr("RATAEDITORI"), tr("Piirrä oma rata"), go_to.bind(TRACK_EDITOR))
@@ -83,7 +83,7 @@ func _build_logo() -> void:
 	dash.custom_minimum_size = Vector2(40.0, 3.0)
 	dash.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	tagline.add_child(dash)
-	tagline.add_child(UiStyle.make_caption(tr("ISOMETRINEN RALLI · 1–4 PELAAJAA"), UiStyle.INFO))
+	tagline.add_child(UiStyle.make_caption(tr("ISOMETRINEN RALLI · VERKOSSA 1–8"), UiStyle.INFO))
 
 
 func _add_item(column: VBoxContainer, title: String, subtitle: String, action: Callable) -> ChamferButton:
@@ -140,7 +140,7 @@ func _build_controllers_box() -> void:
 	grid.add_theme_constant_override("h_separation", 8)
 	grid.add_theme_constant_override("v_separation", 8)
 	column.add_child(grid)
-	for i: int in GameState.MAX_PLAYERS:
+	for i: int in GameState.MAX_LOCAL_PLAYERS:
 		var cell: ChamferPanel = ChamferPanel.create_chip(UiStyle.BUTTON, 6.0, Vector4(8.0, 6.0, 8.0, 6.0))
 		cell.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		grid.add_child(cell)

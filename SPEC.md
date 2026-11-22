@@ -77,7 +77,7 @@ Moderni-tyyli on aiempi ilme: täysi tarkkuus, MSAA ja suodatetut tekstuurit.
   - Ohjaimet: P1 näppäimistö (WASD), P2 näppäimistö (nuolet) tai ohjain. Ohjaimet liitetään aulassa A-painikkeella. Jokaisen pelaajan syöte erotellaan laitteen mukaan. Painikevihjeet vaihtuvat käytössä olevan laitteen mukaan.
   - Pelaajat voivat antaa itselleen nimen aulassa.
   - Tyhjät paikat voi täyttää tekoälykuskeilla, jotka seuraavat radan keskilinjaa (`Curve3D`), hidastavat mutkiin ja palautuvat jumista.
-- **Verkko:** Godotin high-level multiplayer (ENet), lähiverkko (automaattinen haku) ja suora IP. Palvelinarkkitehtuuri: isäntä omistaa aulan ja simuloi kisan, ja jokaisella koneella on yksi pelaaja. Asiakas lähettää syötteensä, ennustaa oman autonsa liikkeen ja näyttää muut autot interpoloituna isännän tilannekuvista. Jos pelaaja poistuu kesken, paikka ei siirry tekoälylle.
+- **Verkko:** Godotin high-level multiplayer (ENet), lähiverkko (automaattinen haku) ja suora IP. Enintään 8 pelaajaa. Palvelinarkkitehtuuri: isäntä omistaa aulan ja simuloi kisan, ja jokaisella koneella on yksi pelaaja. Asiakas lähettää syötteensä, ennustaa oman autonsa liikkeen ja näyttää muut autot interpoloituna isännän tilannekuvista. Jos pelaaja poistuu kesken, paikka ei siirry tekoälylle.
 
 ## 5. Näkymät ja siirtymät
 
@@ -96,7 +96,7 @@ Kisa → Tauko (Jatka, Aloita alusta, Asetukset, Lopeta kisa)
 | # | Kuva | Sisältö |
 |---|------|---------|
 | 1 | `01_Main.png` | Logo, valikko (valittu kohta täysvärinen ja leveämpi, alla alaotsikko), ohjainten tila P1–P4. Viikon haaste: ks. § 10. Taustalla elävä pelimaailma, jossa autot ajavat. |
-| 2 | `02_Moninpeli.png` | Välilehdet (Jaettu ruutu, Lähiverkko, Verkko), 4 pelaajakorttia (väri, auto, laite, tila VALMIS / VALITSEE AUTOA / tyhjä paikka), kisan asetukset (rata, kierrokset, sää, aika, vauriot, ruudunjako), ALOITA KISA. |
+| 2 | `02_Moninpeli.png` | Välilehdet (Jaettu ruutu, Lähiverkko, Verkko), pelaajakortit (väri, auto, laite, tila VALMIS / VALITSEE AUTOA / tyhjä paikka). Jaetussa ruudussa 4 isoa korttia, lähiverkossa ja verkossa 8 tiivistä. Kisan asetukset (rata, kierrokset, sää, aika, vauriot, ruudunjako), ALOITA KISA. |
 | 3 | `03_Autovalinta.png` | Autolista ja luokat, auto pyörivällä alustalla kohdevalossa, ominaisuuspalkit (10 palaa), 8 väriä, kuvio. |
 | 4 | `04_Ratavalinta.png` | Alustasuodattimet, ratakortit (pohjakuva, alusta, pituus), esikatselu sekä sään ja vuorokaudenajan valinta, ratatietue. |
 | 5 | `05_Peli.png` | HUD: sija ja kierros, sijoituslista, kierrosaika ja paras aika, väliaika-ilmoitus, minikartta, vauriot, nopeusmittari ja vaihde. Muiden autojen yllä P-tunnisteet. |
@@ -129,7 +129,7 @@ UI ohjataan kokonaan ohjaimella ja näppäimistöllä (focus-navigointi). Hiiri 
   | Korostus | `#FF7A1A` (oranssi) |
   | Info | `#3FD8FF` (syaani) |
 
-- **Pelaajavärit:** P1 `#FF7A1A`, P2 `#3FD8FF`, P3 `#B6F03C`, P4 `#FF4FA3`. Näitä käytetään auton väreinä, P-tunnisteissa, minikartan pisteissä ja jaetun ruudun kehyksissä.
+- **Pelaajavärit:** P1 `#FF7A1A`, P2 `#3FD8FF`, P3 `#B6F03C`, P4 `#FF4FA3`, P5 `#FFC832`, P6 `#7B5CFF`, P7 `#FF3B3B`, P8 `#3DFFC8`. Näitä käytetään auton väreinä, P-tunnisteissa, minikartan pisteissä ja jaetun ruudun kehyksissä. Paikallinen peli käyttää neljää ensimmäistä.
 - **Fontit** (mukana kansiossa `assets/fonts/`, OFL-lisenssi):
   - **Russo One**: otsikot, numerot ja painikkeet. Otsikot kursivoidaan −6° (skew).
   - **Chakra Petch** 400–700: muu teksti.
@@ -165,7 +165,7 @@ UI ohjataan kokonaan ohjaimella ja näppäimistöllä (focus-navigointi). Hiiri 
 
   Lisäksi pelaajan rataeditorilla tekemät radat. Peilatut radat: ks. § 10.
 - **Autojen ulkonäkö:** jokaisella autolla on oma korinmuoto (spoileri, valot ym.), ja maalikuvioita on useita.
-- **Pisteet:** 10, 8, 6 ja 5 sijoituksille 1–4.
+- **Pisteet:** 10, 8, 6, 5, 4, 3, 2 ja 1 sijoituksille 1–8. Neljän auton kisassa käytössä ovat neljä ensimmäistä.
 
 ## 8. Toteutusvaiheet
 

@@ -1,6 +1,7 @@
 extends MenuScreen
 ## Multiplayer lobby (mockups/02_Moninpeli.png). Three tabs:
 ## - Jaettu ruutu: four local slots for players or computer drivers.
+## - Lähiverkko and Verkko: eight slots once a game exists, one human per machine.
 ## - Lähiverkko: create a game or join one found on the LAN.
 ## - Verkko: create a game or join one by IP address.
 ## Once connected, the network tabs show the same player cards and race
@@ -12,6 +13,8 @@ enum Tab { SPLIT, LAN, INTERNET }
 @export_group("Layout")
 @export var cards_position: Vector2 = Vector2(56.0, 110.0)
 @export var card_size: Vector2 = Vector2(382.0, 236.0)
+## Four rows of these match the height of two local cards beside the settings.
+@export var net_card_size: Vector2 = Vector2(382.0, 110.0)
 @export var card_gap: int = 16
 @export var card_chamfer: float = 14.0
 @export var card_bar_height: float = 5.0
@@ -41,6 +44,10 @@ var _status_chips: Array[ChamferPanel] = []
 var _ready_rows: Array[Control] = []
 var _ready_hints: Array[PromptHint] = []
 var _previews: Array[CarPreview] = []
+var _joined_margins: Array[MarginContainer] = []
+var _car_captions: Array[Label] = []
+var _empty_boxes: Array[VBoxContainer] = []
+var _empty_glyphs: Array[UiGlyph] = []
 
 var _settings_panel: ChamferPanel
 var _track_button: ChamferButton
@@ -220,7 +227,7 @@ func _on_back() -> void:
 			_open_leave_dialog()
 		return
 	# Leaving the lobby empties the other slots, so single player stays single.
-	for i: int in range(1, GameState.MAX_PLAYERS):
+	for i: int in range(1, GameState.MAX_NET_PLAYERS):
 		_leave(i)
 	go_to(MAIN)
 
@@ -323,7 +330,7 @@ func _build_cards() -> void:
 	_cards_grid.add_theme_constant_override("v_separation", card_gap)
 	_cards_grid.position = cards_position
 	add_child(_cards_grid)
-	for i: int in GameState.MAX_PLAYERS:
+	for i: int in GameState.MAX_NET_PLAYERS:
 		var card: ChamferButton = ChamferButton.new()
 		card.outline_focus = true
 		card.chamfer = card_chamfer
@@ -362,7 +369,8 @@ func _build_joined_view(parent: Control, player: int) -> Control:
 		]), bar_color))
 	view.add_child(bar)
 
-	var content: MarginContainer = MarginContainer.new()
+	var 	content: MarginContainer = MarginContainer.new()
+	_joined_margins.append(content)
 	content.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	content.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	for side: String in ["margin_left", "margin_right"]:
@@ -405,6 +413,7 @@ func _build_joined_view(parent: Control, player: int) -> Control:
 	var caption: Label = UiStyle.make_caption(tr("AUTO"))
 	caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	details.add_child(caption)
+	_car_captions.append(caption)
 	var car_label: Label = UiStyle.make_label("", UiStyle.FONT_DISPLAY, card_car_font_size)
 	car_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	# A name too long for the card wraps instead of pushing the card wider.
@@ -437,8 +446,10 @@ func _build_empty_view(parent: Control, player: int) -> Control:
 	view.alignment = BoxContainer.ALIGNMENT_CENTER
 	view.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	parent.add_child(view)
+	_empty_boxes.append(view)
 
 	var plus: UiGlyph = UiGlyph.create(UiGlyph.Kind.PLUS, "", 52.0)
+	_empty_glyphs.append(plus)
 	plus.color = GameState.get_player_color(player)
 	plus.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	view.add_child(plus)
@@ -617,12 +628,12 @@ func _rebuild_server_list() -> void:
 	var first: ChamferButton = null
 	for key: String in Network.servers:
 		var server: Dictionary = Network.servers[key]
-		var text: String = tr("%s · %d/%d pelaajaa") % [server["track"], server["players"], GameState.MAX_PLAYERS]
+		var text: String = tr("%s · %d/%d pelaajaa") % [server["track"], server["players"], GameState.MAX_NET_PLAYERS]
 		var button: ChamferButton = ChamferButton.create(text, 17, Vector4(18.0, 0.0, 18.0, 0.0))
 		button.custom_minimum_size.y = 50.0
 		var detail: String = tr("kisa käynnissä") if server["racing"] else server["address"]
 		button.add_right_label(detail, UiStyle.FONT_MEDIUM, 15)
-		button.disabled = server["racing"] or server["players"] >= GameState.MAX_PLAYERS
+		button.disabled = server["racing"] or server["players"] >= GameState.MAX_NET_PLAYERS
 		button.pressed.connect(_join.bind(server["address"], server["port"]))
 		_server_list.add_child(button)
 		if first == null and not button.disabled:
@@ -740,9 +751,10 @@ func _refresh_net_panel() -> void:
 
 
 func _refresh_cards() -> void:
+	_apply_card_layout()
 	var online: bool = _is_online()
 	var own_slot: int = Network.local_slot if online else OWNER_SLOT
-	for i: int in GameState.MAX_PLAYERS:
+	for i: int in _cards.size():
 		var setup: PlayerSetup = GameState.players[i]
 		_joined_views[i].visible = setup.joined
 		_empty_views[i].visible = not setup.joined
@@ -796,11 +808,33 @@ func _can_manage_slots() -> bool:
 	return not _is_online() or Network.is_host()
 
 
+## Network lobby shows eight short cards. Split screen keeps the four large ones.
+func _apply_card_layout() -> void:
+	var compact: bool = _tab != Tab.SPLIT
+	var shown: int = GameState.MAX_NET_PLAYERS if compact else GameState.MAX_LOCAL_PLAYERS
+	var extent: Vector2 = net_card_size if compact else card_size
+	for i: int in _cards.size():
+		_cards[i].visible = i < shown
+		_cards[i].custom_minimum_size = extent
+		# The 3D preview is the only place the chosen paint shows on the card.
+		_previews[i].custom_minimum_size = Vector2(64.0, 48.0) if compact else card_preview_size
+		_car_captions[i].visible = not compact
+		var pad_x: int = 12 if compact else 20
+		var pad_y: int = 6 if compact else 14
+		var pad_bottom: int = 6 if compact else 12
+		_joined_margins[i].add_theme_constant_override("margin_left", pad_x)
+		_joined_margins[i].add_theme_constant_override("margin_right", pad_x)
+		_joined_margins[i].add_theme_constant_override("margin_top", pad_y)
+		_joined_margins[i].add_theme_constant_override("margin_bottom", pad_bottom)
+		_empty_glyphs[i].glyph_size = 28.0 if compact else 52.0
+		_empty_boxes[i].add_theme_constant_override("separation", 4 if compact else 10)
+
+
 ## The menu focus only goes to cards this machine may act on: never to
 ## another player's card, and on a network client only to its own.
 func _set_card_reachable(player: int, reachable: bool) -> void:
 	var card: ChamferButton = _cards[player]
-	card.focus_mode = Control.FOCUS_ALL if reachable else Control.FOCUS_NONE
+	card.focus_mode = Control.FOCUS_ALL if reachable and card.visible else Control.FOCUS_NONE
 	card.mouse_filter = Control.MOUSE_FILTER_STOP if reachable else Control.MOUSE_FILTER_IGNORE
 
 
@@ -858,7 +892,7 @@ func _refresh_settings() -> void:
 
 ## Name of the first human player who is not ready, or "".
 func _get_first_unready() -> String:
-	for i: int in GameState.MAX_PLAYERS:
+	for i: int in GameState.get_slot_count():
 		var setup: PlayerSetup = GameState.players[i]
 		if setup.joined and not setup.is_ai and not setup.is_ready:
 			return GameState.get_player_name(i)
@@ -868,7 +902,8 @@ func _get_first_unready() -> String:
 ## x = ready humans, y = all humans.
 func _count_ready() -> Vector2i:
 	var counts: Vector2i = Vector2i.ZERO
-	for setup: PlayerSetup in GameState.players:
+	for i: int in GameState.get_slot_count():
+		var setup: PlayerSetup = GameState.players[i]
 		if setup.joined and not setup.is_ai:
 			counts.y += 1
 			if setup.is_ready:

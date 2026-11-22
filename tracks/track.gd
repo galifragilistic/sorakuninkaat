@@ -677,7 +677,7 @@ func _build_checkpoint_gate(offset: float, index: int) -> void:
 	for glow: Array in glows[0]:
 		_add_gate_mesh(gate, glow[0], glow[1], 1 << (GATE_SHARED_LAYER - 1))
 	var per_view: Array[Array] = []
-	for view: int in GameState.MAX_PLAYERS:
+	for view: int in GameState.MAX_LOCAL_PLAYERS:
 		var layer: int = 1 << (GATE_FIRST_VIEW_LAYER + view - 1)
 		var states: Array[Array] = []
 		for gate_state: int in GateState.size():
@@ -705,7 +705,7 @@ func _add_gate_mesh(gate: Node3D, mesh: ArrayMesh, material: Material, layers: i
 static func get_view_cull_mask(view: int) -> int:
 	var mask: int = (1 << 20) - 1
 	mask &= ~(1 << (GATE_SHARED_LAYER - 1))
-	for other: int in GameState.MAX_PLAYERS:
+	for other: int in GameState.MAX_LOCAL_PLAYERS:
 		if other != view:
 			mask &= ~(1 << (GATE_FIRST_VIEW_LAYER + other - 1))
 	return mask
@@ -714,7 +714,7 @@ static func get_view_cull_mask(view: int) -> int:
 ## Shows checkpoint index's gate in race view n as still to pass, passed or missed.
 ## The start line (index 0) has no gate.
 func set_checkpoint_state(view: int, index: int, gate_state: GateState) -> void:
-	if not _gate_glows.has(index) or view < 0 or view >= GameState.MAX_PLAYERS:
+	if not _gate_glows.has(index) or view < 0 or view >= GameState.MAX_LOCAL_PLAYERS:
 		return
 	var states: Array = _gate_glows[index][view]
 	for i: int in states.size():

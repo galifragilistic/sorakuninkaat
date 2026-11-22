@@ -114,7 +114,8 @@ func _build_table(standings: Array[RacerState]) -> void:
 		var is_winner: bool = i == 0
 		var row_color: Color = Color(UiStyle.INFO, 0.14) if is_winner else UiStyle.ROW
 		var row_panel: ChamferPanel = ChamferPanel.create_chip(row_color, 6.0, Vector4(12.0, 0.0, 12.0, 0.0))
-		row_panel.custom_minimum_size.y = row_height
+		# Eight rows of the local-race height run into the buttons.
+		row_panel.custom_minimum_size.y = row_height if standings.size() <= GameState.MAX_LOCAL_PLAYERS else 42.0
 		column.add_child(row_panel)
 		var row: HBoxContainer = MenuKit.make_hbox(0)
 		row_panel.add_child(row)
